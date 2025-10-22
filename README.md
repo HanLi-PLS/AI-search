@@ -100,14 +100,47 @@ An internal AI-powered document search system with semantic search capabilities 
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key (required) | - |
+| `OPENAI_API_KEY` | OpenAI API key (direct) | - |
+| `USE_AWS_SECRETS` | Load API key from AWS Secrets Manager | false |
+| `AWS_SECRET_NAME_OPENAI` | Secret name in AWS Secrets Manager | openai-api-key |
+| `VISION_MODEL` | Vision model for PDF processing | o4-mini |
 | `QDRANT_HOST` | Qdrant server host | localhost |
 | `QDRANT_PORT` | Qdrant server port | 6333 |
 | `EMBEDDING_MODEL` | Sentence-transformer model | all-MiniLM-L6-v2 |
 | `CHUNK_SIZE` | Text chunk size | 1000 |
 | `CHUNK_OVERLAP` | Text chunk overlap | 200 |
 | `MAX_FILE_SIZE_MB` | Maximum file size | 100 |
+| `AWS_REGION` | AWS region | us-west-2 |
 | `AWS_S3_BUCKET` | S3 bucket (optional) | - |
+
+### OpenAI API Key Configuration
+
+**Option 1: Direct API Key (Development)**
+```env
+USE_AWS_SECRETS=false
+OPENAI_API_KEY=your-api-key-here
+```
+
+**Option 2: AWS Secrets Manager (Production)**
+```env
+USE_AWS_SECRETS=true
+AWS_SECRET_NAME_OPENAI=openai-api-key
+AWS_REGION=us-west-2
+```
+
+For detailed setup instructions, see [AWS_SECRETS_SETUP.md](AWS_SECRETS_SETUP.md)
+
+### Vision Models for PDF Processing
+
+Choose the model for extracting information from PDF images and tables:
+
+- **o4-mini** (default): Faster, more cost-effective, good for most use cases
+- **gpt-4o**: Higher quality, better for complex diagrams and detailed images
+
+Set in `.env`:
+```env
+VISION_MODEL=o4-mini  # or gpt-4o
+```
 
 ### Embedding Models
 

@@ -31,11 +31,12 @@ class DocumentProcessor:
     """Process documents and extract text content"""
 
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.client = OpenAI(api_key=settings.get_openai_api_key())
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP
         )
+        self.vision_model = settings.VISION_MODEL
 
         # Map file extensions to document loaders
         self.LOADER_MAPPING = {
@@ -117,18 +118,18 @@ class DocumentProcessor:
 
         return documents
 
-    def _process_pdf(self, file_path: Path, file_name: str, model: str = "gpt-4o") -> List[Document]:
+    def _process_pdf(self, file_path: Path, file_name: str) -> List[Document]:
         """
-        Process PDF with image extraction using GPT-4o
+        Process PDF with image extraction using vision model (o4-mini or gpt-4o)
         Adapted from extract_information_from_pdf in old code
         """
-        logger.info(f"Processing PDF: {file_name}")
+        logger.info(f"Processing PDF: {file_name} with model: {self.vision_model}")
         doc = fitz.open(str(file_path))
         documents = []
 
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            result = self._extract_information_from_page(page, page_num, model, file_name)
+            result = self._extract_information_from_page(page, page_num, self.vision_model, file_name)
 
             documents.append(
                 Document(

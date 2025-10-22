@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # AWS Secrets Manager Configuration (alternative to direct API key)
+    USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "false").lower() == "true"
+    AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
+
+    # Vision Model Configuration
+    VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
+
     # AWS Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -66,6 +73,44 @@ class Settings(BaseSettings):
         # Create directories if they don't exist
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Load OpenAI API key from AWS Secrets Manager if configured
+        if self.USE_AWS_SECRETS and not self.OPENAI_API_KEY:
+            self._load_openai_key_from_aws()
+
+    def _load_openai_key_from_aws(self):
+        """Load OpenAI API key from AWS Secrets Manager"""
+        try:
+            from backend.app.utils.aws_secrets import get_key
+            self.OPENAI_API_KEY = get_key(
+                secret_name=self.AWS_SECRET_NAME_OPENAI,
+                region_name=self.AWS_REGION
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to load OpenAI API key from AWS Secrets Manager: {str(e)}")
+            raise
+
+    def get_openai_api_key(self) -> str:
+        """
+        Get OpenAI API key from either environment variable or AWS Secrets Manager
+
+        Returns:
+            OpenAI API key
+
+        Raises:
+            ValueError: If API key is not configured
+        """
+        if not self.OPENAI_API_KEY:
+            if self.USE_AWS_SECRETS:
+                self._load_openai_key_from_aws()
+            else:
+                raise ValueError(
+                    "OpenAI API key not configured. "
+                    "Set OPENAI_API_KEY in .env or enable USE_AWS_SECRETS=true"
+                )
+        return self.OPENAI_API_KEY
 
 # Global settings instance
 settings = Settings()
