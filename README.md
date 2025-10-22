@@ -5,12 +5,17 @@ An internal AI-powered document search system with semantic search capabilities 
 ## Features
 
 - **Multi-Format Support**: PDF, DOCX, TXT, MD, CSV, XLSX, PPTX, HTML, JSON, EML
-- **Advanced PDF Processing**: Extracts text, images, and tables using GPT-4o Vision
+- **Advanced PDF Processing**: Extracts text, images, and tables using o4-mini or GPT-4o Vision
 - **Semantic Search**: Vector-based similarity search using sentence-transformers
+- **AWS Integration**:
+  - AWS Secrets Manager for secure API key storage
+  - S3 storage for uploaded files
+  - IAM role-based authentication
 - **Modern Web Interface**: Clean, responsive HTML/CSS/JS interface
 - **RESTful API**: FastAPI backend with comprehensive endpoints
 - **Vector Database**: Qdrant for efficient similarity search
 - **Easy Deployment**: Docker Compose for one-command setup
+- **Automated Testing**: Built-in tests for AWS services
 
 ## Architecture
 
@@ -21,16 +26,24 @@ An internal AI-powered document search system with semantic search capabilities 
 └──────┬──────┘
        │
        ▼
-┌─────────────┐
-│   FastAPI   │
-│   Backend   │
-└──────┬──────┘
-       │
-       ├──────► Qdrant (Vector DB)
-       │
-       ├──────► OpenAI GPT-4o (PDF Processing)
-       │
-       └──────► S3 (Optional)
+┌─────────────────────────────────────────┐
+│         FastAPI Backend                 │
+│  ┌───────────────────────────────────┐  │
+│  │  Document Processor               │  │
+│  │  - Multi-format support           │  │
+│  │  - PDF processing (o4-mini)       │  │
+│  │  - Text chunking                  │  │
+│  └───────────────────────────────────┘  │
+└──────┬──────────────┬───────────┬───────┘
+       │              │           │
+       ▼              ▼           ▼
+┌────────────┐  ┌──────────┐  ┌──────────┐
+│  Qdrant    │  │ AWS S3   │  │ AWS      │
+│  Vector DB │  │ Storage  │  │ Secrets  │
+└────────────┘  └──────────┘  └──────────┘
+       │              │           │
+       └──────────────┴───────────┘
+              AWS Cloud
 ```
 
 ## Quick Start
@@ -330,6 +343,34 @@ The current HTML/JS frontend can be easily migrated to React:
 5. **Keep same API endpoints**
 
 Estimated effort: 3-4 days
+
+## Testing AWS Integrations
+
+### Test AWS Secrets Manager
+
+```bash
+# Run Secrets Manager test
+python tests/test_aws_secrets.py
+```
+
+This will verify:
+- ✅ AWS credentials are configured
+- ✅ Secrets Manager is accessible
+- ✅ OpenAI API key can be retrieved
+
+### Test S3 Storage
+
+```bash
+# Run S3 storage test
+python tests/test_s3_storage.py
+```
+
+This will verify:
+- ✅ S3 bucket exists and is accessible
+- ✅ Upload, download, and delete operations work
+- ✅ File listing and presigned URLs work
+
+See [SETUP_TESTING_GUIDE.md](SETUP_TESTING_GUIDE.md) for detailed testing instructions.
 
 ## Troubleshooting
 

@@ -37,7 +37,11 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")
     AWS_REGION: str = os.getenv("AWS_REGION", "us-west-2")
+
+    # S3 Storage Configuration
+    USE_S3_STORAGE: bool = os.getenv("USE_S3_STORAGE", "false").lower() == "true"
     AWS_S3_BUCKET: Optional[str] = os.getenv("AWS_S3_BUCKET")
+    S3_UPLOAD_PREFIX: str = os.getenv("S3_UPLOAD_PREFIX", "uploads/")
 
     # Qdrant Configuration
     QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")

@@ -13,12 +13,18 @@ import os
 from backend.app.models.schemas import UploadResponse, ErrorResponse
 from backend.app.core.document_processor import DocumentProcessor
 from backend.app.core.vector_store import get_vector_store
+from backend.app.utils.s3_storage import get_s3_storage
 from backend.app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def get_s3_key(file_id: str, filename: str) -> str:
+    """Generate S3 key for uploaded file"""
+    return f"{settings.S3_UPLOAD_PREFIX}{file_id}_{filename}"
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -58,12 +64,27 @@ async def upload_file(file: UploadFile = File(...)):
         file_id = str(uuid.uuid4())
         upload_date = datetime.now()
 
-        # Save file temporarily
+        # Save file temporarily for processing
         temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{file.filename}"
         async with aiofiles.open(temp_file_path, 'wb') as f:
             await f.write(content)
 
         logger.info(f"File uploaded: {file.filename} ({file_size} bytes)")
+
+        # Upload to S3 if enabled
+        s3_key = None
+        if settings.USE_S3_STORAGE and settings.AWS_S3_BUCKET:
+            s3_storage = get_s3_storage(
+                bucket_name=settings.AWS_S3_BUCKET,
+                region_name=settings.AWS_REGION
+            )
+            if s3_storage:
+                s3_key = get_s3_key(file_id, file.filename)
+                upload_success = s3_storage.upload_file(temp_file_path, s3_key)
+                if upload_success:
+                    logger.info(f"File uploaded to S3: s3://{settings.AWS_S3_BUCKET}/{s3_key}")
+                else:
+                    logger.warning(f"Failed to upload file to S3: {file.filename}")
 
         # Process document
         processor = DocumentProcessor()
@@ -79,13 +100,20 @@ async def upload_file(file: UploadFile = File(...)):
             upload_date=upload_date
         )
 
+        # Clean up: remove local file if using S3, otherwise keep it
+        if settings.USE_S3_STORAGE and s3_key and temp_file_path.exists():
+            os.remove(temp_file_path)
+            logger.info(f"Removed local file (using S3): {temp_file_path}")
+
         processing_time = time.time() - start_time
 
         logger.info(f"File processed successfully: {file.filename}, {chunks_created} chunks created")
 
+        storage_info = f"stored in S3: s3://{settings.AWS_S3_BUCKET}/{s3_key}" if s3_key else "stored locally"
+
         return UploadResponse(
             success=True,
-            message="File uploaded and processed successfully",
+            message=f"File uploaded and processed successfully ({storage_info})",
             file_name=file.filename,
             file_id=file_id,
             chunks_created=chunks_created,
