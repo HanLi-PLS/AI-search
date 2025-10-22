@@ -1,0 +1,162 @@
+"""
+Search API endpoints
+"""
+from fastapi import APIRouter, HTTPException
+import time
+from typing import List
+
+from backend.app.models.schemas import (
+    SearchRequest, SearchResponse, SearchResult,
+    DocumentListResponse, DocumentInfo, DeleteResponse,
+    HealthResponse
+)
+from backend.app.core.vector_store import get_vector_store
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_documents(request: SearchRequest):
+    """
+    Search documents using semantic similarity
+
+    Args:
+        request: Search request with query and filters
+
+    Returns:
+        Search results
+    """
+    start_time = time.time()
+
+    try:
+        vector_store = get_vector_store()
+
+        # Perform search
+        results = vector_store.search(
+            query=request.query,
+            top_k=request.top_k,
+            file_types=request.file_types,
+            date_from=request.date_from,
+            date_to=request.date_to
+        )
+
+        # Format results
+        search_results = [
+            SearchResult(
+                content=result["content"],
+                score=result["score"],
+                metadata=result["metadata"]
+            )
+            for result in results
+        ]
+
+        processing_time = time.time() - start_time
+
+        return SearchResponse(
+            success=True,
+            query=request.query,
+            results=search_results,
+            total_results=len(search_results),
+            processing_time=round(processing_time, 3)
+        )
+
+    except Exception as e:
+        logger.error(f"Error during search: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_documents():
+    """
+    List all uploaded documents
+
+    Returns:
+        List of documents with metadata
+    """
+    try:
+        vector_store = get_vector_store()
+        files = vector_store.list_files()
+
+        documents = [
+            DocumentInfo(
+                file_id=file["file_id"],
+                file_name=file["file_name"],
+                file_type=file["file_type"],
+                file_size=file["file_size"],
+                upload_date=file["upload_date"],
+                chunk_count=file["chunk_count"]
+            )
+            for file in files
+        ]
+
+        return DocumentListResponse(
+            success=True,
+            documents=documents,
+            total_count=len(documents)
+        )
+
+    except Exception as e:
+        logger.error(f"Error listing documents: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
+
+
+@router.delete("/documents/{file_id}", response_model=DeleteResponse)
+async def delete_document(file_id: str):
+    """
+    Delete a document and all its chunks
+
+    Args:
+        file_id: File identifier
+
+    Returns:
+        Delete confirmation
+    """
+    try:
+        vector_store = get_vector_store()
+        deleted_count = vector_store.delete_by_file_id(file_id)
+
+        if deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return DeleteResponse(
+            success=True,
+            message=f"Document deleted successfully",
+            deleted_count=deleted_count
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting document: {str(e)}")
+
+
+@router.get("/health", response_model=HealthResponse)
+async def health_check():
+    """
+    Health check endpoint
+
+    Returns:
+        System health status
+    """
+    try:
+        vector_store = get_vector_store()
+        qdrant_connected = vector_store.health_check()
+        documents_count = vector_store.get_documents_count()
+
+        return HealthResponse(
+            status="healthy" if qdrant_connected else "degraded",
+            qdrant_connected=qdrant_connected,
+            documents_count=documents_count
+        )
+
+    except Exception as e:
+        logger.error(f"Health check error: {str(e)}")
+        return HealthResponse(
+            status="unhealthy",
+            qdrant_connected=False,
+            documents_count=0
+        )

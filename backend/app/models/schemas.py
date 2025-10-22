@@ -1,0 +1,100 @@
+"""
+Pydantic models for request/response validation
+"""
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+from datetime import datetime
+
+
+class DocumentMetadata(BaseModel):
+    """Document metadata"""
+    source: str
+    file_type: str
+    upload_date: datetime
+    file_size: int
+    page_count: Optional[int] = None
+    chunk_id: Optional[str] = None
+
+
+class DocumentChunk(BaseModel):
+    """Document chunk model"""
+    id: str
+    content: str
+    metadata: DocumentMetadata
+    score: Optional[float] = None
+
+
+class UploadResponse(BaseModel):
+    """File upload response"""
+    success: bool
+    message: str
+    file_name: str
+    file_id: Optional[str] = None
+    chunks_created: Optional[int] = None
+    processing_time: Optional[float] = None
+
+
+class SearchRequest(BaseModel):
+    """Search request model"""
+    query: str = Field(..., min_length=1, description="Search query")
+    top_k: int = Field(default=5, ge=1, le=50, description="Number of results to return")
+    file_types: Optional[List[str]] = Field(default=None, description="Filter by file types")
+    date_from: Optional[datetime] = Field(default=None, description="Filter documents from this date")
+    date_to: Optional[datetime] = Field(default=None, description="Filter documents to this date")
+    hybrid_alpha: float = Field(default=0.5, ge=0, le=1, description="Hybrid search weight (0=keyword, 1=semantic)")
+
+
+class SearchResult(BaseModel):
+    """Single search result"""
+    content: str
+    score: float
+    metadata: Dict[str, Any]
+    highlights: Optional[List[str]] = None
+
+
+class SearchResponse(BaseModel):
+    """Search response model"""
+    success: bool
+    query: str
+    results: List[SearchResult]
+    total_results: int
+    processing_time: float
+
+
+class DocumentInfo(BaseModel):
+    """Document information"""
+    file_id: str
+    file_name: str
+    file_type: str
+    file_size: int
+    upload_date: datetime
+    chunk_count: int
+
+
+class DocumentListResponse(BaseModel):
+    """List of documents response"""
+    success: bool
+    documents: List[DocumentInfo]
+    total_count: int
+
+
+class DeleteResponse(BaseModel):
+    """Delete response"""
+    success: bool
+    message: str
+    deleted_count: Optional[int] = None
+
+
+class HealthResponse(BaseModel):
+    """Health check response"""
+    status: str
+    qdrant_connected: bool
+    documents_count: int
+    version: str = "1.0.0"
+
+
+class ErrorResponse(BaseModel):
+    """Error response"""
+    success: bool = False
+    error: str
+    details: Optional[str] = None
