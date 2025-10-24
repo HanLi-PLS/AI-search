@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "documents")
 
     # Embedding Configuration
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "Qwen/Qwen2.5-Embedding-4B")
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-4B")
 
     # Document Processing
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
