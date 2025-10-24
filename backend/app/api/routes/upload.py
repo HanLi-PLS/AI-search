@@ -23,8 +23,8 @@ router = APIRouter()
 
 
 def get_s3_key(file_id: str, filename: str) -> str:
-    """Generate S3 key for uploaded file"""
-    return f"{settings.S3_UPLOAD_PREFIX}{file_id}_{filename}"
+    """Generate S3 key for uploaded file - uses folder per upload to preserve original filename"""
+    return f"{settings.S3_UPLOAD_PREFIX}{file_id}/{filename}"
 
 
 @router.post("/upload", response_model=UploadResponse)
