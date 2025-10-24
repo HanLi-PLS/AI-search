@@ -193,11 +193,30 @@ function displaySearchResults(result) {
         return;
     }
 
-    searchResults.innerHTML = `
-        <div style="margin-bottom: 15px; color: var(--text-secondary);">
-            Found ${result.total_results} result(s) in ${result.processing_time}s
+    // Show answer first if available
+    let htmlContent = '';
+    if (result.answer) {
+        htmlContent = `
+            <div class="answer-box">
+                <div class="answer-header">
+                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Answer
+                </div>
+                <div class="answer-content">${result.answer.replace(/\n/g, '<br>')}</div>
+            </div>
+        `;
+    }
+
+    htmlContent += `
+        <div class="search-info" style="margin-bottom: 15px; color: var(--text-secondary);">
+            Found ${result.total_results} source(s) in ${result.processing_time}s
         </div>
+        <div class="sources-header">Sources:</div>
     `;
+
+    searchResults.innerHTML = htmlContent;
 
     result.results.forEach((item, index) => {
         const resultItem = document.createElement('div');

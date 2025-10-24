@@ -56,6 +56,7 @@ class SearchResponse(BaseModel):
     """Search response model"""
     success: bool
     query: str
+    answer: Optional[str] = Field(default=None, description="GPT-generated answer based on search results")
     results: List[SearchResult]
     total_results: int
     processing_time: float

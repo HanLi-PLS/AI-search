@@ -11,6 +11,7 @@ from backend.app.models.schemas import (
     HealthResponse
 )
 from backend.app.core.vector_store import get_vector_store
+from backend.app.core.answer_generator import get_answer_generator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,13 +22,13 @@ router = APIRouter()
 @router.post("/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest):
     """
-    Search documents using semantic similarity
+    Search documents using semantic similarity and generate answer
 
     Args:
         request: Search request with query and filters
 
     Returns:
-        Search results
+        Search results with GPT-generated answer
     """
     start_time = time.time()
 
@@ -53,11 +54,26 @@ async def search_documents(request: SearchRequest):
             for result in results
         ]
 
+        # Generate final answer using GPT (similar to answer_with_search_ensemble)
+        answer = None
+        if results:
+            try:
+                answer_generator = get_answer_generator()
+                answer = answer_generator.generate_answer(
+                    query=request.query,
+                    search_results=results
+                )
+                logger.info(f"Generated answer for query: {request.query[:50]}...")
+            except Exception as e:
+                logger.error(f"Error generating answer: {str(e)}")
+                # Continue without answer if generation fails
+
         processing_time = time.time() - start_time
 
         return SearchResponse(
             success=True,
             query=request.query,
+            answer=answer,
             results=search_results,
             total_results=len(search_results),
             processing_time=round(processing_time, 3)
