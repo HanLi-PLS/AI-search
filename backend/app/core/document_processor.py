@@ -7,6 +7,7 @@ import json
 import base64
 from typing import List, Dict, Any
 from pathlib import Path
+from multiprocessing import Pool, cpu_count
 import fitz  # PyMuPDF
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -25,6 +26,123 @@ import time
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# Helper function for multiprocessing (must be at module level)
+def _process_page_helper(page_number: int, pdf_path: str, model: str, file_name: str, scale_factor: float = 1.5) -> Dict[str, Any]:
+    """
+    Helper function to process a single PDF page (for multiprocessing)
+
+    Args:
+        page_number: Page number to process
+        pdf_path: Path to the PDF file
+        model: Vision model to use (o4-mini)
+        file_name: Original filename
+        scale_factor: Scale factor for image rendering
+
+    Returns:
+        Dictionary with page_content and metadata
+    """
+    doc = fitz.open(pdf_path)
+    page = doc.load_page(page_number)
+
+    # Get text from page
+    text = page.get_text()
+    combined_text = [f"Page {page_number + 1} Text:\n{text}\n"]
+
+    # Check if page has tables
+    tables = page.find_tables()
+    has_tables = len(tables.tables) > 0 if tables else False
+
+    # Check if page has sub-images
+    image_list = page.get_images(full=True)
+    has_sub_images = len(image_list) > 0
+
+    # Process as image if page has sub-images OR tables (using o4-mini)
+    if has_sub_images or has_tables:
+        logger.info(f"Page {page_number + 1} has images/tables, processing with {model}")
+
+        # Increase resolution using scale factor
+        mat = fitz.Matrix(scale_factor, scale_factor)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        overview_image_base64 = base64.b64encode(pix.tobytes(output="png")).decode("utf-8")
+
+        # Process the page image with AI (o4-mini for vision)
+        processed_text = _process_image_with_ai_helper(overview_image_base64, model)
+        combined_text.append(f"Page {page_number + 1} Image Information:\n{processed_text}\n")
+
+        result = {
+            "page_content": "\n".join(combined_text),
+            "metadata": {
+                "source": file_name,
+                "file_type": ".pdf",
+                "page": page_number + 1,
+                "has_images": True,
+                "has_tables": has_tables
+            }
+        }
+    else:  # Only plain text on the page
+        result = {
+            "page_content": "\n".join(combined_text),
+            "metadata": {
+                "source": file_name,
+                "file_type": ".pdf",
+                "page": page_number + 1,
+                "has_images": False,
+                "has_tables": False
+            }
+        }
+
+    doc.close()
+    return result
+
+
+def _process_image_with_ai_helper(image_base64: str, model: str) -> str:
+    """Helper function to process image with AI (for multiprocessing)"""
+    from backend.app.utils.aws_secrets import get_key
+
+    max_retries = 5
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            # Get API key using the same method as user's old code
+            if settings.USE_AWS_SECRETS:
+                api_key = get_key(settings.AWS_SECRET_NAME_OPENAI, settings.AWS_REGION)
+            else:
+                api_key = settings.OPENAI_API_KEY
+
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Please extract information from the following image in detail and precisely.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_base64}",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            attempt += 1
+            if attempt == max_retries:
+                logger.error(f"Failed to process image after {max_retries} attempts: {str(e)}")
+                return f"Error processing image: {str(e)}"
+            time.sleep(2)  # Wait before retrying
+
+    return ""
 
 
 class DocumentProcessor:
@@ -126,115 +244,60 @@ class DocumentProcessor:
 
     def _process_pdf(self, file_path: Path, file_name: str) -> List[Document]:
         """
-        Process PDF with image extraction using vision model (o4-mini or gpt-4o)
+        Process PDF with multiprocessing and image extraction using vision model (o4-mini)
+        Uses multiprocessing to process pages in parallel for faster processing
         Adapted from extract_information_from_pdf in old code
         """
         logger.info(f"Processing PDF: {file_name} with model: {self.vision_model}")
+
+        # Get number of pages
         doc = fitz.open(str(file_path))
-        documents = []
+        num_pages = len(doc)
+        doc.close()
 
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            result = self._extract_information_from_page(page, page_num, self.vision_model, file_name)
+        logger.info(f"PDF has {num_pages} pages, using multiprocessing with {cpu_count()} processes")
 
-            documents.append(
+        # Prepare arguments for multiprocessing
+        args = [(i, str(file_path), self.vision_model, file_name) for i in range(num_pages)]
+
+        try:
+            # Use multiprocessing to process pages in parallel
+            with Pool(processes=cpu_count()) as pool:
+                results = pool.starmap(_process_page_helper, args)
+
+            # Convert results to Document objects
+            documents = [
                 Document(
-                    page_content=result["text"],
+                    page_content=result["page_content"],
                     metadata=result["metadata"]
                 )
-            )
+                for result in results
+            ]
 
-        doc.close()
-        logger.info(f"Processed {len(documents)} pages from PDF: {file_name}")
-        return documents
+            logger.info(f"Processed {len(documents)} pages from PDF: {file_name} using multiprocessing")
+            return documents
 
-    def _extract_information_from_page(
-        self, page: fitz.Page, page_number: int, model: str, source: str, scale_factor: float = 1.5
-    ) -> Dict[str, Any]:
-        """
-        Extract information from a PDF page
-        Checks for tables and sub-images before processing with AI
-        """
-        text = page.get_text()
-        combined_text = [f"Page {page_number + 1} Text:\n{text}\n"]
+        except Exception as e:
+            logger.error(f"Error during multiprocessing PDF {file_name}: {str(e)}")
+            logger.info(f"Falling back to sequential processing for {file_name}")
 
-        # Check if page has tables
-        tables = page.find_tables()
-        has_tables = len(tables.tables) > 0 if tables else False
+            # Fallback to sequential processing if multiprocessing fails
+            doc = fitz.open(str(file_path))
+            documents = []
 
-        # Check if page has sub-images
-        image_list = page.get_images(full=True)
-        has_sub_images = len(image_list) > 0
+            for page_num in range(num_pages):
+                try:
+                    result = _process_page_helper(page_num, str(file_path), self.vision_model, file_name)
+                    documents.append(
+                        Document(
+                            page_content=result["page_content"],
+                            metadata=result["metadata"]
+                        )
+                    )
+                except Exception as page_error:
+                    logger.error(f"Error processing page {page_num + 1} of {file_name}: {str(page_error)}")
+                    continue
 
-        # Process as image if page has sub-images OR tables
-        if has_sub_images or has_tables:
-            # Increase resolution using scale factor
-            mat = fitz.Matrix(scale_factor, scale_factor)
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            overview_image_base64 = base64.b64encode(pix.tobytes(output="png")).decode("utf-8")
-
-            # Process the page image with AI
-            processed_text = self._process_image_with_ai(overview_image_base64, model)
-            combined_text.append(f"Page {page_number + 1} Image Information:\n{processed_text}\n")
-
-            result = {
-                "text": "\n".join(combined_text),
-                "metadata": {
-                    "source": source,
-                    "file_type": ".pdf",
-                    "page": page_number + 1,
-                    "has_images": True,
-                    "has_tables": has_tables
-                }
-            }
-        else:  # Only plain text on the page
-            result = {
-                "text": "\n".join(combined_text),
-                "metadata": {
-                    "source": source,
-                    "file_type": ".pdf",
-                    "page": page_number + 1,
-                    "has_images": False,
-                    "has_tables": False
-                }
-            }
-
-        return result
-
-    def _process_image_with_ai(self, image_base64: str, model: str) -> str:
-        """Process image using GPT-4 Vision"""
-        max_retries = 5
-        attempt = 0
-
-        while attempt < max_retries:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": "Please extract information from the following image in detail and precisely.",
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/png;base64,{image_base64}",
-                                    },
-                                },
-                            ],
-                        }
-                    ],
-                )
-                return response.choices[0].message.content
-
-            except Exception as e:
-                attempt += 1
-                if attempt == max_retries:
-                    logger.error(f"Failed to process image after {max_retries} attempts: {str(e)}")
-                    return f"Error processing image: {str(e)}"
-                time.sleep(2)  # Wait before retrying
-
-        return ""
+            doc.close()
+            logger.info(f"Processed {len(documents)} pages from PDF: {file_name} (sequential fallback)")
+            return documents
