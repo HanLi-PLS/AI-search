@@ -179,31 +179,32 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         """
         Hybrid search combining BM25 (keyword) and dense vector (semantic) search
-        Uses Reciprocal Rank Fusion (RRF) to combine results
+        Gets top_k results from each method, then unions them together
+        Uses Reciprocal Rank Fusion (RRF) to score combined results
 
         Args:
             query: Search query
-            top_k: Number of results to return
+            top_k: Number of results to get from EACH method
             file_types: Filter by file types
             date_from: Filter documents from this date
             date_to: Filter documents to this date
 
         Returns:
-            List of search results with retrieval_method marked
+            List of search results (max 2*top_k if no overlap)
         """
         # Build filter
         search_filter = self._build_filter(file_types, date_from, date_to)
 
-        # 1. Dense vector search (semantic)
+        # 1. Dense vector search (semantic) - get exactly top_k
         query_embedding = self.embedding_generator.embed_text(query)
         dense_results = self.client.search(
             collection_name=self.collection_name,
             query_vector=query_embedding,
-            limit=top_k * 2,  # Get more results for fusion
+            limit=top_k,
             query_filter=search_filter
         )
 
-        # 2. BM25 search (keyword-based)
+        # 2. BM25 search (keyword-based) - get exactly top_k
         # Fetch all documents for BM25 scoring
         try:
             # Get all documents (with filter if specified)
@@ -239,13 +240,14 @@ class VectorStore:
                 doc_scores.sort(key=lambda x: x[1], reverse=True)
 
                 # Calculate meaningful threshold - use mean of top scores
-                top_scores = [score for _, score in doc_scores[:top_k * 2]]
+                top_scores = [score for _, score in doc_scores[:top_k]]
                 if top_scores:
                     # Only include results with score above 25% of the max score
                     max_score = max(top_scores)
                     threshold = max_score * 0.25
-                    bm25_results = [(doc, score) for doc, score in doc_scores[:top_k * 2] if score >= threshold]
-                    logger.info(f"BM25 found {len(bm25_results)} results (threshold: {threshold:.2f}, max: {max_score:.2f})")
+                    # Take exactly top_k results that meet threshold
+                    bm25_results = [(doc, score) for doc, score in doc_scores if score >= threshold][:top_k]
+                    logger.info(f"BM25 selected {len(bm25_results)} of top {top_k} results (threshold: {threshold:.2f}, max: {max_score:.2f})")
                 else:
                     bm25_results = []
                     logger.info("BM25 found no results")
@@ -257,7 +259,7 @@ class VectorStore:
             logger.error(f"BM25 search failed: {str(e)}", exc_info=True)
             bm25_results = []
 
-        # 3. Reciprocal Rank Fusion (RRF)
+        # 3. Union results and use RRF for scoring
         # Combine results from both searches
         k = 60  # RRF constant
         rrf_scores = {}
@@ -294,9 +296,9 @@ class VectorStore:
             min_rrf_score = 0
             score_range = 1
 
-        # Format results
+        # Format ALL results (not limited to top_k - this is the union!)
         results = []
-        for point_id in sorted_point_ids[:top_k]:
+        for point_id in sorted_point_ids:  # Return ALL unique results
             point = point_data[point_id]
             methods = retrieval_methods[point_id]
 
@@ -329,7 +331,7 @@ class VectorStore:
         bm25_count = len([r for r in results if 'BM25' in r['retrieval_method']])
         both_count = len([r for r in results if r['retrieval_method'] == 'Both'])
 
-        logger.info(f"Hybrid search returned {len(results)} results (Dense only: {dense_count - both_count}, BM25 only: {bm25_count - both_count}, Both: {both_count})")
+        logger.info(f"Hybrid search union: requested {top_k} from each method, returned {len(results)} total results (Dense only: {dense_count - both_count}, BM25 only: {bm25_count - both_count}, Both: {both_count})")
 
         return results
 
