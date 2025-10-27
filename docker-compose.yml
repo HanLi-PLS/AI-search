@@ -36,7 +36,7 @@ services:
       - USE_AWS_SECRETS=true
       - USE_S3_STORAGE=true
       - AWS_S3_BUCKET=plfs-han-ai-search
-      - EMBEDDING_MODEL=Qwen/Qwen3-Embedding-0.6B
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - VISION_MODEL=o4-mini
     depends_on:
       - qdrant
