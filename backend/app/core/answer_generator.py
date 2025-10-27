@@ -96,8 +96,7 @@ If you reference specific information, mention which source it came from."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7,
-                max_tokens=1000
+                temperature=0.7
             )
 
             answer = response.choices[0].message.content
