@@ -24,8 +24,9 @@ class AnswerGenerator:
             logger.warning("AnswerGenerator: No API key provided!")
 
         self.client = OpenAI(api_key=api_key)
-        self.model = settings.VISION_MODEL  # Use o4-mini by default
-        logger.info(f"AnswerGenerator using model: {self.model}")
+        self.model = settings.ANSWER_MODEL  # Use gpt-4o for answer generation
+        self.temperature = settings.ANSWER_TEMPERATURE
+        logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
 
     def generate_answer(
         self,
@@ -96,7 +97,7 @@ If you reference specific information, mention which source it came from."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7
+                temperature=self.temperature
             )
 
             answer = response.choices[0].message.content

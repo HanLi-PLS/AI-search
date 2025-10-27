@@ -34,8 +34,12 @@ class Settings(BaseSettings):
     USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "false").lower() == "true"
     AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
 
-    # Vision Model Configuration
+    # Vision Model Configuration (for image processing in PDFs)
     VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
+
+    # Answer Generation Model Configuration (for answering questions)
+    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-4o")  # Model for generating answers
+    ANSWER_TEMPERATURE: float = float(os.getenv("ANSWER_TEMPERATURE", "0"))
 
     # AWS Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
