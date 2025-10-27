@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
 
     # Answer Generation Model Configuration (for answering questions)
-    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-4o")  # Model for generating answers
+    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-4.1")  # Model for generating answers (gpt-4.1, gpt-4o, o3, etc)
     ANSWER_TEMPERATURE: float = float(os.getenv("ANSWER_TEMPERATURE", "0"))
 
     # AWS Configuration

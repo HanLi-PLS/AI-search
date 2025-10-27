@@ -38,7 +38,7 @@ services:
       - AWS_S3_BUCKET=plfs-han-ai-search
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - VISION_MODEL=o4-mini
-      - ANSWER_MODEL=gpt-4o
+      - ANSWER_MODEL=gpt-4.1
       - ANSWER_TEMPERATURE=0
     depends_on:
       - qdrant

@@ -24,7 +24,7 @@ class AnswerGenerator:
             logger.warning("AnswerGenerator: No API key provided!")
 
         self.client = OpenAI(api_key=api_key)
-        self.model = settings.ANSWER_MODEL  # Use gpt-4o for answer generation
+        self.model = settings.ANSWER_MODEL  # Use gpt-4.1 for answer generation
         self.temperature = settings.ANSWER_TEMPERATURE
         logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
 
@@ -70,18 +70,8 @@ class AnswerGenerator:
 
         context = "\n".join(context_parts)
 
-        # Create prompt similar to original answer_with_search_ensemble
-        system_prompt = """You are a helpful AI assistant that answers questions based on provided context.
-Your task is to:
-1. Carefully read the provided context from multiple sources
-2. Synthesize information to provide a comprehensive, accurate answer
-3. Cite sources when mentioning specific information
-4. If the context doesn't contain enough information, acknowledge this
-5. Be concise but thorough
-
-Answer in a clear, professional manner."""
-
-        user_prompt = f"""Question: {query}
+        # Create prompt following user's pattern for gpt-4.1
+        prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
 
 Context from search results:
 {context}
@@ -90,17 +80,14 @@ Based on the above context, please provide a comprehensive answer to the questio
 If you reference specific information, mention which source it came from."""
 
         try:
-            # Call OpenAI API
-            response = self.client.chat.completions.create(
+            # Call OpenAI API using responses.create (gpt-4.1 pattern)
+            response = self.client.responses.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=self.temperature
+                temperature=self.temperature,
+                input=prompt
             )
 
-            answer = response.choices[0].message.content
+            answer = response.output_text
             logger.info(f"Generated answer for query: {query[:50]}...")
             return answer
 
