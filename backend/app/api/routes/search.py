@@ -49,7 +49,8 @@ async def search_documents(request: SearchRequest):
             SearchResult(
                 content=result["content"],
                 score=result["score"],
-                metadata=result["metadata"]
+                metadata=result["metadata"],
+                retrieval_method=result.get("retrieval_method", "Dense")
             )
             for result in results
         ]

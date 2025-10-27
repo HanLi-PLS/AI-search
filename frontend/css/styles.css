@@ -284,6 +284,12 @@ section h2 {
     color: var(--text-secondary);
 }
 
+.search-result-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 .search-result-score {
     padding: 4px 12px;
     background-color: var(--primary-color);
@@ -291,6 +297,31 @@ section h2 {
     border-radius: 12px;
     font-size: 0.85rem;
     font-weight: 500;
+}
+
+/* Retrieval Method Badges */
+.retrieval-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.retrieval-badge-dense {
+    background-color: #10b981;
+    color: white;
+}
+
+.retrieval-badge-bm25 {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.retrieval-badge-both {
+    background: linear-gradient(135deg, #10b981 0%, #f59e0b 100%);
+    color: white;
 }
 
 .search-result-content {

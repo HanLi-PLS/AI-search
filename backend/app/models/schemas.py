@@ -49,6 +49,7 @@ class SearchResult(BaseModel):
     content: str
     score: float
     metadata: Dict[str, Any]
+    retrieval_method: Optional[str] = Field(default="Dense", description="Retrieval method: Dense, BM25, or Both")
     highlights: Optional[List[str]] = None
 
 

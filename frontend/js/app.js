@@ -248,6 +248,13 @@ function displaySearchResults(result) {
             content = content.substring(0, 500) + '...';
         }
 
+        // Get retrieval method and create badge
+        const retrievalMethod = item.retrieval_method || 'Dense';
+        const badgeClass = retrievalMethod === 'Both' ? 'retrieval-badge-both' :
+                          retrievalMethod === 'BM25' ? 'retrieval-badge-bm25' :
+                          'retrieval-badge-dense';
+        const badgeText = retrievalMethod === 'Both' ? 'Dense + BM25' : retrievalMethod;
+
         resultItem.innerHTML = `
             <div class="search-result-header">
                 <div class="search-result-meta">
@@ -256,7 +263,10 @@ function displaySearchResults(result) {
                         ${fileType} ${page ? `• ${page}` : ''} ${uploadDate ? `• ${uploadDate}` : ''}
                     </div>
                 </div>
-                <div class="search-result-score">${score}%</div>
+                <div class="search-result-badges">
+                    <div class="retrieval-badge ${badgeClass}">${badgeText}</div>
+                    <div class="search-result-score">${score}%</div>
+                </div>
             </div>
             <div class="search-result-content">${content}</div>
         `;

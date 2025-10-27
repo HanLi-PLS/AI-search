@@ -8,7 +8,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import (
     VectorParams, Distance, PointStruct,
     Filter, FieldCondition, MatchValue, Range,
-    SearchRequest, QueryResponse
+    SearchRequest, QueryResponse, TextIndexParams,
+    TextIndexType, TokenizerType
 )
 from langchain_core.documents import Document
 from backend.app.config import settings
@@ -50,6 +51,23 @@ class VectorStore:
                     )
                 )
                 logger.info(f"Collection {self.collection_name} created successfully")
+
+                # Create text index for BM25-like full-text search
+                try:
+                    self.client.create_payload_index(
+                        collection_name=self.collection_name,
+                        field_name="content",
+                        field_schema=TextIndexParams(
+                            type=TextIndexType.TEXT,
+                            tokenizer=TokenizerType.WORD,
+                            min_token_len=2,
+                            max_token_len=20,
+                            lowercase=True
+                        )
+                    )
+                    logger.info(f"Created text index on 'content' field for hybrid search")
+                except Exception as e:
+                    logger.warning(f"Could not create text index (may not be supported): {str(e)}")
             else:
                 logger.info(f"Collection {self.collection_name} already exists")
 
@@ -136,7 +154,7 @@ class VectorStore:
         date_to: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
-        Semantic search using vector similarity
+        Hybrid search using both BM25 (full-text) and dense vector search
 
         Args:
             query: Search query
@@ -146,37 +164,133 @@ class VectorStore:
             date_to: Filter documents to this date
 
         Returns:
-            List of search results
+            List of search results with retrieval method marked
         """
-        # Generate query embedding
-        query_embedding = self.embedding_generator.embed_text(query)
+        return self.hybrid_search(query, top_k, file_types, date_from, date_to)
 
+    def hybrid_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        file_types: Optional[List[str]] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Hybrid search combining BM25 (keyword) and dense vector (semantic) search
+        Uses Reciprocal Rank Fusion (RRF) to combine results
+
+        Args:
+            query: Search query
+            top_k: Number of results to return
+            file_types: Filter by file types
+            date_from: Filter documents from this date
+            date_to: Filter documents to this date
+
+        Returns:
+            List of search results with retrieval_method marked
+        """
         # Build filter
         search_filter = self._build_filter(file_types, date_from, date_to)
 
-        # Search
-        search_results = self.client.search(
+        # 1. Dense vector search (semantic)
+        query_embedding = self.embedding_generator.embed_text(query)
+        dense_results = self.client.search(
             collection_name=self.collection_name,
             query_vector=query_embedding,
-            limit=top_k,
+            limit=top_k * 2,  # Get more results for fusion
             query_filter=search_filter
         )
 
+        # 2. BM25/Full-text search (keyword-based)
+        # Qdrant's full-text search using the text index
+        try:
+            from qdrant_client.models import FieldCondition, MatchText
+
+            text_filter_conditions = []
+            if search_filter and search_filter.must:
+                text_filter_conditions = search_filter.must.copy()
+
+            # Add text match condition
+            text_filter_conditions.append(
+                FieldCondition(
+                    key="content",
+                    match=MatchText(text=query)
+                )
+            )
+
+            text_filter = Filter(must=text_filter_conditions)
+
+            # Scroll to get text matches (Qdrant doesn't have BM25 scoring directly)
+            # So we'll get matches and assign them a score based on position
+            text_results_scroll = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=text_filter,
+                limit=top_k * 2,
+                with_payload=True,
+                with_vectors=False
+            )
+            text_results = text_results_scroll[0]  # Get points from scroll result
+        except Exception as e:
+            logger.warning(f"Text search failed (may not be supported): {str(e)}")
+            text_results = []
+
+        # 3. Reciprocal Rank Fusion (RRF)
+        # Combine results from both searches
+        k = 60  # RRF constant
+        rrf_scores = {}
+        retrieval_methods = {}  # Track which method(s) found each result
+        point_data = {}  # Store point data
+
+        # Process dense results
+        for rank, hit in enumerate(dense_results, 1):
+            point_id = hit.id
+            rrf_scores[point_id] = rrf_scores.get(point_id, 0) + 1 / (k + rank)
+            retrieval_methods[point_id] = retrieval_methods.get(point_id, set())
+            retrieval_methods[point_id].add("Dense")
+            point_data[point_id] = hit
+
+        # Process text results
+        for rank, point in enumerate(text_results, 1):
+            point_id = point.id
+            rrf_scores[point_id] = rrf_scores.get(point_id, 0) + 1 / (k + rank)
+            retrieval_methods[point_id] = retrieval_methods.get(point_id, set())
+            retrieval_methods[point_id].add("BM25")
+            if point_id not in point_data:
+                point_data[point_id] = point
+
+        # Sort by RRF score
+        sorted_point_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
+
         # Format results
         results = []
-        for hit in search_results:
+        for point_id in sorted_point_ids[:top_k]:
+            point = point_data[point_id]
+            methods = retrieval_methods[point_id]
+
+            # Determine retrieval method label
+            if "Dense" in methods and "BM25" in methods:
+                retrieval_method = "Both"
+            elif "BM25" in methods:
+                retrieval_method = "BM25"
+            else:
+                retrieval_method = "Dense"
+
             results.append({
-                "content": hit.payload.get("content", ""),
-                "score": hit.score,
+                "content": point.payload.get("content", ""),
+                "score": rrf_scores[point_id],  # RRF score
+                "retrieval_method": retrieval_method,
                 "metadata": {
-                    "file_name": hit.payload.get("file_name", ""),
-                    "file_type": hit.payload.get("file_type", ""),
-                    "upload_date": hit.payload.get("upload_date", ""),
-                    "page": hit.payload.get("page"),
-                    "has_images": hit.payload.get("has_images", False),
-                    "has_tables": hit.payload.get("has_tables", False),
+                    "file_name": point.payload.get("file_name", ""),
+                    "file_type": point.payload.get("file_type", ""),
+                    "upload_date": point.payload.get("upload_date", ""),
+                    "page": point.payload.get("page"),
+                    "has_images": point.payload.get("has_images", False),
+                    "has_tables": point.payload.get("has_tables", False),
                 }
             })
+
+        logger.info(f"Hybrid search returned {len(results)} results (Dense: {len([r for r in results if 'Dense' in r['retrieval_method']])}, BM25: {len([r for r in results if 'BM25' in r['retrieval_method']])}, Both: {len([r for r in results if r['retrieval_method'] == 'Both'])})")
 
         return results
 
