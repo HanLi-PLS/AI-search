@@ -372,6 +372,9 @@ async function deleteDocument(fileId, fileName) {
     }
 }
 
+// Expose deleteDocument to global scope for inline onclick handlers
+window.deleteDocument = deleteDocument;
+
 // Health Check
 async function checkHealth() {
     try {
