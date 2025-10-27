@@ -37,7 +37,7 @@ class UploadResponse(BaseModel):
 class SearchRequest(BaseModel):
     """Search request model"""
     query: str = Field(..., min_length=1, description="Search query")
-    top_k: int = Field(default=5, ge=1, le=50, description="Number of results to return")
+    top_k: int = Field(default=5, ge=1, le=100, description="Number of results to return from each method (max 100)")
     file_types: Optional[List[str]] = Field(default=None, description="Filter by file types")
     date_from: Optional[datetime] = Field(default=None, description="Filter documents from this date")
     date_to: Optional[datetime] = Field(default=None, description="Filter documents to this date")
