@@ -237,10 +237,18 @@ class VectorStore:
                 doc_scores = list(zip(all_docs, bm25_scores))
                 # Sort by score descending
                 doc_scores.sort(key=lambda x: x[1], reverse=True)
-                # Take top k*2 for fusion
-                bm25_results = [(doc, score) for doc, score in doc_scores[:top_k * 2] if score > 0]
 
-                logger.info(f"BM25 found {len(bm25_results)} results with score > 0")
+                # Calculate meaningful threshold - use mean of top scores
+                top_scores = [score for _, score in doc_scores[:top_k * 2]]
+                if top_scores:
+                    # Only include results with score above 25% of the max score
+                    max_score = max(top_scores)
+                    threshold = max_score * 0.25
+                    bm25_results = [(doc, score) for doc, score in doc_scores[:top_k * 2] if score >= threshold]
+                    logger.info(f"BM25 found {len(bm25_results)} results (threshold: {threshold:.2f}, max: {max_score:.2f})")
+                else:
+                    bm25_results = []
+                    logger.info("BM25 found no results")
             else:
                 bm25_results = []
                 logger.info("No documents available for BM25 search")
@@ -276,6 +284,16 @@ class VectorStore:
         # Sort by RRF score
         sorted_point_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
 
+        # Normalize scores to 0-1 range for display
+        if sorted_point_ids:
+            max_rrf_score = max(rrf_scores.values())
+            min_rrf_score = min(rrf_scores.values())
+            score_range = max_rrf_score - min_rrf_score if max_rrf_score > min_rrf_score else 1
+        else:
+            max_rrf_score = 1
+            min_rrf_score = 0
+            score_range = 1
+
         # Format results
         results = []
         for point_id in sorted_point_ids[:top_k]:
@@ -290,9 +308,12 @@ class VectorStore:
             else:
                 retrieval_method = "Dense"
 
+            # Normalize score to 0-1 range (will be displayed as 0-100%)
+            normalized_score = (rrf_scores[point_id] - min_rrf_score) / score_range
+
             results.append({
                 "content": point.payload.get("content", ""),
-                "score": rrf_scores[point_id],  # RRF score
+                "score": normalized_score,  # Normalized score (0-1)
                 "retrieval_method": retrieval_method,
                 "metadata": {
                     "file_name": point.payload.get("file_name", ""),
