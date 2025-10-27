@@ -213,10 +213,22 @@ function displaySearchResults(result) {
         <div class="search-info" style="margin-bottom: 15px; color: var(--text-secondary);">
             Found ${result.total_results} source(s) in ${result.processing_time}s
         </div>
-        <div class="sources-header">Sources:</div>
+        <button class="sources-toggle-button" id="sourcesToggle">
+            <svg class="toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            Show Sources (${result.total_results})
+        </button>
+        <div class="sources-container" id="sourcesContainer" style="display: none;">
+            <div class="sources-header">Sources:</div>
+            <div id="sourcesContent"></div>
+        </div>
     `;
 
     searchResults.innerHTML = htmlContent;
+
+    // Get the sources content container
+    const sourcesContent = document.getElementById('sourcesContent');
 
     result.results.forEach((item, index) => {
         const resultItem = document.createElement('div');
@@ -249,7 +261,25 @@ function displaySearchResults(result) {
             <div class="search-result-content">${content}</div>
         `;
 
-        searchResults.appendChild(resultItem);
+        sourcesContent.appendChild(resultItem);
+    });
+
+    // Add toggle functionality
+    const sourcesToggle = document.getElementById('sourcesToggle');
+    const sourcesContainer = document.getElementById('sourcesContainer');
+
+    sourcesToggle.addEventListener('click', () => {
+        const isVisible = sourcesContainer.style.display !== 'none';
+        sourcesContainer.style.display = isVisible ? 'none' : 'block';
+        sourcesToggle.innerHTML = isVisible
+            ? `<svg class="toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+               </svg>
+               Show Sources (${result.total_results})`
+            : `<svg class="toggle-icon rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+               </svg>
+               Hide Sources`;
     });
 }
 
