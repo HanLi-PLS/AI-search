@@ -2,6 +2,7 @@
 Application configuration settings
 """
 import os
+import logging
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
@@ -9,6 +10,9 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class Settings(BaseSettings):
     """Application settings"""
