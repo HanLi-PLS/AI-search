@@ -78,6 +78,12 @@ class DocumentProcessor:
 
             # Split documents into chunks
             chunks = self.text_splitter.split_documents(documents)
+
+            # Add filename to each chunk after splitting (from old code pattern)
+            for chunk in chunks:
+                filename = chunk.metadata.get('source', 'unknown_file')
+                chunk.page_content = f"From file: {filename}\n\n{chunk.page_content}"
+
             logger.info(f"Created {len(chunks)} chunks from {file_name}")
 
             return chunks
