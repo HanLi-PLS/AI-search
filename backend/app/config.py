@@ -79,17 +79,20 @@ class Settings(BaseSettings):
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
 
         # Load OpenAI API key from AWS Secrets Manager if configured
-        if self.USE_AWS_SECRETS and not self.OPENAI_API_KEY:
+        # Always load from Secrets Manager when USE_AWS_SECRETS=true, regardless of .env value
+        if self.USE_AWS_SECRETS:
             self._load_openai_key_from_aws()
 
     def _load_openai_key_from_aws(self):
         """Load OpenAI API key from AWS Secrets Manager"""
         try:
             from backend.app.utils.aws_secrets import get_key
+            # Call exactly as user specified: get_key("openai-api-key", "us-west-2")
             self.OPENAI_API_KEY = get_key(
-                secret_name=self.AWS_SECRET_NAME_OPENAI,
-                region_name=self.AWS_REGION
+                self.AWS_SECRET_NAME_OPENAI,
+                self.AWS_REGION
             )
+            logger.info(f"Successfully loaded OpenAI API key from AWS Secrets Manager: {self.AWS_SECRET_NAME_OPENAI}")
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
