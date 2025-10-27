@@ -9,7 +9,7 @@ from qdrant_client.models import (
     VectorParams, Distance, PointStruct,
     Filter, FieldCondition, MatchValue, Range,
     SearchRequest, QueryResponse, TextIndexParams,
-    TextIndexType, TokenizerType
+    TextIndexType, TokenizerType, PointIdsList
 )
 from langchain_core.documents import Document
 from backend.app.config import settings
@@ -362,11 +362,16 @@ class VectorStore:
         point_ids = [point.id for point in points]
 
         if point_ids:
+            logger.info(f"Attempting to delete {len(point_ids)} points for file_id: {file_id}")
+            logger.debug(f"Point IDs to delete: {point_ids[:5]}...")  # Log first 5 IDs
+
             self.client.delete(
                 collection_name=self.collection_name,
-                points_selector=point_ids
+                points_selector=PointIdsList(points=point_ids)
             )
-            logger.info(f"Deleted {len(point_ids)} documents for file_id: {file_id}")
+            logger.info(f"Successfully deleted {len(point_ids)} documents for file_id: {file_id}")
+        else:
+            logger.warning(f"No points found for file_id: {file_id}")
 
         return len(point_ids)
 
