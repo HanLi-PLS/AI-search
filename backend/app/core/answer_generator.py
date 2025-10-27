@@ -15,8 +15,17 @@ class AnswerGenerator:
     """Generate final answers from search results using GPT"""
 
     def __init__(self):
-        self.client = OpenAI(api_key=settings.get_openai_api_key())
+        api_key = settings.get_openai_api_key()
+        # Debug logging - show first 10 and last 4 chars of API key
+        if api_key:
+            masked_key = f"{api_key[:10]}...{api_key[-4:]}" if len(api_key) > 14 else "***"
+            logger.info(f"AnswerGenerator initializing with API key: {masked_key}")
+        else:
+            logger.warning("AnswerGenerator: No API key provided!")
+
+        self.client = OpenAI(api_key=api_key)
         self.model = settings.VISION_MODEL  # Use o4-mini by default
+        logger.info(f"AnswerGenerator using model: {self.model}")
 
     def generate_answer(
         self,

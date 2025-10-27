@@ -109,8 +109,16 @@ class Settings(BaseSettings):
         Raises:
             ValueError: If API key is not configured
         """
+        # Debug logging
+        if self.OPENAI_API_KEY:
+            masked = f"{self.OPENAI_API_KEY[:10]}...{self.OPENAI_API_KEY[-4:]}" if len(self.OPENAI_API_KEY) > 14 else "***"
+            logger.info(f"get_openai_api_key() returning: {masked}")
+        else:
+            logger.warning("get_openai_api_key() called but OPENAI_API_KEY is empty!")
+
         if not self.OPENAI_API_KEY:
             if self.USE_AWS_SECRETS:
+                logger.info("OPENAI_API_KEY is empty, loading from Secrets Manager...")
                 self._load_openai_key_from_aws()
             else:
                 raise ValueError(
