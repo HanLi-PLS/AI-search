@@ -98,8 +98,6 @@ class Settings(BaseSettings):
             )
             logger.info(f"Successfully loaded OpenAI API key from AWS Secrets Manager: {self.AWS_SECRET_NAME_OPENAI}")
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to load OpenAI API key from AWS Secrets Manager: {str(e)}")
             raise
 
