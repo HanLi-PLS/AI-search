@@ -14,6 +14,7 @@ from qdrant_client.models import (
 from langchain_core.documents import Document
 from backend.app.config import settings
 from backend.app.core.embeddings import get_embedding_generator
+from rank_bm25 import BM25Okapi
 import logging
 
 logger = logging.getLogger(__name__)
@@ -202,38 +203,51 @@ class VectorStore:
             query_filter=search_filter
         )
 
-        # 2. BM25/Full-text search (keyword-based)
-        # Qdrant's full-text search using the text index
+        # 2. BM25 search (keyword-based)
+        # Fetch all documents for BM25 scoring
         try:
-            from qdrant_client.models import FieldCondition, MatchText
-
-            text_filter_conditions = []
-            if search_filter and search_filter.must:
-                text_filter_conditions = search_filter.must.copy()
-
-            # Add text match condition
-            text_filter_conditions.append(
-                FieldCondition(
-                    key="content",
-                    match=MatchText(text=query)
-                )
-            )
-
-            text_filter = Filter(must=text_filter_conditions)
-
-            # Scroll to get text matches (Qdrant doesn't have BM25 scoring directly)
-            # So we'll get matches and assign them a score based on position
-            text_results_scroll = self.client.scroll(
+            # Get all documents (with filter if specified)
+            all_docs_scroll = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=text_filter,
-                limit=top_k * 2,
+                scroll_filter=search_filter,
+                limit=10000,  # Adjust based on collection size
                 with_payload=True,
                 with_vectors=False
             )
-            text_results = text_results_scroll[0]  # Get points from scroll result
+            all_docs = all_docs_scroll[0]
+
+            # Tokenize documents and query for BM25
+            def tokenize(text):
+                """Simple tokenization: lowercase and split on whitespace"""
+                return text.lower().split()
+
+            # Create corpus for BM25
+            corpus = [tokenize(doc.payload.get("content", "")) for doc in all_docs]
+
+            if corpus and all_docs:
+                # Create BM25 model
+                bm25 = BM25Okapi(corpus)
+
+                # Score all documents
+                query_tokens = tokenize(query)
+                bm25_scores = bm25.get_scores(query_tokens)
+
+                # Get top results
+                # Create list of (doc, score) tuples
+                doc_scores = list(zip(all_docs, bm25_scores))
+                # Sort by score descending
+                doc_scores.sort(key=lambda x: x[1], reverse=True)
+                # Take top k*2 for fusion
+                bm25_results = [(doc, score) for doc, score in doc_scores[:top_k * 2] if score > 0]
+
+                logger.info(f"BM25 found {len(bm25_results)} results with score > 0")
+            else:
+                bm25_results = []
+                logger.info("No documents available for BM25 search")
+
         except Exception as e:
-            logger.warning(f"Text search failed (may not be supported): {str(e)}")
-            text_results = []
+            logger.error(f"BM25 search failed: {str(e)}", exc_info=True)
+            bm25_results = []
 
         # 3. Reciprocal Rank Fusion (RRF)
         # Combine results from both searches
@@ -250,8 +264,8 @@ class VectorStore:
             retrieval_methods[point_id].add("Dense")
             point_data[point_id] = hit
 
-        # Process text results
-        for rank, point in enumerate(text_results, 1):
+        # Process BM25 results
+        for rank, (point, bm25_score) in enumerate(bm25_results, 1):
             point_id = point.id
             rrf_scores[point_id] = rrf_scores.get(point_id, 0) + 1 / (k + rank)
             retrieval_methods[point_id] = retrieval_methods.get(point_id, set())
@@ -290,7 +304,11 @@ class VectorStore:
                 }
             })
 
-        logger.info(f"Hybrid search returned {len(results)} results (Dense: {len([r for r in results if 'Dense' in r['retrieval_method']])}, BM25: {len([r for r in results if 'BM25' in r['retrieval_method']])}, Both: {len([r for r in results if r['retrieval_method'] == 'Both'])})")
+        dense_count = len([r for r in results if 'Dense' in r['retrieval_method']])
+        bm25_count = len([r for r in results if 'BM25' in r['retrieval_method']])
+        both_count = len([r for r in results if r['retrieval_method'] == 'Both'])
+
+        logger.info(f"Hybrid search returned {len(results)} results (Dense only: {dense_count - both_count}, BM25 only: {bm25_count - both_count}, Both: {both_count})")
 
         return results
 
