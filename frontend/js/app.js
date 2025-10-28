@@ -163,8 +163,8 @@ async function performSearch() {
         return;
     }
 
-    showLoading();
-    searchResults.innerHTML = '';
+    // Show graceful loading animation
+    showSearchLoading();
 
     try {
         // Get search mode and priority order
@@ -199,8 +199,6 @@ async function performSearch() {
         console.error('Search error:', error);
         showToast('Search error occurred', 'error');
         searchResults.innerHTML = '<div class="no-results">An error occurred. Please try again.</div>';
-    } finally {
-        hideLoading();
     }
 }
 
@@ -501,6 +499,44 @@ function showLoading() {
 
 function hideLoading() {
     loadingSpinner.style.display = 'none';
+}
+
+function showSearchLoading() {
+    const searchMode = searchModeSelect.value;
+    let loadingMessage = 'Generating answer...';
+    let loadingSubtext = 'Please wait while we process your request';
+
+    if (searchMode === 'online_only') {
+        loadingMessage = 'Searching online...';
+        loadingSubtext = 'Exploring the web for the latest information';
+    } else if (searchMode === 'both') {
+        loadingMessage = 'Searching files and online...';
+        loadingSubtext = 'Combining information from multiple sources';
+    } else {
+        loadingMessage = 'Searching your documents...';
+        loadingSubtext = 'Analyzing relevant content to generate an answer';
+    }
+
+    searchResults.innerHTML = `
+        <div class="answer-skeleton">
+            <div class="skeleton-header">
+                <div class="skeleton-icon"></div>
+                <div class="skeleton-title"></div>
+            </div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+        </div>
+        <div class="search-loading">
+            <div class="search-loading-content">
+                <div class="search-loading-spinner"></div>
+                <div class="search-loading-text">${loadingMessage}</div>
+                <div class="search-loading-subtext">${loadingSubtext}</div>
+            </div>
+        </div>
+    `;
 }
 
 function showToast(message, type = 'info') {
