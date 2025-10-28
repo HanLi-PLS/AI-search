@@ -208,17 +208,21 @@ function displaySearchResults(result) {
     // Show answer even if no file results (for online_only mode)
     let htmlContent = '';
 
-    // Show online search response if available
+    // Pantone colors: 295U (blue) for online, 1505U (orange) for answer
+    const pantone295U = '#003DA5';  // Blue
+    const pantone1505U = '#FF6900'; // Orange
+
+    // Show online search response if available (only in "both" mode)
     if (result.online_search_response) {
         htmlContent += `
-            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid #3b82f6;">
-                <div class="answer-header" style="color: #3b82f6;">
+            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid ${pantone295U};">
+                <div class="answer-header" style="color: ${pantone295U};">
                     <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
                     </svg>
                     Online Search
                 </div>
-                <div class="answer-content">${result.online_search_response.replace(/\n/g, '<br>')}</div>
+                <div class="answer-content">${parseMarkdownToHTML(result.online_search_response)}</div>
             </div>
         `;
     }
@@ -227,13 +231,13 @@ function displaySearchResults(result) {
     if (result.answer) {
         htmlContent += `
             <div class="answer-box">
-                <div class="answer-header">
+                <div class="answer-header" style="color: ${pantone1505U};">
                     <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                     Answer
                 </div>
-                <div class="answer-content">${result.answer.replace(/\n/g, '<br>')}</div>
+                <div class="answer-content">${parseMarkdownToHTML(result.answer)}</div>
             </div>
         `;
     }
@@ -439,6 +443,50 @@ async function checkHealth() {
 }
 
 // Utility Functions
+function parseMarkdownToHTML(text) {
+    if (!text) return '';
+
+    // Escape HTML to prevent XSS
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Parse markdown patterns
+    // Bold: **text** or __text__
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+    // Italic: *text* or _text_
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+
+    // Headers: # Heading
+    html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+    // Links: [text](url)
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // Lists: - item or * item
+    html = html.replace(/^[\*\-] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+    // Numbered lists: 1. item
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Paragraphs: double line breaks
+    html = html.split('\n\n').map(para => {
+        if (para.trim() && !para.startsWith('<h') && !para.startsWith('<ul') && !para.startsWith('<li')) {
+            return `<p>${para.replace(/\n/g, '<br>')}</p>`;
+        }
+        return para.replace(/\n/g, '<br>');
+    }).join('\n');
+
+    return html;
+}
+
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;

@@ -83,37 +83,12 @@ class AnswerGenerator:
 
         online_search_response = None
 
-        # Handle online_only mode
+        # Handle online_only mode - just return online search result directly
         if search_mode == "online_only":
             logger.info(f"Using online_only mode for query: {query[:50]}...")
             online_search_response = self.answer_online_search(query)
-
-            prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
-
-**Knowledge Base**:
-1. External Search:
-{online_search_response}
-
-**Response Requirements**:
-Do not fabricate any information that is not in the given content.
-Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
-Please provide a response with a concise introductory phrase,
-but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
-Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
-especially when the response is long.
-Do not include reference filenames in the answer.
-"""
-
-            try:
-                response = self.client.responses.create(
-                    model=self.model,
-                    temperature=self.temperature,
-                    input=prompt
-                )
-                return response.output_text, online_search_response
-            except Exception as e:
-                logger.error(f"Error generating answer: {str(e)}")
-                return f"Error generating answer: {str(e)}", online_search_response
+            # Return online search response as the answer directly (no duplicate processing)
+            return online_search_response, None
 
         # Handle files_only mode
         if search_mode == "files_only":

@@ -6,9 +6,12 @@
 }
 
 :root {
-    --primary-color: #3b82f6;
-    --primary-dark: #2563eb;
-    --secondary-color: #10b981;
+    /* Pantone Brand Colors */
+    --pantone-1505u: #FF6900;  /* Orange - Primary */
+    --pantone-295u: #003DA5;   /* Blue - Secondary */
+    --primary-color: var(--pantone-1505u);
+    --primary-dark: #E05F00;
+    --secondary-color: var(--pantone-295u);
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
     --text-primary: #1f2937;
@@ -423,7 +426,7 @@ section h2 {
 .answer-box {
     margin-bottom: 25px;
     padding: 20px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--pantone-1505u) 0%, #E05F00 100%);
     border-radius: 12px;
     color: white;
     box-shadow: var(--shadow-lg);
@@ -440,10 +443,61 @@ section h2 {
 }
 
 .answer-content {
-    line-height: 1.7;
+    line-height: 1.8;
     font-size: 1rem;
-    white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+/* Markdown styling in answer content */
+.answer-content p {
+    margin-bottom: 12px;
+}
+
+.answer-content h2, .answer-content h3, .answer-content h4 {
+    margin-top: 16px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.answer-content h2 {
+    font-size: 1.3rem;
+}
+
+.answer-content h3 {
+    font-size: 1.15rem;
+}
+
+.answer-content h4 {
+    font-size: 1.05rem;
+}
+
+.answer-content strong {
+    font-weight: 700;
+    color: #FFF;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.answer-content em {
+    font-style: italic;
+}
+
+.answer-content ul, .answer-content ol {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.answer-content li {
+    margin-bottom: 6px;
+}
+
+.answer-content a {
+    color: #FFF;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.answer-content a:hover {
+    opacity: 0.8;
 }
 
 .sources-header {
