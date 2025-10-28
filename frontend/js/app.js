@@ -12,6 +12,9 @@ const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
 const searchResults = document.getElementById('searchResults');
 const topKSelect = document.getElementById('topKSelect');
+const searchModeSelect = document.getElementById('searchModeSelect');
+const priorityOrderSelect = document.getElementById('priorityOrderSelect');
+const priorityOrderLabel = document.getElementById('priorityOrderLabel');
 const documentsList = document.getElementById('documentsList');
 const refreshButton = document.getElementById('refreshButton');
 const loadingSpinner = document.getElementById('loadingSpinner');
@@ -27,6 +30,17 @@ searchInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') performSearch();
 });
 refreshButton.addEventListener('click', loadDocuments);
+searchModeSelect.addEventListener('change', handleSearchModeChange);
+
+// Handle search mode change to show/hide priority order
+function handleSearchModeChange() {
+    const searchMode = searchModeSelect.value;
+    if (searchMode === 'both') {
+        priorityOrderLabel.style.display = 'inline-block';
+    } else {
+        priorityOrderLabel.style.display = 'none';
+    }
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -153,6 +167,12 @@ async function performSearch() {
     searchResults.innerHTML = '';
 
     try {
+        // Get search mode and priority order
+        const searchMode = searchModeSelect.value;
+        const priorityOrder = priorityOrderSelect.value === 'online_first'
+            ? ['online_search', 'files']
+            : ['files', 'online_search'];
+
         const response = await fetch(`${API_BASE_URL}/search`, {
             method: 'POST',
             headers: {
@@ -160,7 +180,9 @@ async function performSearch() {
             },
             body: JSON.stringify({
                 query: query,
-                top_k: parseInt(topKSelect.value)
+                top_k: parseInt(topKSelect.value),
+                search_mode: searchMode,
+                priority_order: priorityOrder
             })
         });
 
@@ -183,20 +205,27 @@ async function performSearch() {
 }
 
 function displaySearchResults(result) {
-    if (result.results.length === 0) {
-        searchResults.innerHTML = `
-            <div class="no-results">
-                <p>No results found for "${result.query}"</p>
-                <p style="margin-top: 10px; font-size: 0.9rem;">Try different keywords or upload more documents.</p>
+    // Show answer even if no file results (for online_only mode)
+    let htmlContent = '';
+
+    // Show online search response if available
+    if (result.online_search_response) {
+        htmlContent += `
+            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                <div class="answer-header" style="color: #3b82f6;">
+                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                    </svg>
+                    Online Search
+                </div>
+                <div class="answer-content">${result.online_search_response.replace(/\n/g, '<br>')}</div>
             </div>
         `;
-        return;
     }
 
-    // Show answer first if available
-    let htmlContent = '';
+    // Show final answer if available
     if (result.answer) {
-        htmlContent = `
+        htmlContent += `
             <div class="answer-box">
                 <div class="answer-header">
                     <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -207,6 +236,25 @@ function displaySearchResults(result) {
                 <div class="answer-content">${result.answer.replace(/\n/g, '<br>')}</div>
             </div>
         `;
+    }
+
+    // If no file results and we have an answer, just show the answer
+    if (result.results.length === 0) {
+        if (htmlContent) {
+            searchResults.innerHTML = htmlContent + `
+                <div class="search-info" style="margin-top: 20px; color: var(--text-secondary);">
+                    Processed in ${result.processing_time}s
+                </div>
+            `;
+        } else {
+            searchResults.innerHTML = `
+                <div class="no-results">
+                    <p>No results found for "${result.query}"</p>
+                    <p style="margin-top: 10px; font-size: 0.9rem;">Try different keywords or upload more documents.</p>
+                </div>
+            `;
+        }
+        return;
     }
 
     htmlContent += `

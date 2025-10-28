@@ -3,7 +3,7 @@ Answer generation using OpenAI GPT models
 Similar to answer_with_search_ensemble from original code
 """
 from openai import OpenAI
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 
 from backend.app.config import settings
@@ -25,76 +25,237 @@ class AnswerGenerator:
 
         self.client = OpenAI(api_key=api_key)
         self.model = settings.ANSWER_MODEL  # Use gpt-4.1 for answer generation
+        self.online_search_model = settings.ONLINE_SEARCH_MODEL  # Use o4-mini for online search
         self.temperature = settings.ANSWER_TEMPERATURE
         logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
+        logger.info(f"AnswerGenerator using online search model: {self.online_search_model}")
+
+    def answer_online_search(self, prompt: str) -> str:
+        """
+        Perform online search using OpenAI's web_search_preview tool
+
+        Args:
+            prompt: Search query/prompt
+
+        Returns:
+            Search results as text
+        """
+        try:
+            logger.info(f"Performing online search for: {prompt[:50]}...")
+            response = self.client.responses.create(
+                model=self.online_search_model,
+                tools=[{
+                    "type": "web_search_preview",
+                    "search_context_size": "high",
+                }],
+                input=f"{prompt}"
+            )
+            logger.info("Online search completed successfully")
+            return response.output_text
+        except Exception as e:
+            logger.error(f"Error performing online search: {str(e)}")
+            return f"Error performing online search: {str(e)}"
 
     def generate_answer(
         self,
         query: str,
         search_results: List[Dict[str, Any]],
+        search_mode: str = "files_only",
+        priority_order: Optional[List[str]] = None,
         max_context_length: int = 8000
-    ) -> str:
+    ) -> Tuple[str, Optional[str]]:
         """
-        Generate a comprehensive answer based on search results
+        Generate a comprehensive answer based on search mode
+        Similar to answer_with_search_ensemble from original code
 
         Args:
             query: User's question
             search_results: List of search results with content and metadata
+            search_mode: "files_only", "online_only", or "both"
+            priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             max_context_length: Maximum characters to include in context
 
         Returns:
-            Generated answer string
+            Tuple of (answer, online_search_response)
         """
-        if not search_results:
-            return "I couldn't find any relevant information to answer your question."
+        if priority_order is None:
+            priority_order = ['online_search', 'files']
 
-        # Build context from search results
-        context_parts = []
-        current_length = 0
+        online_search_response = None
 
-        for idx, result in enumerate(search_results, 1):
-            content = result.get("content", "")
-            metadata = result.get("metadata", {})
-            source = metadata.get("source", "Unknown")
+        # Handle online_only mode
+        if search_mode == "online_only":
+            logger.info(f"Using online_only mode for query: {query[:50]}...")
+            online_search_response = self.answer_online_search(query)
 
-            # Format context chunk
-            chunk = f"[Source {idx}: {source}]\n{content}\n"
-            chunk_length = len(chunk)
+            prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
 
-            # Check if adding this chunk exceeds limit
-            if current_length + chunk_length > max_context_length:
-                break
+**Knowledge Base**:
+1. External Search:
+{online_search_response}
 
-            context_parts.append(chunk)
-            current_length += chunk_length
+**Response Requirements**:
+Do not fabricate any information that is not in the given content.
+Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
+Please provide a response with a concise introductory phrase,
+but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
+Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
+especially when the response is long.
+Do not include reference filenames in the answer.
+"""
 
-        context = "\n".join(context_parts)
+            try:
+                response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=prompt
+                )
+                return response.output_text, online_search_response
+            except Exception as e:
+                logger.error(f"Error generating answer: {str(e)}")
+                return f"Error generating answer: {str(e)}", online_search_response
 
-        # Create prompt following user's pattern for gpt-4.1
-        prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
+        # Handle files_only mode
+        if search_mode == "files_only":
+            logger.info(f"Using files_only mode for query: {query[:50]}...")
+            if not search_results:
+                return "I couldn't find any relevant information to answer your question.", None
 
-Context from search results:
+            # Build context from search results
+            context_parts = []
+            current_length = 0
+
+            for idx, result in enumerate(search_results, 1):
+                content = result.get("content", "")
+                metadata = result.get("metadata", {})
+                source = metadata.get("source", "Unknown")
+
+                # Format context chunk
+                chunk = f"[Source {idx}: {source}]\n{content}\n"
+                chunk_length = len(chunk)
+
+                # Check if adding this chunk exceeds limit
+                if current_length + chunk_length > max_context_length:
+                    break
+
+                context_parts.append(chunk)
+                current_length += chunk_length
+
+            context = "\n".join(context_parts)
+
+            prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
+
+**Knowledge Base**:
+1. Files:
 {context}
 
-Based on the above context, please provide a comprehensive answer to the question.
-If you reference specific information, mention which source it came from."""
+**Response Requirements**:
+Do not fabricate any information that is not in the given content.
+Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
+Please provide a response with a concise introductory phrase,
+but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
+Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
+especially when the response is long.
+Do not include reference filenames in the answer.
+"""
 
-        try:
-            # Call OpenAI API using responses.create (gpt-4.1 pattern)
-            response = self.client.responses.create(
-                model=self.model,
-                temperature=self.temperature,
-                input=prompt
-            )
+            try:
+                response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=prompt
+                )
+                return response.output_text, None
+            except Exception as e:
+                logger.error(f"Error generating answer: {str(e)}")
+                return f"I found {len(search_results)} relevant document(s), but encountered an error generating a comprehensive answer: {str(e)}", None
 
-            answer = response.output_text
-            logger.info(f"Generated answer for query: {query[:50]}...")
-            return answer
+        # Handle both mode with priority ordering
+        if search_mode == "both":
+            logger.info(f"Using both mode with priority: {priority_order} for query: {query[:50]}...")
 
-        except Exception as e:
-            logger.error(f"Error generating answer: {str(e)}")
-            # Return search results summary as fallback
-            return f"I found {len(search_results)} relevant document(s), but encountered an error generating a comprehensive answer: {str(e)}"
+            # Get online search response if included in priority
+            if 'online_search' in priority_order:
+                online_search_response = self.answer_online_search(query)
+
+            # Build context from files
+            files_context = ""
+            if 'files' in priority_order and search_results:
+                context_parts = []
+                current_length = 0
+
+                for idx, result in enumerate(search_results, 1):
+                    content = result.get("content", "")
+                    metadata = result.get("metadata", {})
+                    source = metadata.get("source", "Unknown")
+
+                    # Format context chunk
+                    chunk = f"[Source {idx}: {source}]\n{content}\n"
+                    chunk_length = len(chunk)
+
+                    # Check if adding this chunk exceeds limit
+                    if current_length + chunk_length > max_context_length:
+                        break
+
+                    context_parts.append(chunk)
+                    current_length += chunk_length
+
+                files_context = "\n".join(context_parts)
+
+            # Build knowledge base from each source
+            knowledge_base = {
+                'files': files_context if 'files' in priority_order else "",
+                'online_search': online_search_response if 'online_search' in priority_order else ""
+            }
+
+            # Build prioritized context using the given priority order
+            priority_context = []
+            for idx, source in enumerate(priority_order, 1):
+                heading = {
+                    'files': f"{idx}. Files",
+                    'online_search': f"{idx}. External Search"
+                }[source]
+
+                content = knowledge_base[source] or f"No {source} data available"
+                priority_context.append(f"{heading}:\n{content}")
+
+            joined_priority_context = "\n\n".join(priority_context)
+
+            prompt = f"""
+**Analysis Directive**: Answer using this priority sequence: {', '.join(priority_order).upper()}
+
+**Knowledge Base**:
+{joined_priority_context}
+
+**Conflict Resolution Rules**:
+- Follow {priority_order[0].upper()} for numerical disputes
+- Resolve conceptual conflicts using {priority_order[0].upper()}
+- Use most recent context when dates conflict
+
+**Question**: {query}
+
+**Response Requirements**:
+Do not fabricate any information that is not in the given content.
+Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
+Please provide a response with a concise introductory phrase,
+but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
+Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
+especially when the response is long.
+Do not include reference filenames in the answer.
+"""
+
+            try:
+                response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=prompt
+                )
+                return response.output_text, online_search_response
+            except Exception as e:
+                logger.error(f"Error generating answer: {str(e)}")
+                return f"Error generating answer: {str(e)}", online_search_response
+
+        return "Invalid search mode specified.", None
 
 
 def get_answer_generator() -> AnswerGenerator:

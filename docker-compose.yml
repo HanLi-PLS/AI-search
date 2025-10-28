@@ -40,6 +40,7 @@ services:
       - VISION_MODEL=o4-mini
       - ANSWER_MODEL=gpt-4.1
       - ANSWER_TEMPERATURE=0
+      - ONLINE_SEARCH_MODEL=o4-mini
     depends_on:
       - qdrant
     restart: unless-stopped

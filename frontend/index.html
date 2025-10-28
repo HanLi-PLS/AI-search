@@ -67,6 +67,21 @@
                             <option value="200">200</option>
                         </select>
                     </label>
+                    <label>
+                        Search Mode:
+                        <select id="searchModeSelect" class="filter-select">
+                            <option value="files_only" selected>Files Only</option>
+                            <option value="online_only">Online Only</option>
+                            <option value="both">Both (Files + Online)</option>
+                        </select>
+                    </label>
+                    <label id="priorityOrderLabel" style="display: none;">
+                        Priority:
+                        <select id="priorityOrderSelect" class="filter-select">
+                            <option value="online_first" selected>Online First</option>
+                            <option value="files_first">Files First</option>
+                        </select>
+                    </label>
                 </div>
 
                 <!-- Search Results -->

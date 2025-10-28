@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-4.1")  # Model for generating answers (gpt-4.1, gpt-4o, o3, etc)
     ANSWER_TEMPERATURE: float = float(os.getenv("ANSWER_TEMPERATURE", "0"))
 
+    # Online Search Model Configuration (for web search)
+    ONLINE_SEARCH_MODEL: str = os.getenv("ONLINE_SEARCH_MODEL", "o4-mini")  # Model for online search (o4-mini, o3, etc)
+
     # AWS Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY: Optional[str] = os.getenv("AWS_SECRET_ACCESS_KEY")

@@ -22,10 +22,10 @@ router = APIRouter()
 @router.post("/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest):
     """
-    Search documents using semantic similarity and generate answer
+    Search documents using semantic similarity and/or online search, then generate answer
 
     Args:
-        request: Search request with query and filters
+        request: Search request with query, search_mode, and filters
 
     Returns:
         Search results with GPT-generated answer
@@ -33,41 +33,49 @@ async def search_documents(request: SearchRequest):
     start_time = time.time()
 
     try:
-        vector_store = get_vector_store()
+        results = []
+        search_results = []
 
-        # Perform search
-        results = vector_store.search(
-            query=request.query,
-            top_k=request.top_k,
-            file_types=request.file_types,
-            date_from=request.date_from,
-            date_to=request.date_to
-        )
+        # Only search files if mode is not online_only
+        if request.search_mode != "online_only":
+            vector_store = get_vector_store()
 
-        # Format results
-        search_results = [
-            SearchResult(
-                content=result["content"],
-                score=result["score"],
-                metadata=result["metadata"],
-                retrieval_method=result.get("retrieval_method", "Dense")
+            # Perform search
+            results = vector_store.search(
+                query=request.query,
+                top_k=request.top_k,
+                file_types=request.file_types,
+                date_from=request.date_from,
+                date_to=request.date_to
             )
-            for result in results
-        ]
 
-        # Generate final answer using GPT (similar to answer_with_search_ensemble)
-        answer = None
-        if results:
-            try:
-                answer_generator = get_answer_generator()
-                answer = answer_generator.generate_answer(
-                    query=request.query,
-                    search_results=results
+            # Format results
+            search_results = [
+                SearchResult(
+                    content=result["content"],
+                    score=result["score"],
+                    metadata=result["metadata"],
+                    retrieval_method=result.get("retrieval_method", "Dense")
                 )
-                logger.info(f"Generated answer for query: {request.query[:50]}...")
-            except Exception as e:
-                logger.error(f"Error generating answer: {str(e)}")
-                # Continue without answer if generation fails
+                for result in results
+            ]
+
+        # Generate final answer using GPT with search mode support
+        answer = None
+        online_search_response = None
+        try:
+            answer_generator = get_answer_generator()
+            answer, online_search_response = answer_generator.generate_answer(
+                query=request.query,
+                search_results=results,
+                search_mode=request.search_mode,
+                priority_order=request.priority_order
+            )
+            logger.info(f"Generated answer for query: {request.query[:50]}... using mode: {request.search_mode}")
+        except Exception as e:
+            logger.error(f"Error generating answer: {str(e)}")
+            # Continue without answer if generation fails
+            answer = f"Error generating answer: {str(e)}"
 
         processing_time = time.time() - start_time
 
@@ -75,6 +83,7 @@ async def search_documents(request: SearchRequest):
             success=True,
             query=request.query,
             answer=answer,
+            online_search_response=online_search_response,
             results=search_results,
             total_results=len(search_results),
             processing_time=round(processing_time, 3)
