@@ -345,31 +345,55 @@ class VectorStore:
         Returns:
             Number of documents deleted
         """
-        # Get all points with this file_id
-        search_results = self.client.scroll(
-            collection_name=self.collection_name,
-            scroll_filter=Filter(
-                must=[
-                    FieldCondition(
-                        key="file_id",
-                        match=MatchValue(value=file_id)
-                    )
-                ]
-            )
-        )
+        logger.info(f"Starting deletion for file_id: {file_id}")
 
-        points = search_results[0]
-        point_ids = [point.id for point in points]
+        # Get ALL points with this file_id using pagination
+        all_points = []
+        offset = None
+
+        while True:
+            search_results = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="file_id",
+                            match=MatchValue(value=file_id)
+                        )
+                    ]
+                ),
+                limit=100,  # Get 100 at a time
+                offset=offset,
+                with_payload=False,  # We only need IDs
+                with_vectors=False
+            )
+
+            points = search_results[0]
+            next_offset = search_results[1]  # Next page offset
+
+            if not points:
+                break
+
+            all_points.extend(points)
+            logger.info(f"Retrieved {len(points)} points (total so far: {len(all_points)})")
+
+            # If no next offset, we've got all points
+            if next_offset is None:
+                break
+
+            offset = next_offset
+
+        point_ids = [point.id for point in all_points]
 
         if point_ids:
-            logger.info(f"Attempting to delete {len(point_ids)} points for file_id: {file_id}")
-            logger.debug(f"Point IDs to delete: {point_ids[:5]}...")  # Log first 5 IDs
+            logger.info(f"Attempting to delete ALL {len(point_ids)} points for file_id: {file_id}")
+            logger.debug(f"Point IDs to delete: {point_ids[:5]}... (showing first 5)")
 
             self.client.delete(
                 collection_name=self.collection_name,
                 points_selector=PointIdsList(points=point_ids)
             )
-            logger.info(f"Successfully deleted {len(point_ids)} documents for file_id: {file_id}")
+            logger.info(f"Successfully deleted ALL {len(point_ids)} documents for file_id: {file_id}")
         else:
             logger.warning(f"No points found for file_id: {file_id}")
 
