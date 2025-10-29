@@ -147,12 +147,35 @@ Now classify the user's query."""
             logger.error(f"Error performing online search: {str(e)}")
             return f"Error performing online search: {str(e)}"
 
+    def format_conversation_history(self, conversation_history: Optional[List[Dict[str, Any]]]) -> str:
+        """
+        Format conversation history for inclusion in prompts
+
+        Args:
+            conversation_history: List of previous conversation turns
+
+        Returns:
+            Formatted conversation history string
+        """
+        if not conversation_history or len(conversation_history) == 0:
+            return ""
+
+        formatted = "\n**Previous Conversation**:\n"
+        for i, turn in enumerate(conversation_history[-5:], 1):  # Only use last 5 turns to avoid token limits
+            formatted += f"\nTurn {i}:\n"
+            formatted += f"User: {turn.get('query', '')}\n"
+            formatted += f"Assistant: {turn.get('answer', '')[:500]}...\n"  # Truncate long answers
+
+        formatted += "\n**Current Question** (use the context above to understand references like 'it', 'that', 'them'):\n"
+        return formatted
+
     def generate_answer(
         self,
         query: str,
         search_results: List[Dict[str, Any]],
         search_mode: str = "files_only",
         priority_order: Optional[List[str]] = None,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
         max_context_length: int = 8000
     ) -> Tuple[str, Optional[str], Optional[str]]:
         """
@@ -164,6 +187,7 @@ Now classify the user's query."""
             search_results: List of search results with content and metadata
             search_mode: "files_only", "online_only", "both", or "sequential_analysis"
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
+            conversation_history: Previous conversation turns for context
             max_context_length: Maximum characters to include in context
 
         Returns:
@@ -171,6 +195,9 @@ Now classify the user's query."""
         """
         if priority_order is None:
             priority_order = ['online_search', 'files']
+
+        # Format conversation history if provided
+        conversation_context = self.format_conversation_history(conversation_history)
 
         online_search_response = None
 
@@ -209,7 +236,9 @@ Now classify the user's query."""
 
             context = "\n".join(context_parts)
 
-            prompt = f"""You are an expert in bioventure investing. Answer the following question: {query}
+            prompt = f"""You are an expert in bioventure investing.{conversation_context}
+
+**Question**: {query}
 
 **Knowledge Base**:
 1. Files:
@@ -223,6 +252,7 @@ but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on deliver
 Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
 especially when the response is long.
 Do not include reference filenames in the answer.
+If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about.
 """
 
             try:
@@ -264,7 +294,9 @@ Do not include reference filenames in the answer.
             files_context = "\n".join(files_context_parts)
 
             # Extract structured information from files
-            extraction_prompt = f"""You are an expert in bioventure investing. Extract key information from the provided documents to answer this question: {query}
+            extraction_prompt = f"""You are an expert in bioventure investing.{conversation_context}
+
+**Question**: {query}
 
 **Documents**:
 {files_context}
@@ -310,7 +342,9 @@ Search online for competitor data, industry benchmarks, or comparative informati
                 online_search_response = f"Error performing online search: {str(e)}"
 
             # Step 3: Combine extracted info and online results into final answer
-            final_prompt = f"""You are an expert in bioventure investing. Answer the following question using both the extracted information from the user's documents and online search results: {query}
+            final_prompt = f"""You are an expert in bioventure investing.{conversation_context}
+
+**Question**: {query}
 
 **Step 1 - Information Extracted from User's Documents**:
 {extracted_info}
@@ -328,7 +362,8 @@ Search online for competitor data, industry benchmarks, or comparative informati
 Do not fabricate any information. Be objective and factual.
 Bold the most important facts or conclusions.
 If there are discrepancies between file data and online data, point them out.
-Do not include reference filenames in the answer."""
+Do not include reference filenames in the answer.
+If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about."""
 
             try:
                 final_response = self.client.responses.create(
@@ -392,7 +427,8 @@ Do not include reference filenames in the answer."""
 
             joined_priority_context = "\n\n".join(priority_context)
 
-            prompt = f"""
+            prompt = f"""{conversation_context}
+
 **Analysis Directive**: Answer using this priority sequence: {', '.join(priority_order).upper()}
 
 **Knowledge Base**:
@@ -413,6 +449,7 @@ but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on deliver
 Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
 especially when the response is long.
 Do not include reference filenames in the answer.
+If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about.
 """
 
             try:

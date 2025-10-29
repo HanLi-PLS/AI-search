@@ -78,11 +78,18 @@ async def search_documents(request: SearchRequest):
         extracted_info = None
         try:
             answer_generator = get_answer_generator()
+
+            # Convert conversation history to dict format if provided
+            conversation_history_dict = None
+            if request.conversation_history:
+                conversation_history_dict = [turn.dict() for turn in request.conversation_history]
+
             answer, online_search_response, extracted_info = answer_generator.generate_answer(
                 query=request.query,
                 search_results=results,
                 search_mode=actual_search_mode,
-                priority_order=request.priority_order
+                priority_order=request.priority_order,
+                conversation_history=conversation_history_dict
             )
             logger.info(f"Generated answer for query: {request.query[:50]}... using mode: {actual_search_mode}")
         except Exception as e:

@@ -1,6 +1,9 @@
 // API Configuration
 const API_BASE_URL = window.location.origin + '/api';
 
+// Conversation History (stored in browser session)
+let conversationHistory = [];
+
 // DOM Elements
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
@@ -10,6 +13,7 @@ const uploadStatus = document.getElementById('uploadStatus');
 const uploadResults = document.getElementById('uploadResults');
 const searchInput = document.getElementById('searchInput');
 const searchButton = document.getElementById('searchButton');
+const newConversationButton = document.getElementById('newConversationButton');
 const searchResults = document.getElementById('searchResults');
 const topKSelect = document.getElementById('topKSelect');
 const searchModeSelect = document.getElementById('searchModeSelect');
@@ -29,6 +33,7 @@ searchButton.addEventListener('click', performSearch);
 searchInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') performSearch();
 });
+newConversationButton.addEventListener('click', startNewConversation);
 refreshButton.addEventListener('click', loadDocuments);
 searchModeSelect.addEventListener('change', handleSearchModeChange);
 
@@ -40,6 +45,15 @@ function handleSearchModeChange() {
     } else {
         priorityOrderLabel.style.display = 'none';
     }
+}
+
+// Start a new conversation
+function startNewConversation() {
+    conversationHistory = [];
+    searchResults.innerHTML = '<div class="no-results"><p>New conversation started. Ask me anything!</p></div>';
+    searchInput.value = '';
+    searchInput.focus();
+    showToast('New conversation started', 'success');
 }
 
 // Initialize
@@ -182,13 +196,24 @@ async function performSearch() {
                 query: query,
                 top_k: parseInt(topKSelect.value),
                 search_mode: searchMode,
-                priority_order: priorityOrder
+                priority_order: priorityOrder,
+                conversation_history: conversationHistory
             })
         });
 
         const result = await response.json();
 
         if (response.ok && result.success) {
+            // Add this turn to conversation history
+            conversationHistory.push({
+                query: query,
+                answer: result.answer || result.online_search_response || 'No answer provided'
+            });
+
+            // Clear search input
+            searchInput.value = '';
+
+            // Display results as chat interface
             displaySearchResults(result);
         } else {
             showToast('Search failed', 'error');
@@ -200,6 +225,13 @@ async function performSearch() {
         showToast('Search error occurred', 'error');
         searchResults.innerHTML = '<div class="no-results">An error occurred. Please try again.</div>';
     }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function displaySearchResults(result) {

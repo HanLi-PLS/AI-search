@@ -34,12 +34,19 @@ class UploadResponse(BaseModel):
     processing_time: Optional[float] = None
 
 
+class ConversationTurn(BaseModel):
+    """Single turn in conversation history"""
+    query: str = Field(..., description="User's query")
+    answer: str = Field(..., description="AI's answer")
+
+
 class SearchRequest(BaseModel):
     """Search request model"""
     query: str = Field(..., min_length=1, description="Search query")
     top_k: int = Field(default=5, ge=1, le=200, description="Number of results to return from each method (max 200)")
     search_mode: str = Field(default="files_only", description="Search mode: auto, files_only, online_only, both, or sequential_analysis")
     priority_order: Optional[List[str]] = Field(default=["online_search", "files"], description="Priority order for 'both' mode")
+    conversation_history: Optional[List[ConversationTurn]] = Field(default=None, description="Previous conversation turns for context")
     file_types: Optional[List[str]] = Field(default=None, description="Filter by file types")
     date_from: Optional[datetime] = Field(default=None, description="Filter documents from this date")
     date_to: Optional[datetime] = Field(default=None, description="Filter documents to this date")
