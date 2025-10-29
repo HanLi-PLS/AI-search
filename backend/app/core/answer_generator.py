@@ -86,7 +86,6 @@ Now classify the user's query."""
 
             response = self.client.responses.create(
                 model="gpt-5-nano",  # Use fast, efficient model for classification
-                temperature=0.1,  # Low temperature for consistent classification
                 input=classification_prompt
             )
 
