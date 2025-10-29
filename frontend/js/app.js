@@ -210,6 +210,33 @@ function displaySearchResults(result) {
     const pantone295U = '#003DA5';  // Blue
     const pantone1505U = '#FF6900'; // Orange
     const extractGreen = '#059669';  // Green for extracted info
+    const autoModePurple = '#7C3AED';  // Purple for auto mode indicator
+
+    // Show mode selection info if auto mode was used
+    if (result.selected_mode && result.mode_reasoning) {
+        const modeDisplayNames = {
+            'files_only': 'Files Only',
+            'online_only': 'Online Only',
+            'both': 'Both (Files + Online)',
+            'sequential_analysis': 'Sequential Analysis'
+        };
+        const selectedModeDisplay = modeDisplayNames[result.selected_mode] || result.selected_mode;
+
+        htmlContent += `
+            <div class="mode-selection-box" style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #F3E8FF, #EDE9FE); border-left: 4px solid ${autoModePurple}; border-radius: 8px;">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <svg style="width: 18px; height: 18px; margin-right: 8px; color: ${autoModePurple};" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <strong style="color: ${autoModePurple};">Intelligent Mode Selected:</strong>
+                    <span style="margin-left: 8px; padding: 2px 8px; background: ${autoModePurple}; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">${selectedModeDisplay}</span>
+                </div>
+                <div style="color: #4B5563; font-size: 0.9rem; margin-left: 26px;">
+                    ${result.mode_reasoning}
+                </div>
+            </div>
+        `;
+    }
 
     // Show extracted info if available (sequential_analysis mode)
     if (result.extracted_info) {

@@ -30,6 +30,98 @@ class AnswerGenerator:
         logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
         logger.info(f"AnswerGenerator using online search model: {self.online_search_model}")
 
+    def classify_query(self, query: str) -> Tuple[str, str]:
+        """
+        Automatically classify the query to determine the best search mode
+
+        Args:
+            query: User's question
+
+        Returns:
+            Tuple of (selected_mode, reasoning)
+        """
+        try:
+            logger.info(f"Classifying query: {query[:50]}...")
+
+            classification_prompt = f"""You are an intelligent query router for a hybrid search system. Analyze the following user query and determine the best search strategy.
+
+**User Query**: "{query}"
+
+**Available Search Modes**:
+1. **files_only**: Search only in the user's uploaded documents
+   - Use when: Query is clearly about specific documents the user has uploaded, asking about data in their files, mentions "my files", "my documents", "uploaded", etc.
+   - Examples: "What's in my documents?", "Summarize the uploaded files", "What data do I have?"
+
+2. **online_only**: Search only using online/web search
+   - Use when: Query requires current information, general knowledge, latest news, industry trends, or information that wouldn't be in personal documents
+   - Examples: "What's the latest news about X?", "Current market trends", "Who is the CEO of Y?"
+
+3. **both**: Search both files and online in parallel, then synthesize
+   - Use when: Query needs information from both sources but they can be processed independently
+   - Examples: "What does my document say and what's the current status?", "Compare my data with industry standards"
+
+4. **sequential_analysis**: Extract from files first, then search online using extracted info
+   - Use when: Query requires extracting specific information from files first, then using that to search for comparative/competitive data online
+   - Examples: "What's our drug efficacy and how does it compare to competitors?", "Extract our metrics and benchmark against industry", "Get our performance data and compare with others"
+
+**Instructions**:
+Analyze the query carefully and select the most appropriate mode. Consider:
+- Does the query mention personal documents/files? (suggests files_only or sequential)
+- Does it require current/external information? (suggests online_only or both/sequential)
+- Does it need extraction followed by comparison? (suggests sequential_analysis)
+- Can both sources be processed in parallel? (suggests both)
+
+**Response Format** (you must respond in exactly this format):
+MODE: [files_only|online_only|both|sequential_analysis]
+REASONING: [Brief explanation in 1-2 sentences why this mode was chosen]
+
+Example responses:
+MODE: sequential_analysis
+REASONING: The query asks to extract drug efficacy from the user's files and then compare with competitors, requiring sequential processing where file data informs the online search.
+
+MODE: online_only
+REASONING: The query asks for current market trends which requires up-to-date online information not available in personal documents.
+
+Now classify the user's query."""
+
+            response = self.client.responses.create(
+                model="gpt-4o-mini",  # Use fast, efficient model for classification
+                temperature=0.1,  # Low temperature for consistent classification
+                input=classification_prompt
+            )
+
+            classification_text = response.output_text
+            logger.info(f"Classification response: {classification_text[:200]}...")
+
+            # Parse the response to extract mode and reasoning
+            mode = "files_only"  # Default fallback
+            reasoning = "Unable to classify query, defaulting to files_only mode."
+
+            for line in classification_text.split('\n'):
+                line = line.strip()
+                if line.startswith("MODE:"):
+                    mode_text = line.replace("MODE:", "").strip().lower()
+                    # Extract just the mode name (in case there's extra text)
+                    if "files_only" in mode_text:
+                        mode = "files_only"
+                    elif "online_only" in mode_text:
+                        mode = "online_only"
+                    elif "sequential_analysis" in mode_text:
+                        mode = "sequential_analysis"
+                    elif "both" in mode_text:
+                        mode = "both"
+                elif line.startswith("REASONING:"):
+                    reasoning = line.replace("REASONING:", "").strip()
+
+            logger.info(f"Query classified as: {mode}")
+            logger.info(f"Reasoning: {reasoning}")
+
+            return mode, reasoning
+
+        except Exception as e:
+            logger.error(f"Error classifying query: {str(e)}")
+            return "files_only", f"Error during classification, defaulting to files_only mode: {str(e)}"
+
     def answer_online_search(self, prompt: str) -> str:
         """
         Perform online search using OpenAI's web_search_preview tool

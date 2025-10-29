@@ -35,9 +35,21 @@ async def search_documents(request: SearchRequest):
     try:
         results = []
         search_results = []
+        selected_mode = None
+        mode_reasoning = None
+
+        # Handle auto mode - classify the query first
+        actual_search_mode = request.search_mode
+        if request.search_mode == "auto":
+            logger.info(f"Auto mode detected, classifying query: {request.query[:50]}...")
+            answer_generator = get_answer_generator()
+            selected_mode, mode_reasoning = answer_generator.classify_query(request.query)
+            actual_search_mode = selected_mode
+            logger.info(f"Auto mode selected: {selected_mode}")
+            logger.info(f"Reasoning: {mode_reasoning}")
 
         # Only search files if mode is not online_only
-        if request.search_mode != "online_only":
+        if actual_search_mode != "online_only":
             vector_store = get_vector_store()
 
             # Perform search
@@ -69,10 +81,10 @@ async def search_documents(request: SearchRequest):
             answer, online_search_response, extracted_info = answer_generator.generate_answer(
                 query=request.query,
                 search_results=results,
-                search_mode=request.search_mode,
+                search_mode=actual_search_mode,
                 priority_order=request.priority_order
             )
-            logger.info(f"Generated answer for query: {request.query[:50]}... using mode: {request.search_mode}")
+            logger.info(f"Generated answer for query: {request.query[:50]}... using mode: {actual_search_mode}")
         except Exception as e:
             logger.error(f"Error generating answer: {str(e)}")
             # Continue without answer if generation fails
@@ -86,6 +98,8 @@ async def search_documents(request: SearchRequest):
             answer=answer,
             online_search_response=online_search_response,
             extracted_info=extracted_info,
+            selected_mode=selected_mode,
+            mode_reasoning=mode_reasoning,
             results=search_results,
             total_results=len(search_results),
             processing_time=round(processing_time, 3)
