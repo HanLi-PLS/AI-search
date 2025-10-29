@@ -234,6 +234,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+
 function displaySearchResults(result) {
     // Display as chat interface showing all conversation history
     let htmlContent = '<div class="chat-container">';
@@ -333,14 +334,14 @@ function displaySearchResults(result) {
             if (result.results && result.results.length > 0) {
                 htmlContent += `
                     <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #E5E7EB;">
-                        <button onclick="toggleSources(${i})" id="sourcesToggle${i}" style="font-size: 0.85rem; color: ${pantone295U}; background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px 0;">
+                        <button onclick="toggleChatSources(${i})" id="chatSourcesToggle${i}" style="font-size: 0.85rem; color: ${pantone295U}; background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px 0;">
                             <svg style="width: 16px; height: 16px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                             </svg>
                             View ${result.results.length} Source(s)
                         </button>
-                        <div id="sourcesContainer${i}" style="display: none; margin-top: 10px; font-size: 0.85rem;">
-                            ${renderSources(result.results)}
+                        <div id="chatSourcesContainer${i}" style="display: none; margin-top: 10px; font-size: 0.85rem;">
+                            ${renderChatSources(result.results)}
                         </div>
                     </div>
                 `;
@@ -367,8 +368,8 @@ function displaySearchResults(result) {
     }, 100);
 }
 
-// Helper function to render sources
-function renderSources(sources) {
+// Helper function to render sources in chat
+function renderChatSources(sources) {
     let html = '';
     sources.forEach((item, idx) => {
         const score = Math.round(item.score * 100);
@@ -403,10 +404,10 @@ function renderSources(sources) {
     return html;
 }
 
-// Toggle sources visibility
-function toggleSources(index) {
-    const container = document.getElementById(`sourcesContainer${index}`);
-    const button = document.getElementById(`sourcesToggle${index}`);
+// Toggle chat sources visibility
+function toggleChatSources(index) {
+    const container = document.getElementById(`chatSourcesContainer${index}`);
+    const button = document.getElementById(`chatSourcesToggle${index}`);
     if (container) {
         const isHidden = container.style.display === 'none';
         container.style.display = isHidden ? 'block' : 'none';
@@ -417,4 +418,337 @@ function toggleSources(index) {
             svg.style.transition = 'transform 0.3s ease';
         }
     }
+}
+
+async function loadDocuments() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/documents`);
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            displayDocuments(result.documents);
+        } else {
+            documentsList.innerHTML = '<div class="no-results">Failed to load documents</div>';
+        }
+
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        documentsList.innerHTML = '<div class="no-results">Error loading documents</div>';
+    }
+}
+
+function displayDocuments(documents) {
+    if (documents.length === 0) {
+        documentsList.innerHTML = '<div class="no-results">No documents uploaded yet</div>';
+        return;
+    }
+
+    documentsList.innerHTML = '';
+
+    documents.forEach(doc => {
+        const docItem = document.createElement('div');
+        docItem.className = 'document-item';
+
+        const fileSize = formatFileSize(doc.file_size);
+        const uploadDate = new Date(doc.upload_date).toLocaleDateString();
+
+        docItem.innerHTML = `
+            <div class="document-info">
+                <div class="document-name">${doc.file_name}</div>
+                <div class="document-meta">
+                    ${doc.file_type} • ${fileSize} • ${doc.chunk_count} chunks • Uploaded ${uploadDate}
+                </div>
+            </div>
+            <button class="delete-button" onclick="deleteDocument('${doc.file_id}', '${doc.file_name}')">
+                Delete
+            </button>
+        `;
+
+        documentsList.appendChild(docItem);
+    });
+}
+
+// Delete Document
+async function deleteDocument(fileId, fileName) {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/documents/${fileId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showToast(`${fileName} deleted successfully`, 'success');
+            loadDocuments();
+        } else {
+            showToast('Failed to delete document', 'error');
+        }
+
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Error deleting document', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Expose deleteDocument to global scope for inline onclick handlers
+window.deleteDocument = deleteDocument;
+
+// Health Check
+async function checkHealth() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/health`);
+        const result = await response.json();
+
+        if (!response.ok || result.status !== 'healthy') {
+            showToast('System health check failed', 'error');
+        }
+
+    } catch (error) {
+        console.error('Health check error:', error);
+    }
+}
+
+// Utility Functions
+function parseMarkdownToHTML(text) {
+    if (!text) return '';
+
+    // Escape HTML to prevent XSS
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Parse markdown tables first (before other replacements)
+    html = parseMarkdownTables(html);
+
+    // Code blocks: ```code``` or `code`
+    html = html.replace(/```(.+?)```/gs, '<pre><code>$1</code></pre>');
+    html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+
+    // Bold: **text** or __text__
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+    // Italic: *text* or _text_ (but not in middle of words)
+    html = html.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+    html = html.replace(/\b_([^_]+?)_\b/g, '<em>$1</em>');
+
+    // Headers: # Heading
+    html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+    // Links: [text](url)
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // Unordered lists: - item or * item
+    const lines = html.split('\n');
+    let inList = false;
+    let listType = null;
+    const processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const unorderedMatch = line.match(/^[\*\-] (.+)$/);
+        const orderedMatch = line.match(/^\d+\. (.+)$/);
+
+        if (unorderedMatch) {
+            if (!inList || listType !== 'ul') {
+                if (inList) processedLines.push(`</${listType}>`);
+                processedLines.push('<ul>');
+                inList = true;
+                listType = 'ul';
+            }
+            processedLines.push(`<li>${unorderedMatch[1]}</li>`);
+        } else if (orderedMatch) {
+            if (!inList || listType !== 'ol') {
+                if (inList) processedLines.push(`</${listType}>`);
+                processedLines.push('<ol>');
+                inList = true;
+                listType = 'ol';
+            }
+            processedLines.push(`<li>${orderedMatch[1]}</li>`);
+        } else {
+            if (inList) {
+                processedLines.push(`</${listType}>`);
+                inList = false;
+                listType = null;
+            }
+            processedLines.push(line);
+        }
+    }
+    if (inList) processedLines.push(`</${listType}>`);
+    html = processedLines.join('\n');
+
+    // Paragraphs: double line breaks (but skip tables, headers, lists, code)
+    html = html.split('\n\n').map(para => {
+        const trimmed = para.trim();
+        if (trimmed &&
+            !trimmed.startsWith('<h') &&
+            !trimmed.startsWith('<ul') &&
+            !trimmed.startsWith('<ol') &&
+            !trimmed.startsWith('<li') &&
+            !trimmed.startsWith('<table') &&
+            !trimmed.startsWith('<pre') &&
+            !trimmed.startsWith('<code')) {
+            return `<p>${para.replace(/\n/g, '<br>')}</p>`;
+        }
+        return para;
+    }).join('\n\n');
+
+    return html;
+}
+
+function parseMarkdownTables(text) {
+    const lines = text.split('\n');
+    const result = [];
+    let i = 0;
+
+    while (i < lines.length) {
+        const line = lines[i];
+
+        // Check if this line looks like a table header
+        if (line.includes('|') && i + 1 < lines.length) {
+            const nextLine = lines[i + 1];
+
+            // Check if next line is a separator (|---|---|)
+            if (nextLine.match(/^\|?[\s\-:|]+\|[\s\-:|]+/)) {
+                // This is a table!
+                const tableLines = [line, nextLine];
+                let j = i + 2;
+
+                // Collect all table rows
+                while (j < lines.length && lines[j].includes('|')) {
+                    tableLines.push(lines[j]);
+                    j++;
+                }
+
+                // Parse and convert table
+                result.push(convertMarkdownTableToHTML(tableLines));
+                i = j;
+                continue;
+            }
+        }
+
+        result.push(line);
+        i++;
+    }
+
+    return result.join('\n');
+}
+
+function convertMarkdownTableToHTML(tableLines) {
+    if (tableLines.length < 2) return tableLines.join('\n');
+
+    const headerLine = tableLines[0];
+    const dataLines = tableLines.slice(2); // Skip separator line
+
+    // Parse header
+    const headers = headerLine.split('|')
+        .map(h => h.trim())
+        .filter(h => h.length > 0);
+
+    // Build table HTML
+    let html = '<table class="markdown-table">\n<thead>\n<tr>\n';
+    headers.forEach(header => {
+        html += `<th>${header}</th>\n`;
+    });
+    html += '</tr>\n</thead>\n<tbody>\n';
+
+    // Parse data rows
+    dataLines.forEach(line => {
+        const cells = line.split('|')
+            .map(c => c.trim())
+            .filter(c => c.length > 0);
+
+        if (cells.length > 0) {
+            html += '<tr>\n';
+            cells.forEach(cell => {
+                html += `<td>${cell}</td>\n`;
+            });
+            html += '</tr>\n';
+        }
+    });
+
+    html += '</tbody>\n</table>';
+    return html;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function showLoading() {
+    loadingSpinner.style.display = 'flex';
+}
+
+function hideLoading() {
+    loadingSpinner.style.display = 'none';
+}
+
+function showSearchLoading() {
+    const searchMode = searchModeSelect.value;
+    let loadingMessage = 'Generating answer...';
+    let loadingSubtext = 'Please wait while we process your request';
+
+    if (searchMode === 'online_only') {
+        loadingMessage = 'Searching online...';
+        loadingSubtext = 'Exploring the web for the latest information';
+    } else if (searchMode === 'both') {
+        loadingMessage = 'Searching files and online...';
+        loadingSubtext = 'Combining information from multiple sources';
+    } else {
+        loadingMessage = 'Searching your documents...';
+        loadingSubtext = 'Analyzing relevant content to generate an answer';
+    }
+
+    searchResults.innerHTML = `
+        <div class="answer-skeleton">
+            <div class="skeleton-header">
+                <div class="skeleton-icon"></div>
+                <div class="skeleton-title"></div>
+            </div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+        </div>
+        <div class="search-loading">
+            <div class="search-loading-content">
+                <div class="search-loading-spinner"></div>
+                <div class="search-loading-text">${loadingMessage}</div>
+                <div class="search-loading-subtext">${loadingSubtext}</div>
+            </div>
+        </div>
+    `;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<div class="toast-message">${message}</div>`;
+
+    const container = document.getElementById('toastContainer');
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s ease reverse';
+        setTimeout(() => {
+            container.removeChild(toast);
+        }, 300);
+    }, 3000);
 }
