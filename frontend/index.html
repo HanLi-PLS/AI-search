@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Document Search</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>AI Document Search</h1>
+            <p class="subtitle">Upload documents and search with AI-powered semantic search</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <h2>Upload Documents</h2>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p class="upload-text">Drag & drop files here or click to browse</p>
+                        <p class="upload-subtext">Supported: PDF, DOCX, TXT, MD, CSV, XLSX, PPTX, HTML, JSON</p>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.html,.htm,.json,.eml" hidden>
+                    </div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div id="uploadProgress" class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="uploadStatus" class="upload-status"></p>
+                </div>
+
+                <!-- Upload Results -->
+                <div id="uploadResults" class="upload-results"></div>
+            </section>
+
+            <!-- Search Section -->
+            <section class="search-section">
+                <h2>Search Documents</h2>
+                <div class="search-box">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Enter your search query...">
+                    <button id="searchButton" class="search-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Search
+                    </button>
+                    <button id="newConversationButton" class="new-conversation-button" title="Start a new conversation">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        New Chat
+                    </button>
+                </div>
+
+                <!-- Search Filters -->
+                <div class="search-filters">
+                    <label>
+                        Results:
+                        <select id="topKSelect" class="filter-select">
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </label>
+                    <label>
+                        Search Mode:
+                        <select id="searchModeSelect" class="filter-select">
+                            <option value="auto" selected>Intelligent (Auto-select)</option>
+                            <option value="files_only">Files Only</option>
+                            <option value="online_only">Online Only</option>
+                            <option value="both">Both (Files + Online)</option>
+                            <option value="sequential_analysis">Sequential Analysis (Extract → Compare)</option>
+                        </select>
+                    </label>
+                    <label id="priorityOrderLabel" style="display: none;">
+                        Priority:
+                        <select id="priorityOrderSelect" class="filter-select">
+                            <option value="online_first" selected>Online First</option>
+                            <option value="files_first">Files First</option>
+                        </select>
+                    </label>
+                </div>
+
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results"></div>
+            </section>
+
+            <!-- Documents List Section -->
+            <section class="documents-section">
+                <div class="section-header">
+                    <h2>Uploaded Documents</h2>
+                    <button id="refreshButton" class="refresh-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                <div id="documentsList" class="documents-list"></div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>AI Document Search &copy; 2025 | Internal Use Only</p>
+        </footer>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
