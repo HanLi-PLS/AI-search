@@ -112,15 +112,20 @@ async function uploadFiles(files) {
             updateUploadStatus(uploadItemId, 'uploading', `Uploading ${file.name}...`);
 
             const uploadStartTime = Date.now();
+
+            // After 1.5 seconds, assume upload is done and processing has started
+            const processingTimeout = setTimeout(() => {
+                const elapsed = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
+                updateUploadStatus(uploadItemId, 'processing', `Processing ${file.name}... (${elapsed}s elapsed)`);
+            }, 1500);
+
             const response = await fetch(`${API_BASE_URL}/upload`, {
                 method: 'POST',
                 body: formData
             });
 
-            const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
-
-            // Show processing stage (this is when chunking/embedding happens)
-            updateUploadStatus(uploadItemId, 'processing', `Processing ${file.name}... (uploaded in ${uploadTime}s)`);
+            // Clear the timeout if fetch completes before 1.5s
+            clearTimeout(processingTimeout);
 
             const result = await response.json();
 
