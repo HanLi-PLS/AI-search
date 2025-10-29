@@ -91,18 +91,28 @@ class VectorStore:
         Returns:
             Number of documents added
         """
+        import time
+
         if not documents:
             return 0
 
         logger.info(f"Adding {len(documents)} documents to vector store")
+        total_start = time.time()
 
         # Extract texts for embedding
+        extract_start = time.time()
         texts = [doc.page_content for doc in documents]
+        extract_time = time.time() - extract_start
+        logger.info(f"Text extraction took {extract_time:.2f}s for {len(texts)} chunks")
 
         # Generate embeddings
+        embedding_start = time.time()
         embeddings = self.embedding_generator.embed_batch(texts)
+        embedding_time = time.time() - embedding_start
+        logger.info(f"Embedding generation took {embedding_time:.2f}s for {len(texts)} chunks ({embedding_time/len(texts):.2f}s per chunk)")
 
         # Create points for Qdrant
+        points_start = time.time()
         points = []
         for idx, (doc, embedding) in enumerate(zip(documents, embeddings)):
             point_id = str(uuid.uuid4())
@@ -134,7 +144,11 @@ class VectorStore:
                 )
             )
 
+        points_time = time.time() - points_start
+        logger.info(f"Points creation took {points_time:.2f}s for {len(points)} points")
+
         # Upload to Qdrant in batches
+        upload_start = time.time()
         batch_size = 100
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
@@ -142,7 +156,11 @@ class VectorStore:
                 collection_name=self.collection_name,
                 points=batch
             )
+        upload_time = time.time() - upload_start
+        logger.info(f"Qdrant upload took {upload_time:.2f}s for {len(points)} points")
 
+        total_time = time.time() - total_start
+        logger.info(f"Total add_documents took {total_time:.2f}s (extract: {extract_time:.2f}s, embed: {embedding_time:.2f}s, points: {points_time:.2f}s, upload: {upload_time:.2f}s)")
         logger.info(f"Successfully added {len(points)} documents to vector store")
         return len(points)
 
