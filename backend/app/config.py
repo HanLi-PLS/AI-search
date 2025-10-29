@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "100"))
+    MAX_CONCURRENT_VISION_CALLS: int = int(os.getenv("MAX_CONCURRENT_VISION_CALLS", "10"))  # Max concurrent o4-mini API calls
 
     # Authentication (future use)
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-in-production")

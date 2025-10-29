@@ -375,9 +375,15 @@ class DocumentProcessor:
             api_key = settings.OPENAI_API_KEY
 
         try:
-            # Use asyncio to process all pages concurrently
+            # Use asyncio to process all pages concurrently with semaphore limit
             start_time = time.time()
-            results = asyncio.run(self._process_pdf_async(num_pages, str(file_path), file_name, api_key))
+            results = asyncio.run(self._process_pdf_async(
+                num_pages,
+                str(file_path),
+                file_name,
+                api_key,
+                max_concurrent=settings.MAX_CONCURRENT_VISION_CALLS
+            ))
             elapsed_time = time.time() - start_time
 
             # Convert results to Document objects
@@ -417,27 +423,38 @@ class DocumentProcessor:
             logger.info(f"Processed {len(documents)} pages from PDF: {file_name} (sequential fallback)")
             return documents
 
-    async def _process_pdf_async(self, num_pages: int, pdf_path: str, file_name: str, api_key: str) -> List[Dict[str, Any]]:
+    async def _process_pdf_async(self, num_pages: int, pdf_path: str, file_name: str, api_key: str, max_concurrent: int = 10) -> List[Dict[str, Any]]:
         """
         Async helper to process all PDF pages concurrently using asyncio.gather()
+        with concurrency limits to prevent API rate limiting
 
         Args:
             num_pages: Total number of pages
             pdf_path: Path to the PDF file
             file_name: Original filename
             api_key: OpenAI API key
+            max_concurrent: Maximum number of concurrent API calls (default: 10)
 
         Returns:
             List of page results
         """
+        # Create semaphore to limit concurrent API calls
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_with_semaphore(page_num: int):
+            """Wrapper to process page with semaphore limit"""
+            async with semaphore:
+                logger.info(f"Processing page {page_num + 1}/{num_pages} (concurrent limit: {max_concurrent})")
+                return await _process_page_helper_async(page_num, pdf_path, self.vision_model, file_name, api_key)
+
         # Create tasks for all pages
         tasks = [
-            _process_page_helper_async(i, pdf_path, self.vision_model, file_name, api_key)
+            process_with_semaphore(i)
             for i in range(num_pages)
         ]
 
-        # Process all pages concurrently
-        logger.info(f"Starting concurrent processing of {num_pages} pages...")
+        # Process all pages concurrently with semaphore limit
+        logger.info(f"Starting concurrent processing of {num_pages} pages (max {max_concurrent} concurrent)...")
         results = await asyncio.gather(*tasks)
         logger.info(f"Completed concurrent processing of {num_pages} pages")
 
