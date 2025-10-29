@@ -94,41 +94,54 @@ async function uploadFiles(files) {
     uploadResults.innerHTML = '';
     uploadProgress.style.display = 'block';
     progressFill.style.width = '0%';
-    uploadStatus.textContent = `Uploading ${files.length} file(s)...`;
+    uploadStatus.textContent = `Preparing to upload ${files.length} file(s)...`;
 
     const totalFiles = files.length;
     let completed = 0;
 
     for (const file of files) {
+        // Create upload item immediately to show status
+        const uploadItemId = `upload-${Date.now()}-${Math.random()}`;
+        createUploadStatusItem(uploadItemId, file.name, 'uploading');
+
         try {
             const formData = new FormData();
             formData.append('file', file);
 
+            // Show uploading stage
+            updateUploadStatus(uploadItemId, 'uploading', `Uploading ${file.name}...`);
+
+            const uploadStartTime = Date.now();
             const response = await fetch(`${API_BASE_URL}/upload`, {
                 method: 'POST',
                 body: formData
             });
 
+            const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(1);
+
+            // Show processing stage (this is when chunking/embedding happens)
+            updateUploadStatus(uploadItemId, 'processing', `Processing ${file.name}... (uploaded in ${uploadTime}s)`);
+
             const result = await response.json();
 
             if (response.ok && result.success) {
-                displayUploadResult(file.name, result, true);
-                showToast(`${file.name} uploaded successfully`, 'success');
+                updateUploadStatus(uploadItemId, 'complete', `${result.chunks_created} chunks created in ${result.processing_time}s`);
+                showToast(`${file.name} processed successfully`, 'success');
             } else {
-                displayUploadResult(file.name, result, false);
-                showToast(`Failed to upload ${file.name}`, 'error');
+                updateUploadStatus(uploadItemId, 'error', result.detail || result.message || 'Upload failed');
+                showToast(`Failed to process ${file.name}`, 'error');
             }
 
         } catch (error) {
             console.error('Upload error:', error);
-            displayUploadResult(file.name, { message: error.message }, false);
+            updateUploadStatus(uploadItemId, 'error', error.message);
             showToast(`Error uploading ${file.name}`, 'error');
         }
 
         completed++;
         const progress = (completed / totalFiles) * 100;
         progressFill.style.width = `${progress}%`;
-        uploadStatus.textContent = `Uploaded ${completed} of ${totalFiles} file(s)`;
+        uploadStatus.textContent = `Processed ${completed} of ${totalFiles} file(s)`;
     }
 
     // Reset file input
@@ -140,33 +153,65 @@ async function uploadFiles(files) {
     }, 1000);
 }
 
-function displayUploadResult(fileName, result, success) {
+function createUploadStatusItem(itemId, fileName, stage) {
     const resultItem = document.createElement('div');
-    resultItem.className = `upload-result-item ${success ? '' : 'error'}`;
-
-    const icon = success ? `
-        <svg class="upload-result-icon success-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-    ` : `
-        <svg class="upload-result-icon error-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-    `;
-
-    const details = success
-        ? `${result.chunks_created} chunks created in ${result.processing_time}s`
-        : result.detail || result.message || 'Upload failed';
+    resultItem.id = itemId;
+    resultItem.className = 'upload-result-item';
 
     resultItem.innerHTML = `
         <div class="upload-result-info">
             <div class="upload-result-name">${fileName}</div>
-            <div class="upload-result-details">${details}</div>
+            <div class="upload-result-stage" id="${itemId}-stage"></div>
+            <div class="upload-result-details" id="${itemId}-details"></div>
         </div>
-        ${icon}
+        <div class="upload-result-icon-container" id="${itemId}-icon">
+            <div class="upload-spinner"></div>
+        </div>
     `;
 
     uploadResults.appendChild(resultItem);
+    updateUploadStatus(itemId, stage, '');
+}
+
+function updateUploadStatus(itemId, stage, message) {
+    const item = document.getElementById(itemId);
+    if (!item) return;
+
+    const stageElement = document.getElementById(`${itemId}-stage`);
+    const detailsElement = document.getElementById(`${itemId}-details`);
+    const iconContainer = document.getElementById(`${itemId}-icon`);
+
+    // Update stage label and icon
+    if (stage === 'uploading') {
+        stageElement.innerHTML = '<span style="color: #3B82F6; font-weight: 600;">📤 Uploading...</span>';
+        iconContainer.innerHTML = '<div class="upload-spinner"></div>';
+        item.className = 'upload-result-item uploading';
+    } else if (stage === 'processing') {
+        stageElement.innerHTML = '<span style="color: #F59E0B; font-weight: 600;">⚙️ Processing...</span>';
+        iconContainer.innerHTML = '<div class="upload-spinner processing"></div>';
+        item.className = 'upload-result-item processing';
+    } else if (stage === 'complete') {
+        stageElement.innerHTML = '<span style="color: #10B981; font-weight: 600;">✅ Complete</span>';
+        iconContainer.innerHTML = `
+            <svg class="upload-result-icon success-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        `;
+        item.className = 'upload-result-item complete';
+    } else if (stage === 'error') {
+        stageElement.innerHTML = '<span style="color: #EF4444; font-weight: 600;">❌ Error</span>';
+        iconContainer.innerHTML = `
+            <svg class="upload-result-icon error-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        `;
+        item.className = 'upload-result-item error';
+    }
+
+    // Update details message
+    if (message) {
+        detailsElement.textContent = message;
+    }
 }
 
 // Search
