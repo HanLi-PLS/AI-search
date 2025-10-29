@@ -20,7 +20,8 @@ from langchain_community.document_loaders import (
     Docx2txtLoader,
     UnstructuredExcelLoader,
 )
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
+import asyncio
 from backend.app.config import settings
 import time
 import logging
@@ -97,8 +98,117 @@ def _process_page_helper(page_number: int, pdf_path: str, model: str, file_name:
     return result
 
 
+async def _process_page_helper_async(page_number: int, pdf_path: str, model: str, file_name: str, api_key: str, scale_factor: float = 1.5) -> Dict[str, Any]:
+    """
+    Async helper function to process a single PDF page
+
+    Args:
+        page_number: Page number to process
+        pdf_path: Path to the PDF file
+        model: Vision model to use (o4-mini)
+        file_name: Original filename
+        api_key: OpenAI API key
+        scale_factor: Scale factor for image rendering
+
+    Returns:
+        Dictionary with page_content and metadata
+    """
+    doc = fitz.open(pdf_path)
+    page = doc.load_page(page_number)
+
+    # Get text from page
+    text = page.get_text()
+    combined_text = [f"Page {page_number + 1} Text:\n{text}\n"]
+
+    # Check if page has tables
+    tables = page.find_tables()
+    has_tables = len(tables.tables) > 0 if tables else False
+
+    # Check if page has sub-images
+    image_list = page.get_images(full=True)
+    has_sub_images = len(image_list) > 0
+
+    # Process as image if page has sub-images OR tables (using o4-mini)
+    if has_sub_images or has_tables:
+        logger.info(f"Page {page_number + 1} has images/tables, processing with {model} (async)")
+
+        # Increase resolution using scale factor
+        mat = fitz.Matrix(scale_factor, scale_factor)
+        pix = page.get_pixmap(matrix=mat, alpha=False)
+        overview_image_base64 = base64.b64encode(pix.tobytes(output="png")).decode("utf-8")
+
+        # Process the page image with AI asynchronously (o4-mini for vision)
+        processed_text = await _process_image_with_ai_helper_async(overview_image_base64, model, api_key)
+        combined_text.append(f"Page {page_number + 1} Image Information:\n{processed_text}\n")
+
+        result = {
+            "page_content": "\n".join(combined_text),
+            "metadata": {
+                "source": file_name,
+                "file_type": ".pdf",
+                "page": page_number + 1,
+                "has_images": True,
+                "has_tables": has_tables
+            }
+        }
+    else:  # Only plain text on the page
+        result = {
+            "page_content": "\n".join(combined_text),
+            "metadata": {
+                "source": file_name,
+                "file_type": ".pdf",
+                "page": page_number + 1,
+                "has_images": False,
+                "has_tables": False
+            }
+        }
+
+    doc.close()
+    return result
+
+
+async def _process_image_with_ai_helper_async(image_base64: str, model: str, api_key: str) -> str:
+    """Async helper function to process image with AI using AsyncOpenAI"""
+    max_retries = 5
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            client = AsyncOpenAI(api_key=api_key)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Please extract information from the following image in detail and precisely.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_base64}",
+                                },
+                            },
+                        ],
+                    }
+                ],
+            )
+            return response.choices[0].message.content
+
+        except Exception as e:
+            attempt += 1
+            if attempt == max_retries:
+                logger.error(f"Failed to process image after {max_retries} attempts: {str(e)}")
+                return f"Error processing image: {str(e)}"
+            await asyncio.sleep(2)  # Wait before retrying
+
+    return ""
+
+
 def _process_image_with_ai_helper(image_base64: str, model: str) -> str:
-    """Helper function to process image with AI (for multiprocessing)"""
+    """Synchronous wrapper for backward compatibility (fallback mode)"""
     from backend.app.utils.aws_secrets import get_key
 
     max_retries = 5
@@ -244,8 +354,8 @@ class DocumentProcessor:
 
     def _process_pdf(self, file_path: Path, file_name: str) -> List[Document]:
         """
-        Process PDF with multiprocessing and image extraction using vision model (o4-mini)
-        Uses multiprocessing to process pages in parallel for faster processing
+        Process PDF with async parallel processing for vision model calls
+        Uses asyncio.gather() to process all pages concurrently for maximum speed
         Adapted from extract_information_from_pdf in old code
         """
         logger.info(f"Processing PDF: {file_name} with model: {self.vision_model}")
@@ -255,15 +365,20 @@ class DocumentProcessor:
         num_pages = len(doc)
         doc.close()
 
-        logger.info(f"PDF has {num_pages} pages, using multiprocessing with {cpu_count()} processes")
+        logger.info(f"PDF has {num_pages} pages, using async parallel processing")
 
-        # Prepare arguments for multiprocessing
-        args = [(i, str(file_path), self.vision_model, file_name) for i in range(num_pages)]
+        # Get API key once
+        from backend.app.utils.aws_secrets import get_key
+        if settings.USE_AWS_SECRETS:
+            api_key = get_key(settings.AWS_SECRET_NAME_OPENAI, settings.AWS_REGION)
+        else:
+            api_key = settings.OPENAI_API_KEY
 
         try:
-            # Use multiprocessing to process pages in parallel
-            with Pool(processes=cpu_count()) as pool:
-                results = pool.starmap(_process_page_helper, args)
+            # Use asyncio to process all pages concurrently
+            start_time = time.time()
+            results = asyncio.run(self._process_pdf_async(num_pages, str(file_path), file_name, api_key))
+            elapsed_time = time.time() - start_time
 
             # Convert results to Document objects
             documents = [
@@ -274,14 +389,14 @@ class DocumentProcessor:
                 for result in results
             ]
 
-            logger.info(f"Processed {len(documents)} pages from PDF: {file_name} using multiprocessing")
+            logger.info(f"Processed {len(documents)} pages from PDF: {file_name} using async parallel processing in {elapsed_time:.2f}s")
             return documents
 
         except Exception as e:
-            logger.error(f"Error during multiprocessing PDF {file_name}: {str(e)}")
+            logger.error(f"Error during async PDF processing {file_name}: {str(e)}")
             logger.info(f"Falling back to sequential processing for {file_name}")
 
-            # Fallback to sequential processing if multiprocessing fails
+            # Fallback to sequential processing if async fails
             doc = fitz.open(str(file_path))
             documents = []
 
@@ -301,3 +416,29 @@ class DocumentProcessor:
             doc.close()
             logger.info(f"Processed {len(documents)} pages from PDF: {file_name} (sequential fallback)")
             return documents
+
+    async def _process_pdf_async(self, num_pages: int, pdf_path: str, file_name: str, api_key: str) -> List[Dict[str, Any]]:
+        """
+        Async helper to process all PDF pages concurrently using asyncio.gather()
+
+        Args:
+            num_pages: Total number of pages
+            pdf_path: Path to the PDF file
+            file_name: Original filename
+            api_key: OpenAI API key
+
+        Returns:
+            List of page results
+        """
+        # Create tasks for all pages
+        tasks = [
+            _process_page_helper_async(i, pdf_path, self.vision_model, file_name, api_key)
+            for i in range(num_pages)
+        ]
+
+        # Process all pages concurrently
+        logger.info(f"Starting concurrent processing of {num_pages} pages...")
+        results = await asyncio.gather(*tasks)
+        logger.info(f"Completed concurrent processing of {num_pages} pages")
+
+        return results
