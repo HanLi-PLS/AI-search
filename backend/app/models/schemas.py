@@ -38,7 +38,7 @@ class SearchRequest(BaseModel):
     """Search request model"""
     query: str = Field(..., min_length=1, description="Search query")
     top_k: int = Field(default=5, ge=1, le=200, description="Number of results to return from each method (max 200)")
-    search_mode: str = Field(default="files_only", description="Search mode: files_only, online_only, or both")
+    search_mode: str = Field(default="files_only", description="Search mode: files_only, online_only, both, or sequential_analysis")
     priority_order: Optional[List[str]] = Field(default=["online_search", "files"], description="Priority order for 'both' mode")
     file_types: Optional[List[str]] = Field(default=None, description="Filter by file types")
     date_from: Optional[datetime] = Field(default=None, description="Filter documents from this date")
@@ -61,6 +61,7 @@ class SearchResponse(BaseModel):
     query: str
     answer: Optional[str] = Field(default=None, description="GPT-generated answer based on search results")
     online_search_response: Optional[str] = Field(default=None, description="Raw online search response")
+    extracted_info: Optional[str] = Field(default=None, description="Information extracted from files (sequential mode)")
     results: List[SearchResult]
     total_results: int
     processing_time: float

@@ -63,9 +63,10 @@ async def search_documents(request: SearchRequest):
         # Generate final answer using GPT with search mode support
         answer = None
         online_search_response = None
+        extracted_info = None
         try:
             answer_generator = get_answer_generator()
-            answer, online_search_response = answer_generator.generate_answer(
+            answer, online_search_response, extracted_info = answer_generator.generate_answer(
                 query=request.query,
                 search_results=results,
                 search_mode=request.search_mode,
@@ -84,6 +85,7 @@ async def search_documents(request: SearchRequest):
             query=request.query,
             answer=answer,
             online_search_response=online_search_response,
+            extracted_info=extracted_info,
             results=search_results,
             total_results=len(search_results),
             processing_time=round(processing_time, 3)

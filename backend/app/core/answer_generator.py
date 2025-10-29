@@ -63,7 +63,7 @@ class AnswerGenerator:
         search_mode: str = "files_only",
         priority_order: Optional[List[str]] = None,
         max_context_length: int = 8000
-    ) -> Tuple[str, Optional[str]]:
+    ) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Generate a comprehensive answer based on search mode
         Similar to answer_with_search_ensemble from original code
@@ -71,12 +71,12 @@ class AnswerGenerator:
         Args:
             query: User's question
             search_results: List of search results with content and metadata
-            search_mode: "files_only", "online_only", or "both"
+            search_mode: "files_only", "online_only", "both", or "sequential_analysis"
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             max_context_length: Maximum characters to include in context
 
         Returns:
-            Tuple of (answer, online_search_response)
+            Tuple of (answer, online_search_response, extracted_info)
         """
         if priority_order is None:
             priority_order = ['online_search', 'files']
@@ -88,7 +88,7 @@ class AnswerGenerator:
             logger.info(f"Using online_only mode for query: {query[:50]}...")
             online_search_response = self.answer_online_search(query)
             # Return online search response as the answer directly (no duplicate processing)
-            return online_search_response, None
+            return online_search_response, None, None
 
         # Handle files_only mode
         if search_mode == "files_only":
@@ -140,10 +140,115 @@ Do not include reference filenames in the answer.
                     temperature=self.temperature,
                     input=prompt
                 )
-                return response.output_text, None
+                return response.output_text, None, None
             except Exception as e:
                 logger.error(f"Error generating answer: {str(e)}")
-                return f"I found {len(search_results)} relevant document(s), but encountered an error generating a comprehensive answer: {str(e)}", None
+                return f"I found {len(search_results)} relevant document(s), but encountered an error generating a comprehensive answer: {str(e)}", None, None
+
+        # Handle sequential_analysis mode - extract from files first, then search online
+        if search_mode == "sequential_analysis":
+            logger.info(f"Using sequential_analysis mode for query: {query[:50]}...")
+
+            if not search_results:
+                return "I couldn't find any relevant information in your files to extract.", None, None
+
+            # Step 1: Extract key information from files
+            files_context_parts = []
+            current_length = 0
+
+            for idx, result in enumerate(search_results, 1):
+                content = result.get("content", "")
+                metadata = result.get("metadata", {})
+                source = metadata.get("source", "Unknown")
+
+                chunk = f"[Source {idx}: {source}]\n{content}\n"
+                chunk_length = len(chunk)
+
+                if current_length + chunk_length > max_context_length:
+                    break
+
+                files_context_parts.append(chunk)
+                current_length += chunk_length
+
+            files_context = "\n".join(files_context_parts)
+
+            # Extract structured information from files
+            extraction_prompt = f"""You are an expert in bioventure investing. Extract key information from the provided documents to answer this question: {query}
+
+**Documents**:
+{files_context}
+
+**Task**: Extract and summarize ONLY the key facts, data, and conclusions from the documents. Focus on:
+- Drug names, compounds, or products mentioned
+- Efficacy rates, success rates, or performance metrics
+- Clinical trial results or study outcomes
+- Any quantitative data or statistics
+- Key findings or conclusions
+
+Be concise and factual. Only include information explicitly stated in the documents.
+
+**Format your response as structured data** (e.g., bullet points or short paragraphs) that can be used for online comparison."""
+
+            try:
+                extraction_response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=extraction_prompt
+                )
+                extracted_info = extraction_response.output_text
+                logger.info(f"Extracted info from files: {extracted_info[:100]}...")
+            except Exception as e:
+                logger.error(f"Error extracting info from files: {str(e)}")
+                return f"Error extracting information from files: {str(e)}", None, None
+
+            # Step 2: Use extracted info to formulate enhanced online search query
+            online_search_prompt = f"""Based on the following information extracted from documents, search for comparable or competitive information online:
+
+**Extracted Information from User's Documents**:
+{extracted_info}
+
+**Original Question**: {query}
+
+Search online for competitor data, industry benchmarks, or comparative information that relates to the extracted data above."""
+
+            try:
+                online_search_response = self.answer_online_search(online_search_prompt)
+                logger.info("Online search completed in sequential mode")
+            except Exception as e:
+                logger.error(f"Error in online search: {str(e)}")
+                online_search_response = f"Error performing online search: {str(e)}"
+
+            # Step 3: Combine extracted info and online results into final answer
+            final_prompt = f"""You are an expert in bioventure investing. Answer the following question using both the extracted information from the user's documents and online search results: {query}
+
+**Step 1 - Information Extracted from User's Documents**:
+{extracted_info}
+
+**Step 2 - Online Search Results**:
+{online_search_response}
+
+**Task**: Provide a comprehensive comparison and analysis. Structure your answer as follows:
+1. **Summary of User's Document Data**: Briefly summarize the key findings from the user's files
+2. **Comparative Analysis**: Compare with online findings (competitors, industry standards, etc.)
+3. **Key Insights**: Provide actionable insights from the comparison
+4. **Conclusion**: Synthesize the information
+
+**Response Requirements**:
+Do not fabricate any information. Be objective and factual.
+Bold the most important facts or conclusions.
+If there are discrepancies between file data and online data, point them out.
+Do not include reference filenames in the answer."""
+
+            try:
+                final_response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=final_prompt
+                )
+                return final_response.output_text, online_search_response, extracted_info
+            except Exception as e:
+                logger.error(f"Error generating final answer: {str(e)}")
+                return f"Error generating final answer: {str(e)}", online_search_response, extracted_info
 
         # Handle both mode with priority ordering
         if search_mode == "both":
@@ -225,12 +330,12 @@ Do not include reference filenames in the answer.
                     temperature=self.temperature,
                     input=prompt
                 )
-                return response.output_text, online_search_response
+                return response.output_text, online_search_response, None
             except Exception as e:
                 logger.error(f"Error generating answer: {str(e)}")
-                return f"Error generating answer: {str(e)}", online_search_response
+                return f"Error generating answer: {str(e)}", online_search_response, None
 
-        return "Invalid search mode specified.", None
+        return "Invalid search mode specified.", None, None
 
 
 def get_answer_generator() -> AnswerGenerator:

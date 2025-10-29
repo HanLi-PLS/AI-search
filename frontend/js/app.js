@@ -209,16 +209,33 @@ function displaySearchResults(result) {
     // Pantone colors: 295U (blue) for online, 1505U (orange) for answer
     const pantone295U = '#003DA5';  // Blue
     const pantone1505U = '#FF6900'; // Orange
+    const extractGreen = '#059669';  // Green for extracted info
 
-    // Show online search response if available (only in "both" mode)
+    // Show extracted info if available (sequential_analysis mode)
+    if (result.extracted_info) {
+        htmlContent += `
+            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid ${extractGreen};">
+                <div class="answer-header" style="color: ${extractGreen};">
+                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Step 1: Extracted from Your Files
+                </div>
+                <div class="answer-content">${parseMarkdownToHTML(result.extracted_info)}</div>
+            </div>
+        `;
+    }
+
+    // Show online search response if available (sequential or both mode)
     if (result.online_search_response) {
+        const onlineHeader = result.extracted_info ? 'Step 2: Online Search Results' : 'Online Search';
         htmlContent += `
             <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid ${pantone295U};">
                 <div class="answer-header" style="color: ${pantone295U};">
                     <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
                     </svg>
-                    Online Search
+                    ${onlineHeader}
                 </div>
                 <div class="answer-content">${parseMarkdownToHTML(result.online_search_response)}</div>
             </div>
@@ -227,13 +244,14 @@ function displaySearchResults(result) {
 
     // Show final answer if available
     if (result.answer) {
+        const answerHeader = result.extracted_info ? 'Step 3: Comparative Analysis' : 'Answer';
         htmlContent += `
             <div class="answer-box">
                 <div class="answer-header" style="color: ${pantone1505U};">
                     <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
-                    Answer
+                    ${answerHeader}
                 </div>
                 <div class="answer-content">${parseMarkdownToHTML(result.answer)}</div>
             </div>
