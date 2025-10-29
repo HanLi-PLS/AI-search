@@ -235,521 +235,186 @@ function escapeHtml(text) {
 }
 
 function displaySearchResults(result) {
-    // Show answer even if no file results (for online_only mode)
-    let htmlContent = '';
+    // Display as chat interface showing all conversation history
+    let htmlContent = '<div class="chat-container">';
 
-    // Pantone colors: 295U (blue) for online, 1505U (orange) for answer
-    const pantone295U = '#003DA5';  // Blue
-    const pantone1505U = '#FF6900'; // Orange
-    const extractGreen = '#059669';  // Green for extracted info
-    const autoModePurple = '#7C3AED';  // Purple for auto mode indicator
+    // Pantone colors
+    const pantone295U = '#003DA5';
+    const pantone1505U = '#FF6900';
+    const extractGreen = '#059669';
+    const autoModePurple = '#7C3AED';
 
-    // Show mode selection info if auto mode was used
-    if (result.selected_mode && result.mode_reasoning) {
-        const modeDisplayNames = {
-            'files_only': 'Files Only',
-            'online_only': 'Online Only',
-            'both': 'Both (Files + Online)',
-            'sequential_analysis': 'Sequential Analysis'
-        };
-        const selectedModeDisplay = modeDisplayNames[result.selected_mode] || result.selected_mode;
+    // Render each conversation turn as chat messages
+    for (let i = 0; i < conversationHistory.length; i++) {
+        const turn = conversationHistory[i];
+        const isLatest = (i === conversationHistory.length - 1);
 
+        // USER MESSAGE
         htmlContent += `
-            <div class="mode-selection-box" style="margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #F3E8FF, #EDE9FE); border-left: 4px solid ${autoModePurple}; border-radius: 8px;">
-                <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                    <svg style="width: 18px; height: 18px; margin-right: 8px; color: ${autoModePurple};" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    <strong style="color: ${autoModePurple};">Intelligent Mode Selected:</strong>
-                    <span style="margin-left: 8px; padding: 2px 8px; background: ${autoModePurple}; color: white; border-radius: 4px; font-size: 0.85rem; font-weight: 600;">${selectedModeDisplay}</span>
-                </div>
-                <div style="color: #4B5563; font-size: 0.9rem; margin-left: 26px;">
-                    ${result.mode_reasoning}
+            <div class="chat-message user-message">
+                <div class="message-content">
+                    <div class="message-bubble user-bubble">
+                        <div class="message-avatar">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
+                        </div>
+                        <div class="message-text">${escapeHtml(turn.query)}</div>
+                    </div>
                 </div>
             </div>
         `;
-    }
 
-    // Show extracted info if available (sequential_analysis mode)
-    if (result.extracted_info) {
+        // AI MESSAGE
+        htmlContent += `<div class="chat-message ai-message"><div class="message-content"><div class="message-bubble ai-bubble">`;
         htmlContent += `
-            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid ${extractGreen};">
-                <div class="answer-header" style="color: ${extractGreen};">
-                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    Step 1: Extracted from Your Files
-                </div>
-                <div class="answer-content">${parseMarkdownToHTML(result.extracted_info)}</div>
+            <div class="message-avatar">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
             </div>
+            <div class="message-text">
         `;
-    }
 
-    // Show online search response if available (sequential or both mode)
-    if (result.online_search_response) {
-        const onlineHeader = result.extracted_info ? 'Step 2: Online Search Results' : 'Online Search';
-        htmlContent += `
-            <div class="answer-box" style="margin-bottom: 20px; border-left: 4px solid ${pantone295U};">
-                <div class="answer-header" style="color: ${pantone295U};">
-                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
-                    </svg>
-                    ${onlineHeader}
-                </div>
-                <div class="answer-content">${parseMarkdownToHTML(result.online_search_response)}</div>
-            </div>
-        `;
-    }
+        // For latest message, show full details with result object
+        if (isLatest && result) {
+            // Show mode selection info if auto mode
+            if (result.selected_mode && result.mode_reasoning) {
+                const modeDisplayNames = {
+                    'files_only': 'Files Only',
+                    'online_only': 'Online Only',
+                    'both': 'Both (Files + Online)',
+                    'sequential_analysis': 'Sequential Analysis'
+                };
+                const selectedModeDisplay = modeDisplayNames[result.selected_mode] || result.selected_mode;
 
-    // Show final answer if available
-    if (result.answer) {
-        const answerHeader = result.extracted_info ? 'Step 3: Comparative Analysis' : 'Answer';
-        htmlContent += `
-            <div class="answer-box">
-                <div class="answer-header" style="color: ${pantone1505U};">
-                    <svg style="width: 20px; height: 20px; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    ${answerHeader}
-                </div>
-                <div class="answer-content">${parseMarkdownToHTML(result.answer)}</div>
-            </div>
-        `;
-    }
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 10px; background: linear-gradient(135deg, #F3E8FF, #EDE9FE); border-left: 3px solid ${autoModePurple}; border-radius: 6px; font-size: 0.9rem;">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <strong style="color: ${autoModePurple}; font-size: 0.85rem;">Mode:</strong>
+                            <span style="padding: 2px 6px; background: ${autoModePurple}; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">${selectedModeDisplay}</span>
+                        </div>
+                        <div style="color: #4B5563; font-size: 0.8rem;">${result.mode_reasoning}</div>
+                    </div>
+                `;
+            }
 
-    // If no file results and we have an answer, just show the answer
-    if (result.results.length === 0) {
-        if (htmlContent) {
-            searchResults.innerHTML = htmlContent + `
-                <div class="search-info" style="margin-top: 20px; color: var(--text-secondary);">
-                    Processed in ${result.processing_time}s
-                </div>
-            `;
+            // Show extracted info if available
+            if (result.extracted_info) {
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 12px; border-left: 3px solid ${extractGreen}; background: #F0FDF4; border-radius: 6px;">
+                        <div style="font-weight: 600; color: ${extractGreen}; margin-bottom: 8px; font-size: 0.9rem;">📄 Step 1: Extracted from Files</div>
+                        <div style="font-size: 0.9rem;">${parseMarkdownToHTML(result.extracted_info)}</div>
+                    </div>
+                `;
+            }
+
+            // Show online search response
+            if (result.online_search_response) {
+                const onlineHeader = result.extracted_info ? 'Step 2: Online Search' : 'Online Search';
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 12px; border-left: 3px solid ${pantone295U}; background: #EFF6FF; border-radius: 6px;">
+                        <div style="font-weight: 600; color: ${pantone295U}; margin-bottom: 8px; font-size: 0.9rem;">🌐 ${onlineHeader}</div>
+                        <div style="font-size: 0.9rem;">${parseMarkdownToHTML(result.online_search_response)}</div>
+                    </div>
+                `;
+            }
+
+            // Show final answer
+            if (result.answer) {
+                const answerHeader = result.extracted_info ? 'Step 3: Comparative Analysis' : '';
+                if (answerHeader) {
+                    htmlContent += `<div style="font-weight: 600; color: ${pantone1505U}; margin-bottom: 8px; font-size: 0.9rem;">✨ ${answerHeader}</div>`;
+                }
+                htmlContent += `<div style="font-size: 0.95rem; line-height: 1.7;">${parseMarkdownToHTML(result.answer)}</div>`;
+            }
+
+            // Show sources toggle for latest message
+            if (result.results && result.results.length > 0) {
+                htmlContent += `
+                    <div style="margin-top: 15px; padding-top: 12px; border-top: 1px solid #E5E7EB;">
+                        <button onclick="toggleSources(${i})" id="sourcesToggle${i}" style="font-size: 0.85rem; color: ${pantone295U}; background: none; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px 0;">
+                            <svg style="width: 16px; height: 16px; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                            View ${result.results.length} Source(s)
+                        </button>
+                        <div id="sourcesContainer${i}" style="display: none; margin-top: 10px; font-size: 0.85rem;">
+                            ${renderSources(result.results)}
+                        </div>
+                    </div>
+                `;
+            }
         } else {
-            searchResults.innerHTML = `
-                <div class="no-results">
-                    <p>No results found for "${result.query}"</p>
-                    <p style="margin-top: 10px; font-size: 0.9rem;">Try different keywords or upload more documents.</p>
-                </div>
-            `;
+            // For older messages, show answer summary
+            const answerText = turn.answer || 'No response';
+            const truncated = answerText.length > 300 ? answerText.substring(0, 300) + '...' : answerText;
+            htmlContent += `<div style="font-size: 0.95rem; line-height: 1.7; color: #6B7280;">${parseMarkdownToHTML(truncated)}</div>`;
         }
-        return;
+
+        htmlContent += `
+            </div>
+        </div></div></div>`;
     }
 
-    htmlContent += `
-        <div class="search-info" style="margin-bottom: 15px; color: var(--text-secondary);">
-            Found ${result.total_results} source(s) in ${result.processing_time}s
-        </div>
-        <button class="sources-toggle-button" id="sourcesToggle">
-            <svg class="toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-            Show Sources (${result.total_results})
-        </button>
-        <div class="sources-container" id="sourcesContainer" style="display: none;">
-            <div class="sources-header">Sources:</div>
-            <div id="sourcesContent"></div>
-        </div>
-    `;
+    htmlContent += '</div>'; // Close chat-container
 
     searchResults.innerHTML = htmlContent;
 
-    // Get the sources content container
-    const sourcesContent = document.getElementById('sourcesContent');
+    // Scroll to bottom to show latest message
+    setTimeout(() => {
+        searchResults.scrollTop = searchResults.scrollHeight;
+    }, 100);
+}
 
-    result.results.forEach((item, index) => {
-        const resultItem = document.createElement('div');
-        resultItem.className = 'search-result-item';
-
+// Helper function to render sources
+function renderSources(sources) {
+    let html = '';
+    sources.forEach((item, idx) => {
         const score = Math.round(item.score * 100);
         const fileName = item.metadata.file_name || 'Unknown';
         const fileType = item.metadata.file_type || '';
         const page = item.metadata.page ? `Page ${item.metadata.page}` : '';
-        const uploadDate = item.metadata.upload_date
-            ? new Date(item.metadata.upload_date).toLocaleDateString()
-            : '';
 
-        // Truncate content if too long
         let content = item.content;
-        if (content.length > 500) {
-            content = content.substring(0, 500) + '...';
+        if (content.length > 300) {
+            content = content.substring(0, 300) + '...';
         }
 
-        // Get retrieval method and create badge
         const retrievalMethod = item.retrieval_method || 'Dense';
-        const badgeClass = retrievalMethod === 'Both' ? 'retrieval-badge-both' :
-                          retrievalMethod === 'BM25' ? 'retrieval-badge-bm25' :
-                          'retrieval-badge-dense';
         const badgeText = retrievalMethod === 'Both' ? 'Dense + BM25' : retrievalMethod;
 
-        resultItem.innerHTML = `
-            <div class="search-result-header">
-                <div class="search-result-meta">
-                    <div class="search-result-filename">${fileName}</div>
-                    <div class="search-result-details">
-                        ${fileType} ${page ? `• ${page}` : ''} ${uploadDate ? `• ${uploadDate}` : ''}
+        html += `
+            <div style="margin-bottom: 10px; padding: 10px; background: #F9FAFB; border-radius: 6px; border: 1px solid #E5E7EB;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px;">
+                    <div style="font-weight: 600; color: #374151; font-size: 0.9rem;">${fileName}</div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <span style="font-size: 0.7rem; padding: 2px 6px; background: #E0E7FF; color: #3730A3; border-radius: 3px;">${badgeText}</span>
+                        <span style="color: #059669; font-weight: 600; font-size: 0.8rem;">${score}%</span>
                     </div>
                 </div>
-                <div class="search-result-badges">
-                    <div class="retrieval-badge ${badgeClass}">${badgeText}</div>
-                    <div class="search-result-score">${score}%</div>
+                <div style="color: #6B7280; font-size: 0.75rem; margin-bottom: 6px;">
+                    ${fileType} ${page ? `• ${page}` : ''}
                 </div>
+                <div style="color: #4B5563; line-height: 1.5; font-size: 0.85rem;">${content}</div>
             </div>
-            <div class="search-result-content">${content}</div>
         `;
-
-        sourcesContent.appendChild(resultItem);
     });
-
-    // Add toggle functionality
-    const sourcesToggle = document.getElementById('sourcesToggle');
-    const sourcesContainer = document.getElementById('sourcesContainer');
-
-    sourcesToggle.addEventListener('click', () => {
-        const isVisible = sourcesContainer.style.display !== 'none';
-        sourcesContainer.style.display = isVisible ? 'none' : 'block';
-        sourcesToggle.innerHTML = isVisible
-            ? `<svg class="toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-               </svg>
-               Show Sources (${result.total_results})`
-            : `<svg class="toggle-icon rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-               </svg>
-               Hide Sources`;
-    });
-}
-
-// Load Documents
-async function loadDocuments() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/documents`);
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            displayDocuments(result.documents);
-        } else {
-            documentsList.innerHTML = '<div class="no-results">Failed to load documents</div>';
-        }
-
-    } catch (error) {
-        console.error('Error loading documents:', error);
-        documentsList.innerHTML = '<div class="no-results">Error loading documents</div>';
-    }
-}
-
-function displayDocuments(documents) {
-    if (documents.length === 0) {
-        documentsList.innerHTML = '<div class="no-results">No documents uploaded yet</div>';
-        return;
-    }
-
-    documentsList.innerHTML = '';
-
-    documents.forEach(doc => {
-        const docItem = document.createElement('div');
-        docItem.className = 'document-item';
-
-        const fileSize = formatFileSize(doc.file_size);
-        const uploadDate = new Date(doc.upload_date).toLocaleDateString();
-
-        docItem.innerHTML = `
-            <div class="document-info">
-                <div class="document-name">${doc.file_name}</div>
-                <div class="document-meta">
-                    ${doc.file_type} • ${fileSize} • ${doc.chunk_count} chunks • Uploaded ${uploadDate}
-                </div>
-            </div>
-            <button class="delete-button" onclick="deleteDocument('${doc.file_id}', '${doc.file_name}')">
-                Delete
-            </button>
-        `;
-
-        documentsList.appendChild(docItem);
-    });
-}
-
-// Delete Document
-async function deleteDocument(fileId, fileName) {
-    if (!confirm(`Are you sure you want to delete "${fileName}"?`)) {
-        return;
-    }
-
-    showLoading();
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/documents/${fileId}`, {
-            method: 'DELETE'
-        });
-
-        const result = await response.json();
-
-        if (response.ok && result.success) {
-            showToast(`${fileName} deleted successfully`, 'success');
-            loadDocuments();
-        } else {
-            showToast('Failed to delete document', 'error');
-        }
-
-    } catch (error) {
-        console.error('Delete error:', error);
-        showToast('Error deleting document', 'error');
-    } finally {
-        hideLoading();
-    }
-}
-
-// Expose deleteDocument to global scope for inline onclick handlers
-window.deleteDocument = deleteDocument;
-
-// Health Check
-async function checkHealth() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/health`);
-        const result = await response.json();
-
-        if (!response.ok || result.status !== 'healthy') {
-            showToast('System health check failed', 'error');
-        }
-
-    } catch (error) {
-        console.error('Health check error:', error);
-    }
-}
-
-// Utility Functions
-function parseMarkdownToHTML(text) {
-    if (!text) return '';
-
-    // Escape HTML to prevent XSS
-    let html = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-    // Parse markdown tables first (before other replacements)
-    html = parseMarkdownTables(html);
-
-    // Code blocks: ```code``` or `code`
-    html = html.replace(/```(.+?)```/gs, '<pre><code>$1</code></pre>');
-    html = html.replace(/`(.+?)`/g, '<code>$1</code>');
-
-    // Bold: **text** or __text__
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-
-    // Italic: *text* or _text_ (but not in middle of words)
-    html = html.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
-    html = html.replace(/\b_([^_]+?)_\b/g, '<em>$1</em>');
-
-    // Headers: # Heading
-    html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');
-    html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-
-    // Links: [text](url)
-    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-    // Unordered lists: - item or * item
-    const lines = html.split('\n');
-    let inList = false;
-    let listType = null;
-    const processedLines = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const unorderedMatch = line.match(/^[\*\-] (.+)$/);
-        const orderedMatch = line.match(/^\d+\. (.+)$/);
-
-        if (unorderedMatch) {
-            if (!inList || listType !== 'ul') {
-                if (inList) processedLines.push(`</${listType}>`);
-                processedLines.push('<ul>');
-                inList = true;
-                listType = 'ul';
-            }
-            processedLines.push(`<li>${unorderedMatch[1]}</li>`);
-        } else if (orderedMatch) {
-            if (!inList || listType !== 'ol') {
-                if (inList) processedLines.push(`</${listType}>`);
-                processedLines.push('<ol>');
-                inList = true;
-                listType = 'ol';
-            }
-            processedLines.push(`<li>${orderedMatch[1]}</li>`);
-        } else {
-            if (inList) {
-                processedLines.push(`</${listType}>`);
-                inList = false;
-                listType = null;
-            }
-            processedLines.push(line);
-        }
-    }
-    if (inList) processedLines.push(`</${listType}>`);
-    html = processedLines.join('\n');
-
-    // Paragraphs: double line breaks (but skip tables, headers, lists, code)
-    html = html.split('\n\n').map(para => {
-        const trimmed = para.trim();
-        if (trimmed &&
-            !trimmed.startsWith('<h') &&
-            !trimmed.startsWith('<ul') &&
-            !trimmed.startsWith('<ol') &&
-            !trimmed.startsWith('<li') &&
-            !trimmed.startsWith('<table') &&
-            !trimmed.startsWith('<pre') &&
-            !trimmed.startsWith('<code')) {
-            return `<p>${para.replace(/\n/g, '<br>')}</p>`;
-        }
-        return para;
-    }).join('\n\n');
-
     return html;
 }
 
-function parseMarkdownTables(text) {
-    const lines = text.split('\n');
-    const result = [];
-    let i = 0;
-
-    while (i < lines.length) {
-        const line = lines[i];
-
-        // Check if this line looks like a table header
-        if (line.includes('|') && i + 1 < lines.length) {
-            const nextLine = lines[i + 1];
-
-            // Check if next line is a separator (|---|---|)
-            if (nextLine.match(/^\|?[\s\-:|]+\|[\s\-:|]+/)) {
-                // This is a table!
-                const tableLines = [line, nextLine];
-                let j = i + 2;
-
-                // Collect all table rows
-                while (j < lines.length && lines[j].includes('|')) {
-                    tableLines.push(lines[j]);
-                    j++;
-                }
-
-                // Parse and convert table
-                result.push(convertMarkdownTableToHTML(tableLines));
-                i = j;
-                continue;
-            }
+// Toggle sources visibility
+function toggleSources(index) {
+    const container = document.getElementById(`sourcesContainer${index}`);
+    const button = document.getElementById(`sourcesToggle${index}`);
+    if (container) {
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'block' : 'none';
+        // Rotate the arrow icon
+        const svg = button.querySelector('svg');
+        if (svg) {
+            svg.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            svg.style.transition = 'transform 0.3s ease';
         }
-
-        result.push(line);
-        i++;
     }
-
-    return result.join('\n');
-}
-
-function convertMarkdownTableToHTML(tableLines) {
-    if (tableLines.length < 2) return tableLines.join('\n');
-
-    const headerLine = tableLines[0];
-    const dataLines = tableLines.slice(2); // Skip separator line
-
-    // Parse header
-    const headers = headerLine.split('|')
-        .map(h => h.trim())
-        .filter(h => h.length > 0);
-
-    // Build table HTML
-    let html = '<table class="markdown-table">\n<thead>\n<tr>\n';
-    headers.forEach(header => {
-        html += `<th>${header}</th>\n`;
-    });
-    html += '</tr>\n</thead>\n<tbody>\n';
-
-    // Parse data rows
-    dataLines.forEach(line => {
-        const cells = line.split('|')
-            .map(c => c.trim())
-            .filter(c => c.length > 0);
-
-        if (cells.length > 0) {
-            html += '<tr>\n';
-            cells.forEach(cell => {
-                html += `<td>${cell}</td>\n`;
-            });
-            html += '</tr>\n';
-        }
-    });
-
-    html += '</tbody>\n</table>';
-    return html;
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
-
-function showLoading() {
-    loadingSpinner.style.display = 'flex';
-}
-
-function hideLoading() {
-    loadingSpinner.style.display = 'none';
-}
-
-function showSearchLoading() {
-    const searchMode = searchModeSelect.value;
-    let loadingMessage = 'Generating answer...';
-    let loadingSubtext = 'Please wait while we process your request';
-
-    if (searchMode === 'online_only') {
-        loadingMessage = 'Searching online...';
-        loadingSubtext = 'Exploring the web for the latest information';
-    } else if (searchMode === 'both') {
-        loadingMessage = 'Searching files and online...';
-        loadingSubtext = 'Combining information from multiple sources';
-    } else {
-        loadingMessage = 'Searching your documents...';
-        loadingSubtext = 'Analyzing relevant content to generate an answer';
-    }
-
-    searchResults.innerHTML = `
-        <div class="answer-skeleton">
-            <div class="skeleton-header">
-                <div class="skeleton-icon"></div>
-                <div class="skeleton-title"></div>
-            </div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-        </div>
-        <div class="search-loading">
-            <div class="search-loading-content">
-                <div class="search-loading-spinner"></div>
-                <div class="search-loading-text">${loadingMessage}</div>
-                <div class="search-loading-subtext">${loadingSubtext}</div>
-            </div>
-        </div>
-    `;
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `<div class="toast-message">${message}</div>`;
-
-    const container = document.getElementById('toastContainer');
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.style.animation = 'slideIn 0.3s ease reverse';
-        setTimeout(() => {
-            container.removeChild(toast);
-        }, 300);
-    }, 3000);
 }
