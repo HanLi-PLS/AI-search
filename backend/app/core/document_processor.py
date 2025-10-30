@@ -377,13 +377,32 @@ class DocumentProcessor:
         try:
             # Use asyncio to process all pages concurrently with semaphore limit
             start_time = time.time()
-            results = asyncio.run(self._process_pdf_async(
-                num_pages,
-                str(file_path),
-                file_name,
-                api_key,
-                max_concurrent=settings.MAX_CONCURRENT_VISION_CALLS
-            ))
+
+            # Check if we're already in an event loop (FastAPI context)
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in an async context, use run_coroutine_threadsafe or create task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    results = pool.submit(
+                        lambda: asyncio.run(self._process_pdf_async(
+                            num_pages,
+                            str(file_path),
+                            file_name,
+                            api_key,
+                            max_concurrent=settings.MAX_CONCURRENT_VISION_CALLS
+                        ))
+                    ).result()
+            except RuntimeError:
+                # No event loop running, safe to use asyncio.run()
+                results = asyncio.run(self._process_pdf_async(
+                    num_pages,
+                    str(file_path),
+                    file_name,
+                    api_key,
+                    max_concurrent=settings.MAX_CONCURRENT_VISION_CALLS
+                ))
+
             elapsed_time = time.time() - start_time
 
             # Convert results to Document objects
