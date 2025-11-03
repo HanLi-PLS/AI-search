@@ -308,10 +308,15 @@ async function performSearch() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            // Add this turn to conversation history
+            // Add this turn to conversation history with all result fields
             conversationHistory.push({
                 query: query,
-                answer: result.answer || result.online_search_response || 'No answer provided'
+                answer: result.answer || result.online_search_response || 'No answer provided',
+                extracted_info: result.extracted_info || null,
+                online_search_response: result.online_search_response || null,
+                selected_mode: result.selected_mode || null,
+                mode_reasoning: result.mode_reasoning || null,
+                results: result.results || []
             });
 
             // Save to localStorage and update chat history sidebar
@@ -454,10 +459,59 @@ function displaySearchResults(result) {
                 `;
             }
         } else {
-            // For older messages, show full answer with expand/collapse option for long answers
-            const answerText = turn.answer || 'No response';
-            const isLong = answerText.length > 500;
+            // For older messages, show all saved fields (mode info, extracted info, online search, answer)
 
+            // Show mode selection info if available
+            if (turn.selected_mode && turn.mode_reasoning) {
+                const modeDisplayNames = {
+                    'files_only': 'Files Only',
+                    'online_only': 'Online Only',
+                    'both': 'Both (Files + Online)',
+                    'sequential_analysis': 'Sequential Analysis'
+                };
+                const selectedModeDisplay = modeDisplayNames[turn.selected_mode] || turn.selected_mode;
+
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 10px; background: linear-gradient(135deg, #F3E8FF, #EDE9FE); border-left: 3px solid ${autoModePurple}; border-radius: 6px; font-size: 0.9rem;">
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <strong style="color: ${autoModePurple}; font-size: 0.85rem;">Mode:</strong>
+                            <span style="padding: 2px 6px; background: ${autoModePurple}; color: white; border-radius: 3px; font-size: 0.75rem; font-weight: 600;">${selectedModeDisplay}</span>
+                        </div>
+                        <div style="color: #4B5563; font-size: 0.8rem;">${turn.mode_reasoning}</div>
+                    </div>
+                `;
+            }
+
+            // Show extracted info if available
+            if (turn.extracted_info) {
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 12px; border-left: 3px solid ${extractGreen}; background: #F0FDF4; border-radius: 6px;">
+                        <div style="font-weight: 600; color: ${extractGreen}; margin-bottom: 8px; font-size: 0.9rem;">📄 Step 1: Extracted from Files</div>
+                        <div style="font-size: 0.9rem;">${parseMarkdownToHTML(turn.extracted_info)}</div>
+                    </div>
+                `;
+            }
+
+            // Show online search response if available
+            if (turn.online_search_response) {
+                const onlineHeader = turn.extracted_info ? 'Step 2: Online Search' : 'Online Search';
+                htmlContent += `
+                    <div style="margin-bottom: 12px; padding: 12px; border-left: 3px solid ${pantone295U}; background: #EFF6FF; border-radius: 6px;">
+                        <div style="font-weight: 600; color: ${pantone295U}; margin-bottom: 8px; font-size: 0.9rem;">🌐 ${onlineHeader}</div>
+                        <div style="font-size: 0.9rem;">${parseMarkdownToHTML(turn.online_search_response)}</div>
+                    </div>
+                `;
+            }
+
+            // Show final answer
+            const answerText = turn.answer || 'No response';
+            const answerHeader = turn.extracted_info ? '✨ Step 3: Comparative Analysis' : '';
+
+            if (answerHeader) {
+                htmlContent += `<div style="font-weight: 600; color: ${pantone1505U}; margin-bottom: 8px; font-size: 0.9rem;">${answerHeader}</div>`;
+            }
+
+            const isLong = answerText.length > 500;
             if (isLong) {
                 // Long answer - show with expand/collapse toggle
                 const preview = answerText.substring(0, 500);
