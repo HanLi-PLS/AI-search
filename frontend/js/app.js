@@ -65,6 +65,9 @@ function startNewConversation() {
     searchInput.value = '';
     searchInput.focus();
     showToast('New conversation started', 'success');
+
+    // Reload documents list for new conversation (should show empty initially)
+    loadDocuments();
 }
 
 // Load conversation history (called when switching chats)
@@ -80,6 +83,9 @@ window.loadConversationHistory = function(history) {
     }
     searchInput.value = '';
     searchInput.focus();
+
+    // Reload documents list for this conversation
+    loadDocuments();
 };
 
 // Initialize
@@ -173,6 +179,9 @@ async function uploadFiles(files) {
             if (response.ok && result.success) {
                 updateUploadStatus(uploadItemId, 'complete', `${result.chunks_created} chunks created in ${result.processing_time}s`);
                 showToast(`${file.name} processed successfully`, 'success');
+
+                // Refresh documents list to show newly uploaded file
+                loadDocuments();
             } else {
                 updateUploadStatus(uploadItemId, 'error', result.detail || result.message || 'Upload failed');
                 showToast(`Failed to process ${file.name}`, 'error');
@@ -520,7 +529,15 @@ function toggleChatSources(index) {
 
 async function loadDocuments() {
     try {
-        const response = await fetch(`${API_BASE_URL}/documents`);
+        // Get current conversation ID to filter documents
+        const conversationId = window.ChatHistory.getCurrentId();
+
+        // Build URL with conversation_id parameter if available
+        const url = conversationId
+            ? `${API_BASE_URL}/documents?conversation_id=${encodeURIComponent(conversationId)}`
+            : `${API_BASE_URL}/documents`;
+
+        const response = await fetch(url);
         const result = await response.json();
 
         if (response.ok && result.success) {
