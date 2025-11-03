@@ -43,6 +43,11 @@ if (toggleSidebarButton) {
     toggleSidebarButton.addEventListener('click', () => window.ChatHistory.toggleSidebar());
 }
 
+const openSidebarButton = document.getElementById('openSidebarButton');
+if (openSidebarButton) {
+    openSidebarButton.addEventListener('click', () => window.ChatHistory.toggleSidebar());
+}
+
 // Handle search mode change to show/hide priority order
 function handleSearchModeChange() {
     const searchMode = searchModeSelect.value;

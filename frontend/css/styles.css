@@ -1178,3 +1178,39 @@ body.sidebar-collapsed .chat-history-sidebar {
         transform: translateX(-100%);
     }
 }
+
+/* Floating button to open sidebar */
+.open-sidebar-floating-button {
+    position: fixed;
+    left: 20px;
+    top: 20px;
+    width: 50px;
+    height: 50px;
+    background: var(--pantone-295u);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 61, 165, 0.3);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    transition: all 0.3s ease;
+}
+
+.open-sidebar-floating-button:hover {
+    background: #002a7a;
+    box-shadow: 0 6px 16px rgba(0, 61, 165, 0.4);
+    transform: translateY(-2px);
+}
+
+.open-sidebar-floating-button svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Show floating button when sidebar is collapsed */
+body.sidebar-collapsed .open-sidebar-floating-button {
+    display: flex;
+}
