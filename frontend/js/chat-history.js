@@ -234,6 +234,11 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Get current conversation ID
+function getCurrentConversationId() {
+    return currentConversationId;
+}
+
 // Export functions for use in main app
 window.ChatHistory = {
     init: initChatHistory,
@@ -242,5 +247,6 @@ window.ChatHistory = {
     switchTo: switchToConversation,
     delete: deleteConversation,
     render: renderChatHistory,
-    toggleSidebar: toggleSidebar
+    toggleSidebar: toggleSidebar,
+    getCurrentId: getCurrentConversationId
 };

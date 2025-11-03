@@ -143,6 +143,12 @@ async function uploadFiles(files) {
             const formData = new FormData();
             formData.append('file', file);
 
+            // Add conversation_id to associate file with current conversation
+            const conversationId = window.ChatHistory.getCurrentId();
+            if (conversationId) {
+                formData.append('conversation_id', conversationId);
+            }
+
             // Show uploading stage
             updateUploadStatus(uploadItemId, 'uploading', `Uploading ${file.name}...`);
 
@@ -272,6 +278,9 @@ async function performSearch() {
             ? ['online_search', 'files']
             : ['files', 'online_search'];
 
+        // Get current conversation ID to filter files
+        const conversationId = window.ChatHistory.getCurrentId();
+
         const response = await fetch(`${API_BASE_URL}/search`, {
             method: 'POST',
             headers: {
@@ -282,7 +291,8 @@ async function performSearch() {
                 top_k: parseInt(topKSelect.value),
                 search_mode: searchMode,
                 priority_order: priorityOrder,
-                conversation_history: conversationHistory
+                conversation_history: conversationHistory,
+                conversation_id: conversationId
             })
         });
 
