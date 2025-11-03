@@ -119,16 +119,19 @@ async def search_documents(request: SearchRequest):
 
 
 @router.get("/documents", response_model=DocumentListResponse)
-async def list_documents():
+async def list_documents(conversation_id: str = None):
     """
-    List all uploaded documents
+    List all uploaded documents, optionally filtered by conversation
+
+    Args:
+        conversation_id: Optional conversation ID to filter documents
 
     Returns:
         List of documents with metadata
     """
     try:
         vector_store = get_vector_store()
-        files = vector_store.list_files()
+        files = vector_store.list_files(conversation_id=conversation_id)
 
         documents = [
             DocumentInfo(

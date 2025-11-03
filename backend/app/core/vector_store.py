@@ -432,17 +432,33 @@ class VectorStore:
             logger.error(f"Error getting documents count: {str(e)}")
             return 0
 
-    def list_files(self) -> List[Dict[str, Any]]:
+    def list_files(self, conversation_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        List all unique files in the collection
+        List all unique files in the collection, optionally filtered by conversation
+
+        Args:
+            conversation_id: Optional conversation ID to filter files
 
         Returns:
             List of file information
         """
+        # Build filter for conversation_id
+        scroll_filter = None
+        if conversation_id:
+            scroll_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="conversation_id",
+                        match=MatchValue(value=conversation_id)
+                    )
+                ]
+            )
+
         # Get all points (may need pagination for large collections)
         all_points, _ = self.client.scroll(
             collection_name=self.collection_name,
-            limit=10000  # Adjust based on your needs
+            limit=10000,  # Adjust based on your needs
+            scroll_filter=scroll_filter
         )
 
         # Group by file_id
