@@ -454,10 +454,33 @@ function displaySearchResults(result) {
                 `;
             }
         } else {
-            // For older messages, show answer summary
+            // For older messages, show full answer with expand/collapse option for long answers
             const answerText = turn.answer || 'No response';
-            const truncated = answerText.length > 300 ? answerText.substring(0, 300) + '...' : answerText;
-            htmlContent += `<div style="font-size: 0.95rem; line-height: 1.7; color: #6B7280;">${parseMarkdownToHTML(truncated)}</div>`;
+            const isLong = answerText.length > 500;
+
+            if (isLong) {
+                // Long answer - show with expand/collapse toggle
+                const preview = answerText.substring(0, 500);
+                htmlContent += `
+                    <div id="answerFull${i}" style="display: none; font-size: 0.95rem; line-height: 1.7;">
+                        ${parseMarkdownToHTML(answerText)}
+                        <div style="margin-top: 12px;">
+                            <button onclick="toggleAnswer(${i})" style="color: #003DA5; background: none; border: none; cursor: pointer; font-weight: 600; padding: 4px 8px; text-decoration: underline;">
+                                Show Less
+                            </button>
+                        </div>
+                    </div>
+                    <div id="answerPreview${i}" style="font-size: 0.95rem; line-height: 1.7;">
+                        ${parseMarkdownToHTML(preview)}...
+                        <button onclick="toggleAnswer(${i})" style="color: #003DA5; background: none; border: none; cursor: pointer; font-weight: 600; margin-left: 8px; padding: 4px 8px; text-decoration: underline;">
+                            Show More
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Short answer - show fully
+                htmlContent += `<div style="font-size: 0.95rem; line-height: 1.7;">${parseMarkdownToHTML(answerText)}</div>`;
+            }
         }
 
         htmlContent += `
@@ -526,6 +549,25 @@ function toggleChatSources(index) {
         }
     }
 }
+
+// Toggle answer expand/collapse for previous messages
+window.toggleAnswer = function(index) {
+    const fullDiv = document.getElementById(`answerFull${index}`);
+    const previewDiv = document.getElementById(`answerPreview${index}`);
+
+    if (fullDiv && previewDiv) {
+        const isExpanded = fullDiv.style.display === 'block';
+        if (isExpanded) {
+            // Collapse
+            fullDiv.style.display = 'none';
+            previewDiv.style.display = 'block';
+        } else {
+            // Expand
+            fullDiv.style.display = 'block';
+            previewDiv.style.display = 'none';
+        }
+    }
+};
 
 async function loadDocuments() {
     try {
