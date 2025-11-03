@@ -26,9 +26,13 @@ function initChatHistory() {
 
 // Save conversations to localStorage
 function saveToLocalStorage() {
+    console.log('saveToLocalStorage called');
+    console.log('Saving conversations:', conversations);
     localStorage.setItem('chatHistory', JSON.stringify(conversations));
+    console.log('Saved to localStorage:', localStorage.getItem('chatHistory'));
     if (currentConversationId) {
         localStorage.setItem('currentConversationId', currentConversationId);
+        console.log('Saved currentConversationId:', currentConversationId);
     }
 }
 
@@ -62,6 +66,10 @@ function createNewConversation() {
 
 // Update current conversation
 function updateCurrentConversation(conversationHistory) {
+    console.log('ChatHistory.update called with:', conversationHistory);
+    console.log('Current conversation ID:', currentConversationId);
+    console.log('Existing conversations:', conversations);
+
     if (!currentConversationId) {
         // Create new conversation if none exists
         const newConv = {
@@ -73,6 +81,7 @@ function updateCurrentConversation(conversationHistory) {
         };
         conversations.unshift(newConv);
         currentConversationId = newConv.id;
+        console.log('Created new conversation:', newConv);
     } else {
         const conv = conversations.find(c => c.id === currentConversationId);
         if (conv) {
@@ -83,10 +92,12 @@ function updateCurrentConversation(conversationHistory) {
             if (conv.title === 'New Conversation' && conversationHistory.length > 0) {
                 conv.title = generateTitle(conversationHistory[0].query);
             }
+            console.log('Updated existing conversation:', conv);
         }
     }
 
     saveToLocalStorage();
+    console.log('Saved to localStorage, conversations:', conversations);
     renderChatHistory();
 }
 
