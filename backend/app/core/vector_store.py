@@ -77,7 +77,7 @@ class VectorStore:
             raise
 
     def add_documents(self, documents: List[Document], file_id: str, file_name: str,
-                     file_size: int, upload_date: datetime) -> int:
+                     file_size: int, upload_date: datetime, conversation_id: str = None) -> int:
         """
         Add documents to the vector store
 
@@ -87,6 +87,7 @@ class VectorStore:
             file_name: Original file name
             file_size: File size in bytes
             upload_date: Upload timestamp
+            conversation_id: Optional conversation ID to associate documents with
 
         Returns:
             Number of documents added
@@ -129,6 +130,7 @@ class VectorStore:
                 "page": doc.metadata.get("page"),
                 "has_images": doc.metadata.get("has_images", False),
                 "has_tables": doc.metadata.get("has_tables", False),
+                "conversation_id": conversation_id,  # Associate with conversation
             }
 
             # Add any additional metadata
@@ -170,7 +172,8 @@ class VectorStore:
         top_k: int = 5,
         file_types: Optional[List[str]] = None,
         date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None
+        date_to: Optional[datetime] = None,
+        conversation_id: str = None
     ) -> List[Dict[str, Any]]:
         """
         Hybrid search using both BM25 (full-text) and dense vector search
@@ -181,11 +184,12 @@ class VectorStore:
             file_types: Filter by file types
             date_from: Filter documents from this date
             date_to: Filter documents to this date
+            conversation_id: Filter by conversation ID
 
         Returns:
             List of search results with retrieval method marked
         """
-        return self.hybrid_search(query, top_k, file_types, date_from, date_to)
+        return self.hybrid_search(query, top_k, file_types, date_from, date_to, conversation_id)
 
     def hybrid_search(
         self,
@@ -193,7 +197,8 @@ class VectorStore:
         top_k: int = 5,
         file_types: Optional[List[str]] = None,
         date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None
+        date_to: Optional[datetime] = None,
+        conversation_id: str = None
     ) -> List[Dict[str, Any]]:
         """
         Hybrid search combining BM25 (keyword) and dense vector (semantic) search
@@ -206,12 +211,13 @@ class VectorStore:
             file_types: Filter by file types
             date_from: Filter documents from this date
             date_to: Filter documents to this date
+            conversation_id: Filter by conversation ID
 
         Returns:
             List of search results (max 2*top_k if no overlap)
         """
         # Build filter
-        search_filter = self._build_filter(file_types, date_from, date_to)
+        search_filter = self._build_filter(file_types, date_from, date_to, conversation_id)
 
         # 1. Dense vector search (semantic) - get exactly top_k
         query_embedding = self.embedding_generator.embed_text(query)
@@ -461,10 +467,20 @@ class VectorStore:
         self,
         file_types: Optional[List[str]] = None,
         date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None
+        date_to: Optional[datetime] = None,
+        conversation_id: Optional[str] = None
     ) -> Optional[Filter]:
         """Build Qdrant filter from search parameters"""
         conditions = []
+
+        # Filter by conversation_id if provided
+        if conversation_id:
+            conditions.append(
+                FieldCondition(
+                    key="conversation_id",
+                    match=MatchValue(value=conversation_id)
+                )
+            )
 
         if file_types:
             conditions.append(

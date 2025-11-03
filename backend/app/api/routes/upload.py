@@ -28,12 +28,16 @@ def get_s3_key(file_id: str, filename: str) -> str:
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    conversation_id: str = None
+):
     """
     Upload and process a document
 
     Args:
         file: Uploaded file
+        conversation_id: Optional conversation ID to associate file with
 
     Returns:
         Upload response with processing details
@@ -64,6 +68,8 @@ async def upload_file(file: UploadFile = File(...)):
         file_id = str(uuid.uuid4())
         upload_date = datetime.now()
 
+        logger.info(f"File uploaded: {file.filename} for conversation: {conversation_id or 'global'}")
+
         # Save file temporarily for processing
         temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{file.filename}"
         async with aiofiles.open(temp_file_path, 'wb') as f:
@@ -90,14 +96,15 @@ async def upload_file(file: UploadFile = File(...)):
         processor = DocumentProcessor()
         documents = processor.process_file(temp_file_path, file.filename)
 
-        # Add to vector store
+        # Add to vector store with conversation association
         vector_store = get_vector_store()
         chunks_created = vector_store.add_documents(
             documents=documents,
             file_id=file_id,
             file_name=file.filename,
             file_size=file_size,
-            upload_date=upload_date
+            upload_date=upload_date,
+            conversation_id=conversation_id
         )
 
         # Clean up: remove local file if using S3, otherwise keep it

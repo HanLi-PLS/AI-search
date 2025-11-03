@@ -47,6 +47,7 @@ class SearchRequest(BaseModel):
     search_mode: str = Field(default="files_only", description="Search mode: auto, files_only, online_only, both, or sequential_analysis")
     priority_order: Optional[List[str]] = Field(default=["online_search", "files"], description="Priority order for 'both' mode")
     conversation_history: Optional[List[ConversationTurn]] = Field(default=None, description="Previous conversation turns for context")
+    conversation_id: Optional[str] = Field(default=None, description="Conversation ID to filter files")
     file_types: Optional[List[str]] = Field(default=None, description="Filter by file types")
     date_from: Optional[datetime] = Field(default=None, description="Filter documents from this date")
     date_to: Optional[datetime] = Field(default=None, description="Filter documents to this date")

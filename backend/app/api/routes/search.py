@@ -52,13 +52,14 @@ async def search_documents(request: SearchRequest):
         if actual_search_mode != "online_only":
             vector_store = get_vector_store()
 
-            # Perform search
+            # Perform search with conversation filtering
             results = vector_store.search(
                 query=request.query,
                 top_k=request.top_k,
                 file_types=request.file_types,
                 date_from=request.date_from,
-                date_to=request.date_to
+                date_to=request.date_to,
+                conversation_id=request.conversation_id
             )
 
             # Format results
