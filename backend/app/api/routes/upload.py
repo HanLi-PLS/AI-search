@@ -1,7 +1,7 @@
 """
 File upload API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import List
 import uuid
 import time
@@ -30,7 +30,7 @@ def get_s3_key(file_id: str, filename: str) -> str:
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    conversation_id: str = None
+    conversation_id: str = Form(None)
 ):
     """
     Upload and process a document
@@ -68,7 +68,7 @@ async def upload_file(
         file_id = str(uuid.uuid4())
         upload_date = datetime.now()
 
-        logger.info(f"File uploaded: {file.filename} for conversation: {conversation_id or 'global'}")
+        logger.info(f"File uploaded: {file.filename} for conversation: {conversation_id or 'global'} (type: {type(conversation_id)})")
 
         # Save file temporarily for processing
         temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{file.filename}"
