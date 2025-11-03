@@ -1,7 +1,7 @@
 // API Configuration
 const API_BASE_URL = window.location.origin + '/api';
 
-// Conversation History (stored in browser session)
+// Conversation History (managed by chat-history.js module)
 let conversationHistory = [];
 
 // DOM Elements
@@ -37,6 +37,12 @@ newConversationButton.addEventListener('click', startNewConversation);
 refreshButton.addEventListener('click', loadDocuments);
 searchModeSelect.addEventListener('change', handleSearchModeChange);
 
+// Chat History Event Listeners
+const toggleSidebarButton = document.getElementById('toggleSidebarButton');
+if (toggleSidebarButton) {
+    toggleSidebarButton.addEventListener('click', () => window.ChatHistory.toggleSidebar());
+}
+
 // Handle search mode change to show/hide priority order
 function handleSearchModeChange() {
     const searchMode = searchModeSelect.value;
@@ -49,15 +55,39 @@ function handleSearchModeChange() {
 
 // Start a new conversation
 function startNewConversation() {
-    conversationHistory = [];
+    conversationHistory = window.ChatHistory.createNew();
     searchResults.innerHTML = '<div class="no-results"><p>New conversation started. Ask me anything!</p></div>';
     searchInput.value = '';
     searchInput.focus();
     showToast('New conversation started', 'success');
 }
 
+// Load conversation history (called when switching chats)
+window.loadConversationHistory = function(history) {
+    conversationHistory = history;
+    if (history.length === 0) {
+        searchResults.innerHTML = '<div class="no-results"><p>Start a conversation. Ask me anything!</p></div>';
+    } else {
+        // Re-render the conversation
+        const lastQuery = history[history.length - 1].query;
+        const lastAnswer = history[history.length - 1].answer;
+        displaySearchResults({ answer: lastAnswer, query: lastQuery });
+    }
+    searchInput.value = '';
+    searchInput.focus();
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize chat history
+    conversationHistory = window.ChatHistory.init();
+    window.ChatHistory.render();
+
+    // Load initial conversation if exists
+    if (conversationHistory.length > 0) {
+        window.loadConversationHistory(conversationHistory);
+    }
+
     loadDocuments();
     checkHealth();
 });
@@ -259,6 +289,9 @@ async function performSearch() {
                 query: query,
                 answer: result.answer || result.online_search_response || 'No answer provided'
             });
+
+            // Save to localStorage and update chat history sidebar
+            window.ChatHistory.update(conversationHistory);
 
             // Clear search input
             searchInput.value = '';

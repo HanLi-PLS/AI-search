@@ -8,6 +8,21 @@
 </head>
 <body>
     <div class="container">
+        <!-- Chat History Sidebar -->
+        <aside class="chat-history-sidebar" id="chatHistorySidebar">
+            <div class="sidebar-header">
+                <h3>Chat History</h3>
+                <button id="toggleSidebarButton" class="toggle-sidebar-button" title="Toggle sidebar">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                </button>
+            </div>
+            <div class="chat-history-list" id="chatHistoryList">
+                <!-- Chat history items will be added here dynamically -->
+            </div>
+        </aside>
+
         <!-- Header -->
         <header class="header">
             <h1>AI Document Search</h1>
@@ -126,6 +141,7 @@
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Scripts -->
+    <script src="/static/js/chat-history.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>
