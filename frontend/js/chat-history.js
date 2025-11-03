@@ -200,23 +200,30 @@ window.deleteChat = function(conversationId) {
 
 // Toggle sidebar visibility
 function toggleSidebar() {
-    const sidebar = document.getElementById('chatHistorySidebar');
     const button = document.getElementById('toggleSidebarButton');
 
-    if (sidebar.classList.contains('collapsed')) {
-        sidebar.classList.remove('collapsed');
+    console.log('toggleSidebar called');
+
+    if (document.body.classList.contains('sidebar-collapsed')) {
+        // Show sidebar
+        document.body.classList.remove('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', 'false');
         button.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
         `;
+        console.log('Sidebar expanded');
     } else {
-        sidebar.classList.add('collapsed');
+        // Hide sidebar
+        document.body.classList.add('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', 'true');
         button.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
             </svg>
         `;
+        console.log('Sidebar collapsed');
     }
 }
 

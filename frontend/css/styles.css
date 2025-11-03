@@ -1151,22 +1151,30 @@ section h2 {
 }
 
 /* Adjust main container to account for sidebar */
-body:has(.chat-history-sidebar:not(.collapsed)) .container {
+.container {
     margin-left: 280px;
+    transition: margin-left 0.3s ease;
+}
+
+body.sidebar-collapsed .container {
+    margin-left: 0;
+}
+
+body.sidebar-collapsed .chat-history-sidebar {
+    transform: translateX(-280px);
 }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
+    .container {
+        margin-left: 0 !important;
+    }
+
     .chat-history-sidebar {
         width: 100%;
+    }
+
+    body.sidebar-collapsed .chat-history-sidebar {
         transform: translateX(-100%);
-    }
-
-    .chat-history-sidebar:not(.collapsed) {
-        transform: translateX(0);
-    }
-
-    body:has(.chat-history-sidebar:not(.collapsed)) .container {
-        margin-left: 0;
     }
 }
