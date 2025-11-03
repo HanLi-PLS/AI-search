@@ -21,7 +21,22 @@ function initChatHistory() {
         }
     }
 
-    return [];
+    // If no conversations exist at all, create the first one automatically
+    if (conversations.length === 0) {
+        console.log('No conversations found, creating initial conversation');
+        const initialConv = {
+            id: generateId(),
+            title: 'New Conversation',
+            history: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        conversations.push(initialConv);
+        currentConversationId = initialConv.id;
+        saveToLocalStorage();
+    }
+
+    return conversations.find(c => c.id === currentConversationId)?.history || [];
 }
 
 // Save conversations to localStorage

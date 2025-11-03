@@ -130,8 +130,10 @@ async def list_documents(conversation_id: str = None):
         List of documents with metadata
     """
     try:
+        logger.info(f"Listing documents with conversation_id: {conversation_id}")
         vector_store = get_vector_store()
         files = vector_store.list_files(conversation_id=conversation_id)
+        logger.info(f"Found {len(files)} files for conversation_id: {conversation_id}")
 
         documents = [
             DocumentInfo(

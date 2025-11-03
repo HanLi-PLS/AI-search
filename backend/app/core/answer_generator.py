@@ -212,7 +212,7 @@ Now classify the user's query."""
         if search_mode == "files_only":
             logger.info(f"Using files_only mode for query: {query[:50]}...")
             if not search_results:
-                return "I couldn't find any relevant information to answer your question.", None
+                return "I couldn't find any relevant information to answer your question.", None, None
 
             # Build context from search results
             context_parts = []
