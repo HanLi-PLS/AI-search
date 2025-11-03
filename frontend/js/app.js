@@ -76,10 +76,10 @@ window.loadConversationHistory = function(history) {
     if (history.length === 0) {
         searchResults.innerHTML = '<div class="no-results"><p>Start a conversation. Ask me anything!</p></div>';
     } else {
-        // Re-render the conversation
-        const lastQuery = history[history.length - 1].query;
-        const lastAnswer = history[history.length - 1].answer;
-        displaySearchResults({ answer: lastAnswer, query: lastQuery });
+        // Re-render the conversation with the complete last turn data
+        const lastTurn = history[history.length - 1];
+        // Pass the complete turn object as the result - it has all the saved fields
+        displaySearchResults(lastTurn);
     }
     searchInput.value = '';
     searchInput.focus();
