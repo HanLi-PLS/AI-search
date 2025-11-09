@@ -121,20 +121,22 @@ Now classify the user's query."""
             logger.error(f"Error classifying query: {str(e)}")
             return "files_only", f"Error during classification, defaulting to files_only mode: {str(e)}"
 
-    def answer_online_search(self, prompt: str) -> str:
+    def answer_online_search(self, prompt: str, model: Optional[str] = None) -> str:
         """
         Perform online search using OpenAI's web_search_preview tool
 
         Args:
             prompt: Search query/prompt
+            model: Optional model to use (defaults to self.online_search_model)
 
         Returns:
             Search results as text
         """
         try:
-            logger.info(f"Performing online search for: {prompt[:50]}...")
+            search_model = model or self.online_search_model
+            logger.info(f"Performing online search with model {search_model} for: {prompt[:50]}...")
             response = self.client.responses.create(
-                model=self.online_search_model,
+                model=search_model,
                 tools=[{
                     "type": "web_search_preview",
                     "search_context_size": "high",
@@ -174,6 +176,7 @@ Now classify the user's query."""
         query: str,
         search_results: List[Dict[str, Any]],
         search_mode: str = "files_only",
+        reasoning_mode: str = "non_reasoning",
         priority_order: Optional[List[str]] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
         max_context_length: int = 8000
@@ -186,6 +189,7 @@ Now classify the user's query."""
             query: User's question
             search_results: List of search results with content and metadata
             search_mode: "files_only", "online_only", "both", or "sequential_analysis"
+            reasoning_mode: "non_reasoning" (gpt-4.1), "reasoning" (o4-mini), or "deep_research" (o3-deep-research)
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             conversation_history: Previous conversation turns for context
             max_context_length: Maximum characters to include in context
@@ -196,6 +200,16 @@ Now classify the user's query."""
         if priority_order is None:
             priority_order = ['online_search', 'files']
 
+        # Select model based on reasoning mode
+        if reasoning_mode == "reasoning":
+            search_model = "o4-mini"
+        elif reasoning_mode == "deep_research":
+            search_model = "o3-deep-research"
+        else:  # non_reasoning
+            search_model = "gpt-4.1"
+
+        logger.info(f"Using reasoning mode '{reasoning_mode}' with model '{search_model}'")
+
         # Format conversation history if provided
         conversation_context = self.format_conversation_history(conversation_history)
 
@@ -204,7 +218,7 @@ Now classify the user's query."""
         # Handle online_only mode - just return online search result directly
         if search_mode == "online_only":
             logger.info(f"Using online_only mode for query: {query[:50]}...")
-            online_search_response = self.answer_online_search(query)
+            online_search_response = self.answer_online_search(query, model=search_model)
             # Return online search response as the answer directly (no duplicate processing)
             return online_search_response, None, None
 
@@ -335,7 +349,7 @@ Be concise and factual. Only include information explicitly stated in the docume
 Search online for competitor data, industry benchmarks, or comparative information that relates to the extracted data above."""
 
             try:
-                online_search_response = self.answer_online_search(online_search_prompt)
+                online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
                 logger.info("Online search completed in sequential mode")
             except Exception as e:
                 logger.error(f"Error in online search: {str(e)}")
@@ -382,7 +396,7 @@ If this is a follow-up question referring to previous conversation, use the cont
 
             # Get online search response if included in priority
             if 'online_search' in priority_order:
-                online_search_response = self.answer_online_search(query)
+                online_search_response = self.answer_online_search(query, model=search_model)
 
             # Build context from files
             files_context = ""

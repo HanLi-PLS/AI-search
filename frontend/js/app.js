@@ -19,6 +19,8 @@ const topKSelect = document.getElementById('topKSelect');
 const searchModeSelect = document.getElementById('searchModeSelect');
 const priorityOrderSelect = document.getElementById('priorityOrderSelect');
 const priorityOrderLabel = document.getElementById('priorityOrderLabel');
+const reasoningModeSelect = document.getElementById('reasoningModeSelect');
+const reasoningModeLabel = document.getElementById('reasoningModeLabel');
 const documentsList = document.getElementById('documentsList');
 const refreshButton = document.getElementById('refreshButton');
 const loadingSpinner = document.getElementById('loadingSpinner');
@@ -48,13 +50,22 @@ if (openSidebarButton) {
     openSidebarButton.addEventListener('click', () => window.ChatHistory.toggleSidebar());
 }
 
-// Handle search mode change to show/hide priority order
+// Handle search mode change to show/hide priority order and reasoning mode
 function handleSearchModeChange() {
     const searchMode = searchModeSelect.value;
+
+    // Show priority order only for 'both' mode
     if (searchMode === 'both') {
         priorityOrderLabel.style.display = 'inline-block';
     } else {
         priorityOrderLabel.style.display = 'none';
+    }
+
+    // Show reasoning mode for all modes except 'files_only'
+    if (searchMode !== 'files_only') {
+        reasoningModeLabel.style.display = 'inline-block';
+    } else {
+        reasoningModeLabel.style.display = 'none';
     }
 }
 
@@ -281,8 +292,9 @@ async function performSearch() {
     showSearchLoading();
 
     try {
-        // Get search mode and priority order
+        // Get search mode, priority order, and reasoning mode
         const searchMode = searchModeSelect.value;
+        const reasoningMode = reasoningModeSelect.value;
         const priorityOrder = priorityOrderSelect.value === 'online_first'
             ? ['online_search', 'files']
             : ['files', 'online_search'];
@@ -299,6 +311,7 @@ async function performSearch() {
                 query: query,
                 top_k: parseInt(topKSelect.value),
                 search_mode: searchMode,
+                reasoning_mode: reasoningMode,
                 priority_order: priorityOrder,
                 conversation_history: conversationHistory,
                 conversation_id: conversationId

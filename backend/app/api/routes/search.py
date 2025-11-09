@@ -89,6 +89,7 @@ async def search_documents(request: SearchRequest):
                 query=request.query,
                 search_results=results,
                 search_mode=actual_search_mode,
+                reasoning_mode=request.reasoning_mode,
                 priority_order=request.priority_order,
                 conversation_history=conversation_history_dict
             )
