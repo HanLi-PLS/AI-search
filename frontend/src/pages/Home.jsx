@@ -14,9 +14,15 @@ function Home() {
       </div>
 
       <div className="features-section">
-        <div className="feature-card">
-          <h2>🔍 AI-Powered Search</h2>
-          <p>Advanced AI algorithms to find exactly what you're looking for</p>
+        <div className="feature-card highlight">
+          <h2>🔍 AI Document Search</h2>
+          <p>Search your biotech documents using advanced RAG and GPT-4</p>
+          <button
+            className="tracker-button"
+            onClick={() => navigate('/ai-search')}
+          >
+            Open AI Search
+          </button>
         </div>
 
         <div className="feature-card highlight">
@@ -31,8 +37,14 @@ function Home() {
         </div>
 
         <div className="feature-card">
-          <h2>📚 Document Analysis</h2>
-          <p>Extract insights from your documents using advanced RAG technology</p>
+          <h2>🧬 Company Intelligence</h2>
+          <p>Extract drug pipelines, competitors, and market analysis from documents</p>
+          <button
+            className="tracker-button"
+            onClick={() => navigate('/ai-search')}
+          >
+            Explore Features
+          </button>
         </div>
       </div>
 

@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import stocks
+from .routers import stocks, ai_search
 
 app = FastAPI(
-    title="HKEX Biotech Stock Tracker API",
-    description="API for tracking HKEX 18A biotech company stock prices and upcoming IPOs",
-    version="1.0.0"
+    title="AI Search Platform API",
+    description="API for AI-powered document search, RAG Q&A, and HKEX biotech stock tracking",
+    version="2.0.0"
 )
 
 # Configure CORS
@@ -19,14 +19,20 @@ app.add_middleware(
 
 # Include routers
 app.include_router(stocks.router)
+app.include_router(ai_search.router)
 
 
 @app.get("/")
 async def root():
     """Root endpoint"""
     return {
-        "message": "HKEX Biotech Stock Tracker API",
-        "version": "1.0.0",
+        "message": "AI Search Platform API",
+        "version": "2.0.0",
+        "features": [
+            "AI-powered document search and Q&A",
+            "HKEX biotech stock tracking",
+            "Company intelligence extraction"
+        ],
         "docs": "/docs"
     }
 

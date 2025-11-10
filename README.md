@@ -4,10 +4,16 @@ A comprehensive AI-powered search platform with integrated HKEX 18A biotech comp
 
 ## Features
 
-### 🔍 AI Search (Coming Soon)
-- Advanced document search and retrieval
-- RAG (Retrieval-Augmented Generation) powered Q&A
-- Multi-format document support
+### 🔍 AI Document Search & RAG
+- **Advanced Document Search** - Query your biotech documents using natural language
+- **RAG (Retrieval-Augmented Generation)** - Combines vector search (ChromaDB), BM25 keyword search, and GPT-4 for intelligent answers
+- **Multi-format Support** - Process PDFs, DOCX, PPTX, XLSX, CSV, HTML, Markdown
+- **Image Extraction** - Extract and analyze images/tables from PDFs using GPT-4 Vision
+- **Ensemble Retrieval** - Hybrid BM25 + vector semantic search for best results
+- **Web Search Integration** - Optionally supplement with real-time online search
+- **Company Intelligence** - Extract drug pipelines, competitors, clinical trials, and market analysis
+- **Configurable Models** - Choose between GPT-4.1, O4-Mini, O3 for different speed/quality trade-offs
+- **S3 Integration** - Load and process documents directly from AWS S3
 
 ### 📊 HKEX Biotech Stock Tracker
 - Real-time stock price tracking for HKEX 18A biotech companies
@@ -25,7 +31,12 @@ AI-search/
 │   ├── data/                   # Stock data and company lists
 │   ├── models/                 # Pydantic data models
 │   ├── routers/                # API route handlers
-│   ├── services/               # Business logic (stock service)
+│   │   ├── stocks.py           # Stock tracker endpoints
+│   │   └── ai_search.py        # AI search endpoints
+│   ├── services/               # Business logic
+│   │   ├── stock_service.py    # Stock data fetching
+│   │   ├── document_service.py # Document processing & PDF extraction
+│   │   └── search_service.py   # ChromaDB, BM25, RAG
 │   ├── utils/                  # Utility functions
 │   ├── main.py                 # FastAPI application entry point
 │   └── requirements.txt        # Python dependencies
@@ -33,29 +44,37 @@ AI-search/
 ├── frontend/                   # React frontend (Vite)
 │   ├── src/
 │   │   ├── components/         # React components (StockCard, etc.)
-│   │   ├── pages/              # Page components (Home, StockTracker)
+│   │   ├── pages/              # Page components (Home, StockTracker, AISearch)
 │   │   ├── services/           # API client services
 │   │   ├── App.jsx             # Main app component with routing
 │   │   └── main.jsx            # React entry point
 │   ├── package.json
 │   └── vite.config.js
 │
-└── old_coding/                 # Legacy Jupyter notebooks
+└── old_coding/                 # Legacy Jupyter notebooks (for reference)
 ```
 
 ## Tech Stack
 
 ### Backend
 - **FastAPI** - Modern Python web framework
-- **yfinance** - Yahoo Finance data fetching
-- **Pandas** - Data manipulation
 - **Uvicorn** - ASGI server
+- **ChromaDB** - Vector database for semantic search
+- **LangChain** - RAG framework and document loaders
+- **OpenAI GPT-4** - AI models for vision and text generation
+- **SentenceTransformers** - Embeddings (Qwen3-Embedding-4B)
+- **PyMuPDF** - PDF processing and image extraction
+- **PyTorch** - ML framework with GPU support
+- **BM25** - Keyword-based retrieval
+- **boto3** - AWS S3 integration
+- **yfinance** - Yahoo Finance stock data
+- **Pandas** - Data manipulation
 
 ### Frontend
-- **React** - UI library
+- **React 19** - UI library
 - **Vite** - Build tool and dev server
 - **React Router** - Client-side routing
-- **Axios** - HTTP client
+- **Axios** - HTTP client for API calls
 - **Recharts** - Data visualization (planned)
 
 ## Getting Started
@@ -64,6 +83,9 @@ AI-search/
 - Python 3.8+
 - Node.js 16+
 - npm or yarn
+- CUDA-capable GPU (recommended for AI search)
+- OpenAI API key (required for AI search)
+- AWS credentials (if using S3 for document storage)
 
 ### Backend Setup
 
@@ -127,6 +149,23 @@ npm run dev
 
 ## API Endpoints
 
+### AI Search API
+
+- `POST /api/ai-search/search` - Search documents and get AI-generated answer
+  - Body: `{ "question": str, "k_bm": int, "k_jd": int, "search_model": str, "priority_order": [str] }`
+  - Returns: `{ "answer": str, "online_search_response": str | null }`
+
+- `GET /api/ai-search/status` - Get index status
+  - Returns: `{ "status": str, "vector_db_loaded": bool, "bm25_loaded": bool, "embeddings_model": str, "device": str }`
+
+- `POST /api/ai-search/index` - Index documents from S3
+  - Body: `{ "s3_bucket": str, "s3_folder": str, "ignored_files": [str], "collection_name": str, "persist_directory": str }`
+  - Returns: `{ "status": str, "message": str, "document_count": int }`
+
+- `POST /api/ai-search/company-info` - Extract company intelligence
+  - Params: `company_name`, `k_bm`, `k_jd`
+  - Returns: Structured JSON with drug pipeline, competitors, clinical trials
+
 ### Stock Tracker API
 
 - `GET /api/stocks/companies` - Get list of all biotech companies
@@ -138,7 +177,7 @@ npm run dev
 
 ### Health Check
 
-- `GET /` - API information
+- `GET /` - API information and features list
 - `GET /health` - Health check endpoint
 
 ## HKEX 18A Companies Tracked
