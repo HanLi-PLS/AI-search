@@ -19,14 +19,14 @@ module.exports = {
     {
       name: 'ai-search-frontend',
       cwd: '/home/user/AI-search/frontend',
-      script: 'npx',
-      args: 'serve -s dist -l 5173 -n',
+      script: 'npm',
+      args: 'run dev -- --host 0.0.0.0',
       instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
       env: {
-        NODE_ENV: 'production',
+        NODE_ENV: 'development',
       },
       error_file: '/home/user/AI-search/logs/frontend-error.log',
       out_file: '/home/user/AI-search/logs/frontend-out.log',
