@@ -2,8 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'ai-search-backend',
-      cwd: '/home/user/AI-search',
-      script: '/usr/local/bin/python3',
+      script: 'python3',
       args: '-m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000',
       instances: 1,
       autorestart: true,
@@ -12,13 +11,13 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
       },
-      error_file: '/home/user/AI-search/logs/backend-error.log',
-      out_file: '/home/user/AI-search/logs/backend-out.log',
+      error_file: './logs/backend-error.log',
+      out_file: './logs/backend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
     {
       name: 'ai-search-frontend',
-      cwd: '/home/user/AI-search/frontend',
+      cwd: './frontend',
       script: 'npm',
       args: 'run dev -- --host 0.0.0.0',
       instances: 1,
@@ -28,8 +27,8 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
       },
-      error_file: '/home/user/AI-search/logs/frontend-error.log',
-      out_file: '/home/user/AI-search/logs/frontend-out.log',
+      error_file: '../logs/frontend-error.log',
+      out_file: '../logs/frontend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     }
   ]
