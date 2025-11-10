@@ -20,7 +20,7 @@ module.exports = {
       name: 'ai-search-frontend',
       cwd: '/home/user/AI-search/frontend',
       script: 'npx',
-      args: 'serve -s dist -l 5173',
+      args: 'serve -s dist -l 5173 -n',
       instances: 1,
       autorestart: true,
       watch: false,
