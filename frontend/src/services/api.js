@@ -43,42 +43,60 @@ export const stockAPI = {
   },
 };
 
-// AI Search API functions
-export const searchDocuments = async (query) => {
+// AI Search API functions (matching HTML version API)
+export const uploadFile = async (file, conversationId = null) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (conversationId) {
+    formData.append('conversation_id', conversationId);
+  }
+
   try {
-    const response = await api.post('/api/ai-search/search', query);
+    const response = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Upload failed');
+  }
+};
+
+export const searchDocuments = async (searchRequest) => {
+  try {
+    const response = await api.post('/api/search', searchRequest);
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.detail || 'Search failed');
   }
 };
 
-export const getIndexStatus = async () => {
+export const getDocuments = async (conversationId = null) => {
   try {
-    const response = await api.get('/api/ai-search/status');
+    const params = conversationId ? { conversation_id: conversationId } : {};
+    const response = await api.get('/api/documents', { params });
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.detail || 'Failed to get index status');
+    throw new Error(error.response?.data?.detail || 'Failed to fetch documents');
   }
 };
 
-export const indexDocuments = async (indexRequest) => {
+export const deleteDocument = async (fileId) => {
   try {
-    const response = await api.post('/api/ai-search/index', indexRequest);
+    const response = await api.delete(`/api/documents/${fileId}`);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.detail || 'Indexing failed');
+    throw new Error(error.response?.data?.detail || 'Failed to delete document');
   }
 };
 
-export const getCompanyInfo = async (companyName, kBm = 100, kJd = 100) => {
+export const healthCheck = async () => {
   try {
-    const response = await api.post('/api/ai-search/company-info', null, {
-      params: { company_name: companyName, k_bm: kBm, k_jd: kJd },
-    });
+    const response = await api.get('/api/health');
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.detail || 'Failed to extract company info');
+    throw new Error(error.response?.data?.detail || 'Health check failed');
   }
 };
 
