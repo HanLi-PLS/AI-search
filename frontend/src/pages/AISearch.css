@@ -1151,16 +1151,19 @@ section h2 {
 }
 
 /* Adjust main container to account for sidebar */
-.container {
+.container,
+.ai-search-container {
     margin-left: 280px;
     transition: margin-left 0.3s ease;
 }
 
-body.sidebar-collapsed .container {
+body.sidebar-collapsed .container,
+.ai-search-container.sidebar-collapsed {
     margin-left: 0;
 }
 
-body.sidebar-collapsed .chat-history-sidebar {
+body.sidebar-collapsed .chat-history-sidebar,
+.ai-search-container.sidebar-collapsed .chat-history-sidebar {
     transform: translateX(-280px);
 }
 
@@ -1192,11 +1195,12 @@ body.sidebar-collapsed .chat-history-sidebar {
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(255, 105, 0, 0.3);
     cursor: pointer;
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 999;
     transition: all 0.3s ease;
+    font-size: 24px;
 }
 
 .open-sidebar-floating-button:hover {
