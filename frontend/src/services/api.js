@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+// Use window.location.hostname to connect to the same server serving the frontend
+const API_BASE_URL = `http://${window.location.hostname}:8000`;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
