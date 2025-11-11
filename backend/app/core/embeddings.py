@@ -21,7 +21,7 @@ class EmbeddingGenerator:
         """
         self.model_name = model_name or settings.EMBEDDING_MODEL
         logger.info(f"Loading embedding model: {self.model_name}")
-        self.model = SentenceTransformer(self.model_name)
+        self.model = SentenceTransformer(self.model_name, trust_remote_code=True)
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         logger.info(f"Embedding dimension: {self.embedding_dim}")
 
