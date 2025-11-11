@@ -167,13 +167,18 @@ async def extract_and_process_zip(
                     logger.info(f"Skipping unsupported file in zip: {filename}")
                     continue
 
+                # Preserve folder structure in filename to avoid collisions
+                # Convert "folder1/subfolder/document.pdf" to "folder1_subfolder_document.pdf"
+                safe_filename = filename.replace('/', '_').replace('\\', '_')
+
                 # Extract file
-                extracted_path = extract_dir / Path(filename).name
+                extracted_path = extract_dir / safe_filename
                 with zip_ref.open(file_info) as source:
                     with open(extracted_path, 'wb') as target:
                         target.write(source.read())
 
-                temp_files.append((extracted_path, Path(filename).name))
+                # Use safe_filename (with folder path) for tracking and metadata
+                temp_files.append((extracted_path, safe_filename))
 
             logger.info(f"Extracted {len(temp_files)} files from {zip_filename}")
 
