@@ -9,6 +9,10 @@ from pathlib import Path
 from datetime import datetime
 import aiofiles
 import os
+import zipfile
+import io
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 from backend.app.models.schemas import UploadResponse, ErrorResponse
 from backend.app.core.document_processor import DocumentProcessor
@@ -27,13 +31,190 @@ def get_s3_key(file_id: str, filename: str) -> str:
     return f"{settings.S3_UPLOAD_PREFIX}{file_id}/{filename}"
 
 
+def decode_zip_filename(file_info: zipfile.ZipInfo) -> str:
+    """
+    Decode zip filename with proper encoding handling for Chinese characters
+
+    Args:
+        file_info: ZipInfo object from zipfile
+
+    Returns:
+        Properly decoded filename
+    """
+    filename = file_info.filename
+    try:
+        # Try to encode as CP437 and decode as UTF-8 (common for files zipped on Windows)
+        filename = file_info.filename.encode('cp437').decode('utf-8')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        try:
+            # Try GB2312/GBK encoding (common for Chinese Windows systems)
+            filename = file_info.filename.encode('cp437').decode('gbk')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            # If all else fails, keep the original filename
+            pass
+    return filename
+
+
+def should_skip_file(filename: str) -> bool:
+    """
+    Check if file should be skipped during extraction
+
+    Args:
+        filename: File path to check
+
+    Returns:
+        True if file should be skipped
+    """
+    # Skip .DS_Store files and __MACOSX folder
+    return filename.endswith('.DS_Store') or filename.startswith('__MACOSX/') or filename.endswith('/')
+
+
+async def process_single_file(
+    file_path: Path,
+    filename: str,
+    file_id: str,
+    conversation_id: str
+) -> dict:
+    """
+    Process a single file and add to vector store
+
+    Args:
+        file_path: Path to file
+        filename: Original filename
+        file_id: Unique file ID
+        conversation_id: Conversation ID
+
+    Returns:
+        Processing result dictionary
+    """
+    try:
+        file_size = file_path.stat().st_size
+        upload_date = datetime.now()
+
+        # Process document
+        processor = DocumentProcessor()
+        documents = processor.process_file(file_path, filename)
+
+        # Add to vector store
+        vector_store = get_vector_store()
+        chunks_created = vector_store.add_documents(
+            documents=documents,
+            file_id=file_id,
+            file_name=filename,
+            file_size=file_size,
+            upload_date=upload_date,
+            conversation_id=conversation_id
+        )
+
+        logger.info(f"Processed file: {filename}, {chunks_created} chunks created")
+
+        return {
+            'success': True,
+            'filename': filename,
+            'file_id': file_id,
+            'chunks_created': chunks_created
+        }
+    except Exception as e:
+        logger.error(f"Error processing file {filename}: {str(e)}")
+        return {
+            'success': False,
+            'filename': filename,
+            'error': str(e)
+        }
+
+
+async def extract_and_process_zip(
+    zip_content: bytes,
+    zip_filename: str,
+    conversation_id: str
+) -> List[dict]:
+    """
+    Extract zip file and process all files in parallel
+
+    Args:
+        zip_content: Zip file content as bytes
+        zip_filename: Original zip filename
+        conversation_id: Conversation ID
+
+    Returns:
+        List of processing results
+    """
+    results = []
+    temp_files = []
+
+    try:
+        # Extract zip file
+        buffer = io.BytesIO(zip_content)
+
+        with zipfile.ZipFile(buffer, 'r') as zip_ref:
+            # Create temporary extraction directory
+            extract_dir = settings.UPLOAD_DIR / f"zip_{uuid.uuid4()}"
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
+            # Extract all valid files
+            for file_info in zip_ref.infolist():
+                # Decode filename properly
+                filename = decode_zip_filename(file_info)
+
+                # Skip unwanted files
+                if should_skip_file(filename) or file_info.is_dir():
+                    continue
+
+                # Check file extension
+                file_ext = Path(filename).suffix.lower()
+                if file_ext not in settings.SUPPORTED_EXTENSIONS or file_ext == '.zip':
+                    logger.info(f"Skipping unsupported file in zip: {filename}")
+                    continue
+
+                # Extract file
+                extracted_path = extract_dir / Path(filename).name
+                with zip_ref.open(file_info) as source:
+                    with open(extracted_path, 'wb') as target:
+                        target.write(source.read())
+
+                temp_files.append((extracted_path, Path(filename).name))
+
+            logger.info(f"Extracted {len(temp_files)} files from {zip_filename}")
+
+            # Process all files in parallel
+            tasks = [
+                process_single_file(
+                    file_path=file_path,
+                    filename=filename,
+                    file_id=str(uuid.uuid4()),
+                    conversation_id=conversation_id
+                )
+                for file_path, filename in temp_files
+            ]
+
+            results = await asyncio.gather(*tasks)
+
+    finally:
+        # Clean up temporary files
+        for file_path, _ in temp_files:
+            try:
+                if file_path.exists():
+                    os.remove(file_path)
+            except Exception as e:
+                logger.error(f"Error removing temp file {file_path}: {str(e)}")
+
+        # Remove extraction directory
+        if 'extract_dir' in locals() and extract_dir.exists():
+            try:
+                extract_dir.rmdir()
+            except Exception as e:
+                logger.error(f"Error removing extraction directory: {str(e)}")
+
+    return results
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
     conversation_id: str = Form(None)
 ):
     """
-    Upload and process a document
+    Upload and process a document (or zip file containing multiple documents)
 
     Args:
         file: Uploaded file
@@ -62,6 +243,42 @@ async def upload_file(
             raise HTTPException(
                 status_code=400,
                 detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE_MB}MB"
+            )
+
+        # Handle zip files differently - extract and process in parallel
+        if file_ext == '.zip':
+            logger.info(f"Processing zip file: {file.filename}")
+
+            results = await extract_and_process_zip(
+                zip_content=content,
+                zip_filename=file.filename,
+                conversation_id=conversation_id
+            )
+
+            # Calculate totals
+            total_chunks = sum(r.get('chunks_created', 0) for r in results if r.get('success'))
+            successful = sum(1 for r in results if r.get('success'))
+            failed = sum(1 for r in results if not r.get('success'))
+
+            processing_time = time.time() - start_time
+
+            logger.info(
+                f"Zip file processed: {file.filename}, "
+                f"{successful} files successful, {failed} failed, "
+                f"{total_chunks} total chunks"
+            )
+
+            message = f"Zip file processed: {successful} files successful"
+            if failed > 0:
+                message += f", {failed} files failed"
+
+            return UploadResponse(
+                success=True,
+                message=message,
+                file_name=file.filename,
+                file_id=str(uuid.uuid4()),
+                chunks_created=total_chunks,
+                processing_time=round(processing_time, 2)
             )
 
         # Generate unique file ID

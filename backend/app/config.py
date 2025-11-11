@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     SUPPORTED_EXTENSIONS: set = {
         ".pdf", ".txt", ".md", ".docx", ".doc",
         ".xlsx", ".xls", ".csv", ".pptx", ".ppt",
-        ".html", ".htm", ".json", ".eml"
+        ".html", ".htm", ".json", ".eml", ".zip"
     }
 
     class Config:
