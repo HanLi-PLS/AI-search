@@ -82,15 +82,27 @@ function AISearch() {
           }
         } else if (status.status === 'completed') {
           const successCount = status.processed_files - status.failed_files;
-          const message = status.total_files > 1
-            ? `✓ Complete: ${successCount} files processed, ${status.total_chunks} chunks created`
-            : `✓ Complete: ${status.total_chunks} chunks created`;
+
+          // Build message with failed files info if any
+          let message;
+          if (status.total_files > 1) {
+            message = `✓ Complete: ${successCount}/${status.total_files} files processed, ${status.total_chunks} chunks created`;
+
+            // Add failed files details if any
+            if (status.failed_files > 0 && status.file_results) {
+              const failedFiles = status.file_results.filter(r => !r.success);
+              const failedList = failedFiles.map(f => `${f.filename}: ${f.error}`).join('; ');
+              message += `\n⚠️ ${status.failed_files} failed: ${failedList}`;
+            }
+          } else {
+            message = `✓ Complete: ${status.total_chunks} chunks created`;
+          }
 
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: {
               name: fileName,
-              status: 'complete',
+              status: status.failed_files > 0 ? 'warning' : 'complete',
               message
             }
           }));
@@ -100,7 +112,7 @@ function AISearch() {
               const { [fileId]: _, ...rest } = prev;
               return rest;
             });
-          }, 5000);
+          }, 10000); // Show for 10 seconds if there are errors
         } else if (status.status === 'failed') {
           setUploadProgress(prev => ({
             ...prev,
@@ -310,6 +322,7 @@ function AISearch() {
                     {progress.status === 'uploading' && '⏳'}
                     {progress.status === 'processing' && '⚙️'}
                     {progress.status === 'complete' && '✅'}
+                    {progress.status === 'warning' && '⚠️'}
                     {progress.status === 'error' && '❌'}
                   </div>
                 </div>

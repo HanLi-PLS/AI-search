@@ -89,12 +89,46 @@ async def process_single_file(
         Processing result dictionary
     """
     try:
+        # Check if file exists and is readable
+        if not file_path.exists():
+            error_msg = "File not found or inaccessible"
+            logger.error(f"Error processing {filename}: {error_msg}")
+            return {
+                'success': False,
+                'filename': filename,
+                'error': error_msg,
+                'error_type': 'file_not_found'
+            }
+
         file_size = file_path.stat().st_size
+
+        # Check if file is empty
+        if file_size == 0:
+            error_msg = "File is empty (0 bytes)"
+            logger.warning(f"Skipping empty file: {filename}")
+            return {
+                'success': False,
+                'filename': filename,
+                'error': error_msg,
+                'error_type': 'empty_file'
+            }
+
         upload_date = datetime.now()
 
         # Process document
         processor = DocumentProcessor()
         documents = processor.process_file(file_path, filename)
+
+        # Check if any content was extracted
+        if not documents or len(documents) == 0:
+            error_msg = "No content could be extracted from file"
+            logger.warning(f"No content extracted from: {filename}")
+            return {
+                'success': False,
+                'filename': filename,
+                'error': error_msg,
+                'error_type': 'no_content'
+            }
 
         # Add to vector store
         vector_store = get_vector_store()
@@ -115,12 +149,55 @@ async def process_single_file(
             'file_id': file_id,
             'chunks_created': chunks_created
         }
-    except Exception as e:
-        logger.error(f"Error processing file {filename}: {str(e)}")
+    except FileNotFoundError as e:
+        error_msg = "File not found"
+        logger.error(f"File not found: {filename}")
         return {
             'success': False,
             'filename': filename,
-            'error': str(e)
+            'error': error_msg,
+            'error_type': 'file_not_found'
+        }
+    except PermissionError as e:
+        error_msg = "Permission denied reading file"
+        logger.error(f"Permission denied: {filename}")
+        return {
+            'success': False,
+            'filename': filename,
+            'error': error_msg,
+            'error_type': 'permission_denied'
+        }
+    except UnicodeDecodeError as e:
+        error_msg = "File encoding error - file may be corrupted or in unsupported encoding"
+        logger.error(f"Encoding error in {filename}: {str(e)}")
+        return {
+            'success': False,
+            'filename': filename,
+            'error': error_msg,
+            'error_type': 'encoding_error'
+        }
+    except Exception as e:
+        # Categorize error based on error message
+        error_str = str(e).lower()
+        if 'corrupt' in error_str or 'damaged' in error_str or 'invalid' in error_str:
+            error_type = 'corrupted_file'
+            error_msg = f"File appears to be corrupted or damaged: {str(e)}"
+        elif 'unsupported' in error_str or 'not supported' in error_str:
+            error_type = 'unsupported_format'
+            error_msg = f"Unsupported file format or feature: {str(e)}"
+        elif 'password' in error_str or 'encrypted' in error_str:
+            error_type = 'encrypted_file'
+            error_msg = "File is password-protected or encrypted"
+        else:
+            error_type = 'processing_error'
+            error_msg = f"Error processing file: {str(e)}"
+
+        logger.error(f"Error processing file {filename}: {error_msg}")
+        return {
+            'success': False,
+            'filename': filename,
+            'error': error_msg,
+            'error_type': error_type
         }
 
 
@@ -154,31 +231,43 @@ async def extract_and_process_zip(
 
             # Extract all valid files
             for file_info in zip_ref.infolist():
-                # Decode filename properly
-                filename = decode_zip_filename(file_info)
+                try:
+                    # Decode filename properly
+                    filename = decode_zip_filename(file_info)
 
-                # Skip unwanted files
-                if should_skip_file(filename) or file_info.is_dir():
-                    continue
+                    # Skip unwanted files
+                    if should_skip_file(filename) or file_info.is_dir():
+                        continue
 
-                # Check file extension
-                file_ext = Path(filename).suffix.lower()
-                if file_ext not in settings.SUPPORTED_EXTENSIONS or file_ext == '.zip':
-                    logger.info(f"Skipping unsupported file in zip: {filename}")
-                    continue
+                    # Check file extension
+                    file_ext = Path(filename).suffix.lower()
+                    if file_ext not in settings.SUPPORTED_EXTENSIONS or file_ext == '.zip':
+                        logger.info(f"Skipping unsupported file in zip: {filename}")
+                        continue
 
-                # Preserve folder structure in filename to avoid collisions
-                # Convert "folder1/subfolder/document.pdf" to "folder1_subfolder_document.pdf"
-                safe_filename = filename.replace('/', '_').replace('\\', '_')
+                    # Preserve folder structure in filename to avoid collisions
+                    # Convert "folder1/subfolder/document.pdf" to "folder1_subfolder_document.pdf"
+                    safe_filename = filename.replace('/', '_').replace('\\', '_')
 
-                # Extract file
-                extracted_path = extract_dir / safe_filename
-                with zip_ref.open(file_info) as source:
-                    with open(extracted_path, 'wb') as target:
-                        target.write(source.read())
+                    # Extract file
+                    extracted_path = extract_dir / safe_filename
+                    with zip_ref.open(file_info) as source:
+                        with open(extracted_path, 'wb') as target:
+                            target.write(source.read())
 
-                # Use safe_filename (with folder path) for tracking and metadata
-                temp_files.append((extracted_path, safe_filename))
+                    # Use safe_filename (with folder path) for tracking and metadata
+                    temp_files.append((extracted_path, safe_filename))
+
+                except Exception as e:
+                    # Log extraction error but continue with other files
+                    logger.error(f"Failed to extract {filename} from zip: {str(e)}")
+                    # Add to results as failed extraction
+                    results.append({
+                        'success': False,
+                        'filename': filename,
+                        'error': f"Failed to extract from zip: {str(e)}",
+                        'error_type': 'extraction_error'
+                    })
 
             logger.info(f"Extracted {len(temp_files)} files from {zip_filename}")
 
