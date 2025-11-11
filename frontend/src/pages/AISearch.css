@@ -957,6 +957,56 @@ section h2 {
     background: white;
     border: 2px solid #E5E7EB;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.ai-bubble.collapsed {
+    cursor: pointer;
+    background: linear-gradient(135deg, #F9FAFB, #F3F4F6);
+}
+
+.ai-bubble.collapsed:hover {
+    background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
+    border-color: var(--pantone-1505u);
+    box-shadow: 0 4px 12px rgba(255, 105, 0, 0.1);
+}
+
+.ai-bubble.expanded {
+    cursor: default;
+}
+
+.collapsed-preview {
+    width: 100%;
+}
+
+.collapse-hint {
+    font-size: 0.75rem;
+    color: var(--pantone-1505u);
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.collapse-hint.clickable {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255, 105, 0, 0.05);
+    display: inline-flex;
+    width: fit-content;
+}
+
+.collapse-hint.clickable:hover {
+    background: rgba(255, 105, 0, 0.1);
+}
+
+.preview-text {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    font-style: italic;
 }
 
 .message-avatar {

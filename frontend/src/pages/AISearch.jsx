@@ -325,13 +325,29 @@ function AISearch() {
 
 function ChatMessages({ history }) {
   const [expandedSources, setExpandedSources] = useState({});
+  const [expandedAnswers, setExpandedAnswers] = useState(() => {
+    // By default, expand the most recent answer, collapse older ones
+    const initial = {};
+    history.forEach((_, index) => {
+      initial[index] = index === history.length - 1;
+    });
+    return initial;
+  });
+
   const toggleSources = (index) => {
     setExpandedSources(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
+  const toggleAnswer = (index) => {
+    setExpandedAnswers(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
   return (
     <div className="chat-container">
-      {history.map((turn, index) => (
+      {history.map((turn, index) => {
+        const isExpanded = expandedAnswers[index];
+
+        return (
         <div key={index} className="chat-turn">
           <div className="chat-message user-message">
             <div className="message-content">
@@ -343,56 +359,73 @@ function ChatMessages({ history }) {
           </div>
           <div className="chat-message ai-message">
             <div className="message-content">
-              <div className="message-bubble ai-bubble">
+              <div className={`message-bubble ai-bubble ${isExpanded ? 'expanded' : 'collapsed'}`} onClick={() => toggleAnswer(index)}>
                 <div className="message-avatar">🤖</div>
                 <div className="message-text">
-                  {turn.selected_mode && turn.mode_reasoning && (
-                    <div className="mode-selection-box">
-                      <strong>Mode:</strong> <span className="mode-badge">{turn.selected_mode}</span>
-                      <div className="mode-reasoning">{turn.mode_reasoning}</div>
+                  {!isExpanded && (
+                    <div className="collapsed-preview">
+                      <div className="collapse-hint">▶ Click to expand answer</div>
+                      {turn.answer && (
+                        <div className="preview-text">
+                          {turn.answer.substring(0, 150)}{turn.answer.length > 150 && '...'}
+                        </div>
+                      )}
                     </div>
                   )}
-                  {turn.extracted_info && (
-                    <div className="extracted-info-box">
-                      <div className="box-header">📄 Step 1: Extracted from Files</div>
-                      <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.extracted_info) }} />
-                    </div>
-                  )}
-                  {turn.online_search_response && (
-                    <div className="online-search-box">
-                      <div className="box-header">🌐 {turn.extracted_info ? 'Step 2: Online Search' : 'Online Search'}</div>
-                      <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.online_search_response) }} />
-                    </div>
-                  )}
-                  {turn.answer && (
-                    <>
-                      {turn.extracted_info && <div className="answer-header">✨ Step 3: Comparative Analysis</div>}
-                      <div className="answer-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.answer) }} />
-                    </>
-                  )}
-                  {turn.results && turn.results.length > 0 && (
-                    <div className="sources-container">
-                      <button className="sources-toggle" onClick={() => toggleSources(index)}>
-                        {expandedSources[index] ? '▲' : '▼'} View {turn.results.length} Source(s)
-                      </button>
-                      {expandedSources[index] && (
-                        <div className="sources-list">
-                          {turn.results.map((result, idx) => (
-                            <div key={idx} className="source-item">
-                              <div className="source-header">
-                                <span className="source-name">{result.metadata.file_name || 'Unknown'}</span>
-                                <span className="source-score">{Math.round(result.score * 100)}%</span>
-                              </div>
-                              <div className="source-meta">
-                                {result.metadata.file_type}
-                                {result.metadata.page && ` • Page ${result.metadata.page}`}
-                                <span className="retrieval-badge">{result.retrieval_method || 'Dense'}</span>
-                              </div>
-                              <div className="source-content">
-                                {result.content.substring(0, 300)}{result.content.length > 300 && '...'}
-                              </div>
+                  {isExpanded && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <div className="collapse-hint clickable" onClick={() => toggleAnswer(index)}>
+                        ▼ Click to collapse
+                      </div>
+                      {turn.selected_mode && turn.mode_reasoning && (
+                        <div className="mode-selection-box">
+                          <strong>Mode:</strong> <span className="mode-badge">{turn.selected_mode}</span>
+                          <div className="mode-reasoning">{turn.mode_reasoning}</div>
+                        </div>
+                      )}
+                      {turn.extracted_info && (
+                        <div className="extracted-info-box">
+                          <div className="box-header">📄 Step 1: Extracted from Files</div>
+                          <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.extracted_info) }} />
+                        </div>
+                      )}
+                      {turn.online_search_response && (
+                        <div className="online-search-box">
+                          <div className="box-header">🌐 {turn.extracted_info ? 'Step 2: Online Search' : 'Online Search'}</div>
+                          <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.online_search_response) }} />
+                        </div>
+                      )}
+                      {turn.answer && (
+                        <>
+                          {turn.extracted_info && <div className="answer-header">✨ Step 3: Comparative Analysis</div>}
+                          <div className="answer-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.answer) }} />
+                        </>
+                      )}
+                      {turn.results && turn.results.length > 0 && (
+                        <div className="sources-container">
+                          <button className="sources-toggle" onClick={(e) => { e.stopPropagation(); toggleSources(index); }}>
+                            {expandedSources[index] ? '▲' : '▼'} View {turn.results.length} Source(s)
+                          </button>
+                          {expandedSources[index] && (
+                            <div className="sources-list">
+                              {turn.results.map((result, idx) => (
+                                <div key={idx} className="source-item">
+                                  <div className="source-header">
+                                    <span className="source-name">{result.metadata.file_name || 'Unknown'}</span>
+                                    <span className="source-score">{Math.round(result.score * 100)}%</span>
+                                  </div>
+                                  <div className="source-meta">
+                                    {result.metadata.file_type}
+                                    {result.metadata.page && ` • Page ${result.metadata.page}`}
+                                    <span className="retrieval-badge">{result.retrieval_method || 'Dense'}</span>
+                                  </div>
+                                  <div className="source-content">
+                                    {result.content.substring(0, 300)}{result.content.length > 300 && '...'}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
@@ -402,7 +435,7 @@ function ChatMessages({ history }) {
             </div>
           </div>
         </div>
-      ))}
+      )})}
     </div>
   );
 }
