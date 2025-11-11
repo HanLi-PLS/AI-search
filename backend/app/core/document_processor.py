@@ -183,7 +183,21 @@ async def _process_image_with_ai_helper_async(image_base64: str, model: str, api
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Please extract information from the following image in detail and precisely.",
+                                "text": """Please extract information from the following image in detail and precisely.
+
+**Special Instructions for Charts, Graphs, and Plots**:
+If the image contains any curves, plots, charts, graphs, or data visualizations:
+1. Identify the type of visualization (line chart, bar chart, scatter plot, etc.)
+2. Extract and list important data points, including:
+   - Key values at critical points (peaks, troughs, inflection points)
+   - Start and end values
+   - Any labeled data points
+   - Axis labels, units, and scales
+   - Legend information
+3. Describe trends, patterns, or notable features in the data
+4. Include any numerical values visible in the chart
+
+For non-chart content, extract all text, tables, and other information as usual.""",
                             },
                             {
                                 "type": "image_url",
@@ -231,7 +245,21 @@ def _process_image_with_ai_helper(image_base64: str, model: str) -> str:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Please extract information from the following image in detail and precisely.",
+                                "text": """Please extract information from the following image in detail and precisely.
+
+**Special Instructions for Charts, Graphs, and Plots**:
+If the image contains any curves, plots, charts, graphs, or data visualizations:
+1. Identify the type of visualization (line chart, bar chart, scatter plot, etc.)
+2. Extract and list important data points, including:
+   - Key values at critical points (peaks, troughs, inflection points)
+   - Start and end values
+   - Any labeled data points
+   - Axis labels, units, and scales
+   - Legend information
+3. Describe trends, patterns, or notable features in the data
+4. Include any numerical values visible in the chart
+
+For non-chart content, extract all text, tables, and other information as usual.""",
                             },
                             {
                                 "type": "image_url",
