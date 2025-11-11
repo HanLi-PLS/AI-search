@@ -19,6 +19,7 @@ function AISearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
+  const [showAllDocuments, setShowAllDocuments] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topK, setTopK] = useState(10);
   const [searchMode, setSearchMode] = useState('auto');
@@ -38,11 +39,13 @@ function AISearch() {
 
   useEffect(() => {
     loadDocuments();
-  }, [currentConversationId]);
+  }, [currentConversationId, showAllDocuments]);
 
   const loadDocuments = async () => {
     try {
-      const result = await getDocuments(currentConversationId);
+      // Pass null to get ALL documents, or currentConversationId to filter by conversation
+      const conversationFilter = showAllDocuments ? null : currentConversationId;
+      const result = await getDocuments(conversationFilter);
       if (result.success) {
         setDocuments(result.documents || []);
       }
@@ -285,7 +288,17 @@ function AISearch() {
         <section className="documents-section">
           <div className="section-header">
             <h2>Uploaded Documents</h2>
-            <button className="refresh-button" onClick={loadDocuments}>🔄 Refresh</button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showAllDocuments}
+                  onChange={(e) => setShowAllDocuments(e.target.checked)}
+                />
+                Show all documents
+              </label>
+              <button className="refresh-button" onClick={loadDocuments}>🔄 Refresh</button>
+            </div>
           </div>
           <div className="documents-list">
             {documents.length === 0 ? (
