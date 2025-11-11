@@ -1,7 +1,7 @@
 """
 File upload API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
 from typing import List
 import uuid
 import time
@@ -14,11 +14,12 @@ import io
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
-from backend.app.models.schemas import UploadResponse, ErrorResponse
+from backend.app.models.schemas import UploadResponse, ErrorResponse, JobStatusResponse
 from backend.app.core.document_processor import DocumentProcessor
 from backend.app.core.vector_store import get_vector_store
 from backend.app.utils.s3_storage import get_s3_storage
 from backend.app.config import settings
+from backend.app.core.job_tracker import get_job_tracker, JobStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -208,23 +209,130 @@ async def extract_and_process_zip(
     return results
 
 
+async def process_file_background(
+    file_path: Path,
+    filename: str,
+    file_ext: str,
+    conversation_id: str,
+    job_id: str
+):
+    """
+    Background task to process uploaded file
+
+    Args:
+        file_path: Path to uploaded file
+        filename: Original filename
+        file_ext: File extension
+        conversation_id: Conversation ID
+        job_id: Job tracking ID
+    """
+    job_tracker = get_job_tracker()
+    job_tracker.update_job_status(job_id, JobStatus.PROCESSING)
+
+    try:
+        # Read file content
+        with open(file_path, 'rb') as f:
+            content = f.read()
+
+        # Handle zip files
+        if file_ext == '.zip':
+            logger.info(f"[Job {job_id}] Processing zip file: {filename}")
+            job = job_tracker.get_job(job_id)
+            if job:
+                # Extract and count files first
+                buffer = io.BytesIO(content)
+                with zipfile.ZipFile(buffer, 'r') as zip_ref:
+                    valid_files = sum(
+                        1 for file_info in zip_ref.infolist()
+                        if not should_skip_file(decode_zip_filename(file_info))
+                        and not file_info.is_dir()
+                        and Path(decode_zip_filename(file_info)).suffix.lower() in settings.SUPPORTED_EXTENSIONS
+                    )
+                job.total_files = valid_files
+
+            # Process zip
+            results = await extract_and_process_zip(content, filename, conversation_id)
+
+            # Update job with results
+            for result in results:
+                job_tracker.add_file_result(job_id, result)
+
+            successful = sum(1 for r in results if r.get('success'))
+            failed = sum(1 for r in results if not r.get('success'))
+
+            logger.info(f"[Job {job_id}] Zip processed: {successful} successful, {failed} failed")
+            job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
+
+        else:
+            # Handle single file
+            logger.info(f"[Job {job_id}] Processing single file: {filename}")
+            job = job_tracker.get_job(job_id)
+            if job:
+                job.total_files = 1
+
+            file_id = str(uuid.uuid4())
+            upload_date = datetime.now()
+            file_size = len(content)
+
+            # Process document
+            processor = DocumentProcessor()
+            documents = processor.process_file(file_path, filename)
+
+            # Add to vector store
+            vector_store = get_vector_store()
+            chunks_created = vector_store.add_documents(
+                documents=documents,
+                file_id=file_id,
+                file_name=filename,
+                file_size=file_size,
+                upload_date=upload_date,
+                conversation_id=conversation_id
+            )
+
+            result = {
+                'success': True,
+                'filename': filename,
+                'file_id': file_id,
+                'chunks_created': chunks_created
+            }
+
+            job_tracker.add_file_result(job_id, result)
+            job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
+            logger.info(f"[Job {job_id}] File processed: {chunks_created} chunks created")
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[Job {job_id}] Error processing file: {error_msg}")
+        job_tracker.update_job_status(job_id, JobStatus.FAILED, error_msg)
+
+    finally:
+        # Clean up temp file
+        try:
+            if file_path.exists():
+                os.remove(file_path)
+                logger.info(f"[Job {job_id}] Cleaned up temp file: {file_path}")
+        except Exception as e:
+            logger.error(f"[Job {job_id}] Error cleaning up temp file: {str(e)}")
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     conversation_id: str = Form(None)
 ):
     """
     Upload and process a document (or zip file containing multiple documents)
+    Processing happens in the background - returns immediately with job_id
 
     Args:
+        background_tasks: FastAPI background tasks
         file: Uploaded file
         conversation_id: Optional conversation ID to associate file with
 
     Returns:
-        Upload response with processing details
+        Upload response with job_id for tracking
     """
-    start_time = time.time()
-
     try:
         # Validate file extension
         file_ext = Path(file.filename).suffix.lower()
@@ -245,118 +353,46 @@ async def upload_file(
                 detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE_MB}MB"
             )
 
-        # Handle zip files differently - extract and process in parallel
-        if file_ext == '.zip':
-            logger.info(f"Processing zip file: {file.filename}")
-
-            results = await extract_and_process_zip(
-                zip_content=content,
-                zip_filename=file.filename,
-                conversation_id=conversation_id
-            )
-
-            # Calculate totals
-            total_chunks = sum(r.get('chunks_created', 0) for r in results if r.get('success'))
-            successful = sum(1 for r in results if r.get('success'))
-            failed = sum(1 for r in results if not r.get('success'))
-
-            processing_time = time.time() - start_time
-
-            logger.info(
-                f"Zip file processed: {file.filename}, "
-                f"{successful} files successful, {failed} failed, "
-                f"{total_chunks} total chunks"
-            )
-
-            message = f"Zip file processed: {successful} files successful"
-            if failed > 0:
-                message += f", {failed} files failed"
-
-            return UploadResponse(
-                success=True,
-                message=message,
-                file_name=file.filename,
-                file_id=str(uuid.uuid4()),
-                chunks_created=total_chunks,
-                processing_time=round(processing_time, 2)
-            )
-
-        # Generate unique file ID
+        # Generate job ID and file ID
+        job_id = str(uuid.uuid4())
         file_id = str(uuid.uuid4())
-        upload_date = datetime.now()
 
-        logger.info(f"File uploaded: {file.filename} for conversation: {conversation_id or 'global'} (type: {type(conversation_id)})")
-
-        # Save file temporarily for processing
+        # Save file temporarily
         temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{file.filename}"
         async with aiofiles.open(temp_file_path, 'wb') as f:
             await f.write(content)
 
-        logger.info(f"File uploaded: {file.filename} ({file_size} bytes)")
+        logger.info(f"File uploaded: {file.filename} ({file_size} bytes), job_id: {job_id}")
 
-        # Upload to S3 if enabled
-        s3_key = None
-        if settings.USE_S3_STORAGE and settings.AWS_S3_BUCKET:
-            s3_storage = get_s3_storage(
-                bucket_name=settings.AWS_S3_BUCKET,
-                region_name=settings.AWS_REGION
-            )
-            if s3_storage:
-                s3_key = get_s3_key(file_id, file.filename)
-                upload_success = s3_storage.upload_file(temp_file_path, s3_key)
-                if upload_success:
-                    logger.info(f"File uploaded to S3: s3://{settings.AWS_S3_BUCKET}/{s3_key}")
-                else:
-                    logger.warning(f"Failed to upload file to S3: {file.filename}")
+        # Create job tracker entry
+        job_tracker = get_job_tracker()
+        job_tracker.create_job(job_id, file.filename, conversation_id)
 
-        # Process document
-        processor = DocumentProcessor()
-        documents = processor.process_file(temp_file_path, file.filename)
-
-        # Add to vector store with conversation association
-        vector_store = get_vector_store()
-        chunks_created = vector_store.add_documents(
-            documents=documents,
-            file_id=file_id,
-            file_name=file.filename,
-            file_size=file_size,
-            upload_date=upload_date,
-            conversation_id=conversation_id
+        # Add background task
+        background_tasks.add_task(
+            process_file_background,
+            temp_file_path,
+            file.filename,
+            file_ext,
+            conversation_id,
+            job_id
         )
-
-        # Clean up: remove local file if using S3, otherwise keep it
-        if settings.USE_S3_STORAGE and s3_key and temp_file_path.exists():
-            os.remove(temp_file_path)
-            logger.info(f"Removed local file (using S3): {temp_file_path}")
-
-        processing_time = time.time() - start_time
-
-        logger.info(f"File processed successfully: {file.filename}, {chunks_created} chunks created")
-
-        storage_info = f"stored in S3: s3://{settings.AWS_S3_BUCKET}/{s3_key}" if s3_key else "stored locally"
 
         return UploadResponse(
             success=True,
-            message=f"File uploaded and processed successfully ({storage_info})",
+            message="File upload successful. Processing in background.",
             file_name=file.filename,
             file_id=file_id,
-            chunks_created=chunks_created,
-            processing_time=round(processing_time, 2)
+            job_id=job_id,
+            status="processing"
         )
 
     except HTTPException:
-        # Clean up temp file if exists
-        if 'temp_file_path' in locals() and temp_file_path.exists():
-            os.remove(temp_file_path)
         raise
 
     except Exception as e:
-        # Clean up temp file if exists
-        if 'temp_file_path' in locals() and temp_file_path.exists():
-            os.remove(temp_file_path)
-
         logger.error(f"Error uploading file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
 
 
 @router.post("/upload-batch", response_model=List[UploadResponse])
@@ -387,3 +423,43 @@ async def upload_multiple_files(files: List[UploadFile] = File(...)):
             )
 
     return results
+
+
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    """
+    Get status of a background processing job
+
+    Args:
+        job_id: Job identifier
+
+    Returns:
+        Job status information
+    """
+    job_tracker = get_job_tracker()
+    job = job_tracker.get_job(job_id)
+
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job not found: {job_id}"
+        )
+
+    return JobStatusResponse(**job.to_dict())
+
+
+@router.get("/jobs", response_model=List[JobStatusResponse])
+async def list_jobs(conversation_id: str = None):
+    """
+    List all jobs, optionally filtered by conversation
+
+    Args:
+        conversation_id: Optional conversation ID to filter by
+
+    Returns:
+        List of job status information
+    """
+    from typing import Optional
+    job_tracker = get_job_tracker()
+    jobs = job_tracker.get_all_jobs(conversation_id)
+    return [JobStatusResponse(**job) for job in jobs]

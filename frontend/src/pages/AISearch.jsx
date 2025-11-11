@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { uploadFile, searchDocuments, getDocuments, deleteDocument } from '../services/api';
+import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus } from '../services/api';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { parseMarkdownToHTML, formatFileSize, formatDate } from '../utils/markdown';
 import './AISearch.css';
@@ -54,6 +54,79 @@ function AISearch() {
     }
   };
 
+  const pollJobStatus = async (jobId, fileId, fileName) => {
+    const maxAttempts = 300; // Poll for up to 5 minutes (300 * 1s = 300s)
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const status = await getJobStatus(jobId);
+
+        if (status.status === 'processing') {
+          const progress = status.total_files > 0
+            ? `Processing... (${status.processed_files}/${status.total_files} files, ${status.total_chunks} chunks)`
+            : 'Processing...';
+
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: {
+              name: fileName,
+              status: 'processing',
+              message: progress
+            }
+          }));
+
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(poll, 1000); // Poll every second
+          }
+        } else if (status.status === 'completed') {
+          const successCount = status.processed_files - status.failed_files;
+          const message = status.total_files > 1
+            ? `✓ Complete: ${successCount} files processed, ${status.total_chunks} chunks created`
+            : `✓ Complete: ${status.total_chunks} chunks created`;
+
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: {
+              name: fileName,
+              status: 'complete',
+              message
+            }
+          }));
+          loadDocuments();
+          setTimeout(() => {
+            setUploadProgress(prev => {
+              const { [fileId]: _, ...rest } = prev;
+              return rest;
+            });
+          }, 5000);
+        } else if (status.status === 'failed') {
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: {
+              name: fileName,
+              status: 'error',
+              message: status.error_message || 'Processing failed'
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Error polling job status:', error);
+        setUploadProgress(prev => ({
+          ...prev,
+          [fileId]: {
+            name: fileName,
+            status: 'error',
+            message: 'Failed to check status'
+          }
+        }));
+      }
+    };
+
+    poll();
+  };
+
   const handleFileSelect = async (files) => {
     const fileArray = Array.from(files);
     setUploading(true);
@@ -67,16 +140,18 @@ function AISearch() {
 
       try {
         const result = await uploadFile(file, currentConversationId);
-        if (result.success) {
+        if (result.success && result.job_id) {
+          // File uploaded successfully, now processing in background
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: {
               name: file.name,
-              status: 'complete',
-              message: `${result.chunks_created} chunks created in ${result.processing_time}s`
+              status: 'processing',
+              message: 'File uploaded. Processing in background...'
             }
           }));
-          loadDocuments();
+          // Start polling for job status
+          pollJobStatus(result.job_id, fileId, file.name);
         } else {
           throw new Error(result.message || 'Upload failed');
         }
@@ -88,7 +163,6 @@ function AISearch() {
       }
     }
     setUploading(false);
-    setTimeout(() => setUploadProgress({}), 5000);
   };
 
   const handleDrop = (e) => {
@@ -234,6 +308,7 @@ function AISearch() {
                   </div>
                   <div className="upload-result-icon">
                     {progress.status === 'uploading' && '⏳'}
+                    {progress.status === 'processing' && '⚙️'}
                     {progress.status === 'complete' && '✅'}
                     {progress.status === 'error' && '❌'}
                   </div>

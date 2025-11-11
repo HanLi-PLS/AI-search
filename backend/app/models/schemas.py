@@ -30,8 +30,26 @@ class UploadResponse(BaseModel):
     message: str
     file_name: str
     file_id: Optional[str] = None
+    job_id: Optional[str] = None  # Job ID for background processing
     chunks_created: Optional[int] = None
     processing_time: Optional[float] = None
+    status: Optional[str] = None  # Job status: processing, completed, failed
+
+
+class JobStatusResponse(BaseModel):
+    """Job status response"""
+    job_id: str
+    file_name: str
+    conversation_id: Optional[str] = None
+    status: str  # pending, processing, completed, failed
+    created_at: str
+    updated_at: str
+    total_files: int = 0
+    processed_files: int = 0
+    failed_files: int = 0
+    total_chunks: int = 0
+    error_message: Optional[str] = None
+    file_results: List[Dict[str, Any]] = []
 
 
 class ConversationTurn(BaseModel):

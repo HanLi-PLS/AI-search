@@ -101,4 +101,23 @@ export const healthCheck = async () => {
   }
 };
 
+export const getJobStatus = async (jobId) => {
+  try {
+    const response = await api.get(`/api/jobs/${jobId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch job status');
+  }
+};
+
+export const listJobs = async (conversationId = null) => {
+  try {
+    const params = conversationId ? { conversation_id: conversationId } : {};
+    const response = await api.get('/api/jobs', { params });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch jobs');
+  }
+};
+
 export default api;
