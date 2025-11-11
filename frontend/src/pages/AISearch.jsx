@@ -216,7 +216,10 @@ function AISearch() {
               <div className="upload-icon">☁️</div>
               <p className="upload-text">Drag & drop files here or click to browse</p>
               <p className="upload-subtext">Supported: PDF, DOCX, TXT, MD, CSV, XLSX, PPTX, HTML, JSON</p>
-              <input ref={fileInputRef} type="file" multiple accept=".pdf,.txt,.md,.docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.html,.htm,.json,.eml"
+              <p className="upload-subtext" style={{ color: 'var(--pantone-1505u)', fontWeight: '600', marginTop: '5px' }}>
+                💡 Tip: Upload ZIP files for bulk processing with parallel embedding generation
+              </p>
+              <input ref={fileInputRef} type="file" multiple accept=".pdf,.txt,.md,.docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.html,.htm,.json,.eml,.zip"
                 onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} />
             </div>
           </div>
