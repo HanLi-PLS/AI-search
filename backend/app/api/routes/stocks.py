@@ -358,58 +358,9 @@ def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, An
 
         logger.debug(f"Searching web for {ticker} stock price: {search_query}")
 
-        # Define web search tool
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "web_search",
-                    "description": "Search the web for current information",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "The search query"
-                            }
-                        },
-                        "required": ["query"]
-                    }
-                }
-            }
-        ]
-
-        # First call: Ask GPT to search
+        # Use GPT-4.1 with built-in web search capability
         response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a financial data assistant with access to web search. Use the web_search tool to find current stock prices from reliable sources like HKEX, Yahoo Finance, or Google Finance. Extract and return structured data."
-                },
-                {
-                    "role": "user",
-                    "content": f"Find the current stock price for {ticker} ({company_info}Hong Kong stock). I need: current_price, change, change_percent, volume, previous_close. Search the web for the latest information."
-                }
-            ],
-            tools=tools,
-            tool_choice="auto",
-            temperature=0
-        )
-
-        # Check if GPT wants to use the tool
-        if response.choices[0].message.tool_calls:
-            # Simulate web search (in practice, you'd use a real search API like Tavily, Serper, etc.)
-            tool_call = response.choices[0].message.tool_calls[0]
-            search_args = json.loads(tool_call.function.arguments)
-
-            # For now, make a direct call with search results simulation
-            # In production, integrate with Tavily/Serper/etc.
-            logger.debug(f"GPT requested web search: {search_args.get('query')}")
-
-        # Simplified approach: Direct query with search context
-        response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model="gpt-4.1",
             messages=[
                 {
                     "role": "system",
@@ -480,7 +431,7 @@ If you cannot find reliable data, return null. Do not include explanations, only
                 "market_cap": None,
                 "currency": "HKD",
                 "last_updated": datetime.now().isoformat(),
-                "data_source": "Web Search (GPT-4 Turbo)"
+                "data_source": "Web Search (GPT-4.1)"
             }
 
             logger.info(f"✓ Got real data from web search for {ticker}: HKD {current_price}")
