@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "documents")
 
     # Embedding Configuration
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "Alibaba-NLP/gte-multilingual-base")
 
     # Document Processing
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
