@@ -354,7 +354,10 @@ def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dic
 
 def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
     """
-    Get demo/fallback stock data when Yahoo Finance fails
+    Get demo/fallback stock data when AKShare fails
+
+    For tickers with predefined demo data, use that.
+    For others, generate realistic-looking demo data based on ticker.
 
     Args:
         ticker: Stock ticker symbol
@@ -362,30 +365,66 @@ def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
     Returns:
         Dictionary containing demo stock data
     """
-    if ticker not in DEMO_STOCK_DATA:
-        return None
+    # Use predefined demo data if available
+    if ticker in DEMO_STOCK_DATA:
+        demo = DEMO_STOCK_DATA[ticker]
+        current_price = demo["price"]
+        change = demo["change"]
+        change_percent = (change / current_price) * 100
+        previous_close = current_price - change
 
-    demo = DEMO_STOCK_DATA[ticker]
-    current_price = demo["price"]
-    change = demo["change"]
-    change_percent = (change / current_price) * 100
-    previous_close = current_price - change
+        stock_data = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "open": current_price - 0.5,
+            "previous_close": previous_close,
+            "day_high": current_price + abs(change) * 0.8,
+            "day_low": current_price - abs(change) * 0.6,
+            "volume": demo["volume"],
+            "change": change,
+            "change_percent": change_percent,
+            "market_cap": demo["market_cap"],
+            "currency": "HKD",
+            "last_updated": datetime.now().isoformat(),
+            "data_source": "Demo Data (AKShare unavailable)"
+        }
+    else:
+        # Generate demo data for tickers without predefined data
+        # Use ticker hash to get consistent "random" prices
+        import hashlib
+        ticker_hash = int(hashlib.md5(ticker.encode()).hexdigest()[:8], 16)
 
-    stock_data = {
-        "ticker": ticker,
-        "current_price": current_price,
-        "open": current_price - 0.5,
-        "previous_close": previous_close,
-        "day_high": current_price + abs(change) * 0.8,
-        "day_low": current_price - abs(change) * 0.6,
-        "volume": demo["volume"],
-        "change": change,
-        "change_percent": change_percent,
-        "market_cap": demo["market_cap"],
-        "currency": "HKD",
-        "last_updated": datetime.now().isoformat(),
-        "data_source": "Demo Data (Yahoo Finance unavailable)"
-    }
+        # Generate price between HKD 5-100 based on ticker hash
+        base_price = 5 + (ticker_hash % 950) / 10.0
+
+        # Generate change between -5% to +5%
+        change_pct = ((ticker_hash % 1000) / 100.0) - 5.0
+        change = base_price * (change_pct / 100.0)
+
+        previous_close = base_price - change
+        current_price = base_price
+
+        # Generate volume between 100K - 50M
+        volume = 100000 + (ticker_hash % 49900000)
+
+        # Generate market cap between 100M - 50B
+        market_cap = 100000000 + (ticker_hash % 49900000000)
+
+        stock_data = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "open": current_price - 0.5,
+            "previous_close": previous_close,
+            "day_high": current_price + abs(change) * 0.8,
+            "day_low": current_price - abs(change) * 0.6,
+            "volume": volume,
+            "change": change,
+            "change_percent": change_pct,
+            "market_cap": market_cap,
+            "currency": "HKD",
+            "last_updated": datetime.now().isoformat(),
+            "data_source": "Demo Data (AKShare unavailable)"
+        }
 
     # Cache demo data too
     _stock_cache[ticker] = (stock_data, datetime.now())
