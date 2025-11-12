@@ -2,11 +2,14 @@
 Stock tracker API endpoints for HKEX 18A biotech companies
 """
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
 import asyncio
+import requests
+from bs4 import BeautifulSoup
+import re
 
 try:
     import akshare as ak
@@ -22,6 +25,11 @@ router = APIRouter()
 # Simple in-memory cache with TTL
 _stock_cache = {}
 _cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
+
+# Company list cache (24 hour TTL)
+_company_list_cache = None
+_company_list_cache_time = None
+_company_list_cache_ttl = timedelta(hours=24)
 
 # Demo/fallback data for when Yahoo Finance is blocked
 DEMO_STOCK_DATA = {
@@ -46,8 +54,8 @@ DEMO_STOCK_DATA = {
     "1302.HK": {"price": 1.85, "change": -0.05, "volume": 880000, "market_cap": 1500000000},
 }
 
-# HKEX 18A Biotech Companies - using 5-digit code format for AKShare
-HKEX_BIOTECH_COMPANIES = [
+# HKEX 18A Biotech Companies - Fallback list if web scraping fails
+FALLBACK_HKEX_BIOTECH_COMPANIES = [
     {"ticker": "1801.HK", "code": "01801", "name": "Innovent Biologics Inc."},
     {"ticker": "6160.HK", "code": "06160", "name": "BeiGene Ltd."},
     {"ticker": "9926.HK", "code": "09926", "name": "Akeso Inc."},
@@ -68,6 +76,119 @@ HKEX_BIOTECH_COMPANIES = [
     {"ticker": "9982.HK", "code": "09982", "name": "Sanyou Biopharmaceuticals Co. Ltd."},
     {"ticker": "1302.HK", "code": "01302", "name": "Lifetech Scientific Corporation"},
 ]
+
+
+def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
+    """
+    Scrape HKEX biotech company list from AAStocks website
+
+    Returns:
+        List of companies with ticker, code, and name, or None if scraping fails
+    """
+    try:
+        url = "https://www.aastocks.com/sc/stocks/market/topic/biotech?t=1"
+
+        # Use headers to avoid 403 Forbidden
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.aastocks.com/',
+        }
+
+        logger.info(f"Scraping biotech companies from {url}")
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+
+        companies = []
+
+        # Find the table with stock data
+        # AAStocks typically uses tables for stock listings
+        tables = soup.find_all('table')
+
+        for table in tables:
+            rows = table.find_all('tr')
+
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+
+                # Look for cells containing stock codes (format: 01801, 06160, etc.)
+                for i, cell in enumerate(cells):
+                    text = cell.get_text(strip=True)
+
+                    # Match HK stock code pattern (5 digits, possibly with leading zero)
+                    code_match = re.match(r'^(\d{5})$', text)
+
+                    if code_match:
+                        code = code_match.group(1)
+
+                        # Get company name from adjacent cell
+                        name = None
+                        if i + 1 < len(cells):
+                            name = cells[i + 1].get_text(strip=True)
+
+                        if name:
+                            # Convert code to ticker format (e.g., "01801" -> "1801.HK")
+                            ticker_num = str(int(code))  # Remove leading zeros
+                            ticker = f"{ticker_num}.HK"
+
+                            companies.append({
+                                "ticker": ticker,
+                                "code": code,
+                                "name": name
+                            })
+
+        if companies:
+            logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
+            return companies
+        else:
+            logger.warning("No companies found in scraped data")
+            return None
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching AAStocks page: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Error parsing AAStocks data: {str(e)}")
+        return None
+
+
+def get_hkex_biotech_companies() -> List[Dict[str, str]]:
+    """
+    Get HKEX biotech company list, using cache or scraping from AAStocks
+    Falls back to hardcoded list if scraping fails
+
+    Returns:
+        List of companies with ticker, code, and name
+    """
+    global _company_list_cache, _company_list_cache_time
+
+    # Check if cache is valid
+    if _company_list_cache is not None and _company_list_cache_time is not None:
+        cache_age = datetime.now() - _company_list_cache_time
+        if cache_age < _company_list_cache_ttl:
+            logger.debug(f"Using cached company list (age: {cache_age})")
+            return _company_list_cache
+
+    # Try to scrape fresh data
+    logger.info("Company list cache expired or empty, scraping fresh data")
+    scraped_companies = scrape_hkex_biotech_companies()
+
+    if scraped_companies:
+        # Update cache
+        _company_list_cache = scraped_companies
+        _company_list_cache_time = datetime.now()
+        return scraped_companies
+    else:
+        # Fall back to hardcoded list
+        logger.warning("Scraping failed, using fallback company list")
+        _company_list_cache = FALLBACK_HKEX_BIOTECH_COMPANIES
+        _company_list_cache_time = datetime.now()
+        return FALLBACK_HKEX_BIOTECH_COMPANIES
 
 
 def get_stock_data_from_akshare(code: str, ticker: str) -> Dict[str, Any]:
@@ -211,7 +332,8 @@ async def get_companies():
     Returns:
         List of companies with ticker and name
     """
-    return {"companies": HKEX_BIOTECH_COMPANIES}
+    companies = get_hkex_biotech_companies()
+    return {"companies": companies}
 
 
 @router.get("/stocks/prices")
@@ -224,8 +346,9 @@ async def get_all_prices():
         List of stock data for all companies
     """
     results = []
+    companies = get_hkex_biotech_companies()
 
-    for i, company in enumerate(HKEX_BIOTECH_COMPANIES):
+    for i, company in enumerate(companies):
         ticker = company["ticker"]
         code = company.get("code")  # Get the 5-digit code for AKShare
         name = company["name"]
@@ -250,7 +373,7 @@ async def get_all_prices():
             })
 
         # Add delay between requests to avoid rate limiting (except for last item)
-        if i < len(HKEX_BIOTECH_COMPANIES) - 1:
+        if i < len(companies) - 1:
             await asyncio.sleep(0.5)  # 500ms delay between requests
 
     return results
@@ -268,7 +391,8 @@ async def get_price(ticker: str):
         Stock data for the specified ticker
     """
     # Find company info
-    company = next((c for c in HKEX_BIOTECH_COMPANIES if c["ticker"] == ticker), None)
+    companies = get_hkex_biotech_companies()
+    company = next((c for c in companies if c["ticker"] == ticker), None)
 
     if not company:
         raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
