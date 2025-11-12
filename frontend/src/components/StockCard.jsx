@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './StockCard.css';
 
 function StockCard({ stock }) {
+  const navigate = useNavigate();
   const [showDetails, setShowDetails] = useState(false);
 
   const formatNumber = (num) => {
@@ -116,6 +118,12 @@ function StockCard({ stock }) {
         <span className="last-updated">
           Updated: {new Date(stock.last_updated).toLocaleTimeString()}
         </span>
+        <button
+          className="view-details-button"
+          onClick={() => navigate(`/stock-tracker/${stock.ticker}`)}
+        >
+          View Full Details →
+        </button>
       </div>
     </div>
   );

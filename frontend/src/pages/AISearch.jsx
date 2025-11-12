@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus } from '../services/api';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { parseMarkdownToHTML, formatFileSize, formatDate } from '../utils/markdown';
@@ -30,6 +30,7 @@ function AISearch() {
 
   const fileInputRef = useRef(null);
   const searchResultsRef = useRef(null);
+  const pollingTimersRef = useRef(new Map()); // Track active polling timers
 
   useEffect(() => {
     const history = getCurrentHistory();
@@ -39,6 +40,17 @@ function AISearch() {
   useEffect(() => {
     loadDocuments();
   }, [currentConversationId]);
+
+  // Cleanup polling timers on unmount
+  useEffect(() => {
+    return () => {
+      // Clear all active polling timers
+      pollingTimersRef.current.forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+      pollingTimersRef.current.clear();
+    };
+  }, []);
 
   const loadDocuments = async () => {
     try {
@@ -52,7 +64,7 @@ function AISearch() {
     }
   };
 
-  const pollJobStatus = async (jobId, fileId, fileName) => {
+  const pollJobStatus = useCallback(async (jobId, fileId, fileName) => {
     const maxAttempts = 300; // Poll for up to 5 minutes (300 * 1s = 300s)
     let attempts = 0;
 
@@ -76,9 +88,13 @@ function AISearch() {
 
           attempts++;
           if (attempts < maxAttempts) {
-            setTimeout(poll, 1000); // Poll every second
+            const timerId = setTimeout(poll, 1000);
+            pollingTimersRef.current.set(fileId, timerId);
+          } else {
+            pollingTimersRef.current.delete(fileId);
           }
         } else if (status.status === 'completed') {
+          pollingTimersRef.current.delete(fileId);
           const successCount = status.processed_files - status.failed_files;
 
           // Build message with failed/skipped files info if any
@@ -126,13 +142,16 @@ function AISearch() {
             }
           }));
           loadDocuments();
-          setTimeout(() => {
+          const clearTimerId = setTimeout(() => {
             setUploadProgress(prev => {
               const { [fileId]: _, ...rest } = prev;
               return rest;
             });
-          }, actuallyFailed > 0 ? 10000 : 5000); // Show longer if there are actual errors
+            pollingTimersRef.current.delete(fileId);
+          }, actuallyFailed > 0 ? 10000 : 5000);
+          pollingTimersRef.current.set(fileId, clearTimerId);
         } else if (status.status === 'failed') {
+          pollingTimersRef.current.delete(fileId);
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: {
@@ -156,9 +175,9 @@ function AISearch() {
     };
 
     poll();
-  };
+  }, [loadDocuments]);
 
-  const handleFileSelect = async (files) => {
+  const handleFileSelect = useCallback(async (files) => {
     const fileArray = Array.from(files);
     setUploading(true);
 
@@ -194,17 +213,17 @@ function AISearch() {
       }
     }
     setUploading(false);
-  };
+  }, [currentConversationId, pollJobStatus]);
 
-  const handleDrop = (e) => {
+  const handleDrop = useCallback((e) => {
     e.preventDefault();
     setDragOver(false);
     if (e.dataTransfer.files.length > 0) {
       handleFileSelect(e.dataTransfer.files);
     }
-  };
+  }, [handleFileSelect]);
 
-  const handleSearch = async (e) => {
+  const handleSearch = useCallback(async (e) => {
     e.preventDefault();
     if (!searchQuery.trim() || loading) return;
     setLoading(true);
@@ -247,15 +266,15 @@ function AISearch() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery, loading, topK, searchMode, reasoningMode, priorityOrder, conversationHistory, currentConversationId, updateCurrentConversation, searchResultsRef]);
 
-  const handleNewConversation = () => {
+  const handleNewConversation = useCallback(() => {
     createNewConversation();
     setConversationHistory([]);
     setSearchQuery('');
-  };
+  }, [createNewConversation]);
 
-  const handleDeleteDocument = async (fileId, fileName) => {
+  const handleDeleteDocument = useCallback(async (fileId, fileName) => {
     if (!confirm(`Delete "${fileName}"?`)) return;
     try {
       const result = await deleteDocument(fileId);
@@ -265,7 +284,7 @@ function AISearch() {
     } catch (error) {
       alert('Failed to delete document: ' + error.message);
     }
-  };
+  }, [loadDocuments]);
 
   return (
     <div className={`ai-search-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -423,7 +442,7 @@ function AISearch() {
   );
 }
 
-function ChatMessages({ history }) {
+const ChatMessages = memo(function ChatMessages({ history }) {
   const [expandedSources, setExpandedSources] = useState({});
   const [expandedAnswers, setExpandedAnswers] = useState(() => {
     // By default, expand the most recent answer, collapse older ones
@@ -538,6 +557,6 @@ function ChatMessages({ history }) {
       )})}
     </div>
   );
-}
+});
 
 export default AISearch;

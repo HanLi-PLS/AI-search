@@ -160,12 +160,34 @@
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .last-updated {
   font-size: 0.85rem;
   color: #888;
   font-style: italic;
+}
+
+.view-details-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.view-details-button:hover {
+  transform: translateX(5px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
 }
 
 .error-content {

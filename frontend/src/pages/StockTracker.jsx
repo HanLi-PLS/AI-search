@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { stockAPI } from '../services/api';
 import StockCard from '../components/StockCard';
@@ -11,9 +11,12 @@ function StockTracker() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name', 'price', 'change'
+  const [upcomingIPOs, setUpcomingIPOs] = useState([]);
+  const [showIPOs, setShowIPOs] = useState(false);
 
   useEffect(() => {
     fetchStockData();
+    fetchUpcomingIPOs();
   }, []);
 
   const fetchStockData = async () => {
@@ -30,7 +33,17 @@ function StockTracker() {
     }
   };
 
-  const filteredAndSortedStocks = () => {
+  const fetchUpcomingIPOs = async () => {
+    try {
+      const data = await stockAPI.getUpcomingIPOs();
+      setUpcomingIPOs(data);
+    } catch (err) {
+      console.error('Error fetching upcoming IPOs:', err);
+    }
+  };
+
+  // Memoize filtered and sorted stocks to avoid duplicate calculations
+  const filteredAndSortedStocks = useMemo(() => {
     let filtered = stockData.filter(
       (stock) =>
         stock.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,7 +63,7 @@ function StockTracker() {
     });
 
     return filtered;
-  };
+  }, [stockData, searchTerm, sortBy]);
 
   return (
     <div className="stock-tracker-container">
@@ -100,7 +113,47 @@ function StockTracker() {
           <span className="stat-label">Market:</span>
           <span className="stat-value">HKEX 18A</span>
         </div>
+        {upcomingIPOs && upcomingIPOs.length > 0 && (
+          <div className="stat">
+            <span className="stat-label">Upcoming IPOs:</span>
+            <span className="stat-value">{upcomingIPOs.length}</span>
+          </div>
+        )}
       </div>
+
+      {upcomingIPOs && upcomingIPOs.length > 0 && (
+        <div className="ipo-section">
+          <button
+            className="ipo-toggle-button"
+            onClick={() => setShowIPOs(!showIPOs)}
+          >
+            {showIPOs ? '▼' : '▶'} Upcoming HKEX 18A Biotech IPOs ({upcomingIPOs.length})
+          </button>
+          {showIPOs && (
+            <div className="ipo-list">
+              {upcomingIPOs.map((ipo, index) => (
+                <div key={index} className="ipo-card">
+                  <div className="ipo-header">
+                    <h4>{ipo.company_name}</h4>
+                    <span className="ipo-date">{ipo.expected_date || 'TBA'}</span>
+                  </div>
+                  <div className="ipo-details">
+                    {ipo.price_range && (
+                      <div className="ipo-detail">
+                        <span className="detail-label">Price Range:</span>
+                        <span className="detail-value">{ipo.price_range}</span>
+                      </div>
+                    )}
+                    {ipo.description && (
+                      <p className="ipo-description">{ipo.description}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="loading-container">
@@ -120,10 +173,10 @@ function StockTracker() {
 
       {!loading && !error && (
         <div className="stocks-grid">
-          {filteredAndSortedStocks().map((stock) => (
+          {filteredAndSortedStocks.map((stock) => (
             <StockCard key={stock.ticker} stock={stock} />
           ))}
-          {filteredAndSortedStocks().length === 0 && (
+          {filteredAndSortedStocks.length === 0 && (
             <div className="no-results">
               <p>No stocks found matching "{searchTerm}"</p>
             </div>
