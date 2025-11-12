@@ -135,6 +135,11 @@ class Settings(BaseSettings):
 
     def _load_tushare_token_from_aws(self):
         """Load Tushare API token from AWS Secrets Manager (optional - won't crash if fails)"""
+        # Only try AWS if token is not already set in environment
+        if self.TUSHARE_API_TOKEN:
+            logger.info(f"Tushare token already set from environment variable, skipping AWS Secrets Manager")
+            return
+
         try:
             from backend.app.utils.aws_secrets import get_key
             self.TUSHARE_API_TOKEN = get_key(
