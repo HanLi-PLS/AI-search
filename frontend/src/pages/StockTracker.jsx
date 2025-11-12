@@ -13,23 +13,65 @@ function StockTracker() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name', 'price', 'change'
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Cache keys
+  const CACHE_KEY = 'hkex_stock_data';
+  const CACHE_TIMESTAMP_KEY = 'hkex_stock_data_timestamp';
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
   useEffect(() => {
+    // Try to load cached data first
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+
+    if (cachedData && cachedTimestamp) {
+      const cacheAge = Date.now() - parseInt(cachedTimestamp);
+      if (cacheAge < CACHE_DURATION) {
+        // Use cached data if it's less than 5 minutes old
+        const parsed = JSON.parse(cachedData);
+        setStockData(parsed);
+        setLastUpdated(new Date(parseInt(cachedTimestamp)));
+        setLoading(false);
+        console.log('Using cached stock data, age:', Math.round(cacheAge / 1000), 'seconds');
+        return; // Don't fetch if cache is fresh
+      }
+    }
+
+    // No cache or cache is stale, fetch fresh data
     fetchStockData();
     fetchUpcomingIPOs();
   }, []);
 
-  const fetchStockData = async () => {
+  const fetchStockData = async (isManualRefresh = false) => {
     try {
-      setLoading(true);
+      // If we have cached data and this is a background refresh, don't show loading spinner
+      const hasCachedData = stockData.length > 0;
+
+      if (!hasCachedData) {
+        setLoading(true);
+      } else if (isManualRefresh) {
+        setIsRefreshing(true);
+      }
+
       setError(null);
       const data = await stockAPI.getAllPrices();
       setStockData(data);
+
+      // Cache the data
+      const timestamp = Date.now();
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      localStorage.setItem(CACHE_TIMESTAMP_KEY, timestamp.toString());
+      setLastUpdated(new Date(timestamp));
+
+      console.log('Fetched fresh stock data and cached it');
     } catch (err) {
       setError('Failed to fetch stock data. Please make sure the backend is running.');
       console.error('Error fetching stock data:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -124,8 +166,12 @@ function StockTracker() {
               </select>
             </div>
 
-            <button onClick={fetchStockData} className="refresh-button">
-              🔄 Refresh
+            <button
+              onClick={() => fetchStockData(true)}
+              className="refresh-button"
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
             </button>
           </div>
 
@@ -138,6 +184,12 @@ function StockTracker() {
               <span className="stat-label">Market:</span>
               <span className="stat-value">HKEX 18A</span>
             </div>
+            {lastUpdated && (
+              <div className="stat">
+                <span className="stat-label">Last Updated:</span>
+                <span className="stat-value">{lastUpdated.toLocaleTimeString()}</span>
+              </div>
+            )}
           </div>
 
           {loading && (
@@ -229,8 +281,7 @@ function StockTracker() {
 
       <footer className="tracker-footer">
         <p>
-          Data provided by Yahoo Finance via yfinance library. Last updated:{' '}
-          {new Date().toLocaleString()}
+          Data provided by Tushare Pro API. Updates cached for 5 minutes.
         </p>
         <p className="disclaimer">
           Disclaimer: This is for informational purposes only. Not financial advice.
