@@ -235,14 +235,41 @@ async def extract_and_process_zip(
                     # Decode filename properly
                     filename = decode_zip_filename(file_info)
 
-                    # Skip unwanted files
-                    if should_skip_file(filename) or file_info.is_dir():
+                    # Skip directories
+                    if file_info.is_dir():
+                        continue
+
+                    # Skip system/unwanted files with notification
+                    if should_skip_file(filename):
+                        logger.info(f"Skipping system file in zip: {filename}")
+                        results.append({
+                            'success': False,
+                            'filename': filename,
+                            'error': 'System file (skipped)',
+                            'error_type': 'skipped_system_file'
+                        })
                         continue
 
                     # Check file extension
                     file_ext = Path(filename).suffix.lower()
-                    if file_ext not in settings.SUPPORTED_EXTENSIONS or file_ext == '.zip':
-                        logger.info(f"Skipping unsupported file in zip: {filename}")
+                    if file_ext not in settings.SUPPORTED_EXTENSIONS:
+                        logger.info(f"Skipping unsupported file type in zip: {filename}")
+                        results.append({
+                            'success': False,
+                            'filename': filename,
+                            'error': f'Unsupported file type: {file_ext or "no extension"}',
+                            'error_type': 'unsupported_file_type'
+                        })
+                        continue
+
+                    if file_ext == '.zip':
+                        logger.info(f"Skipping nested zip file: {filename}")
+                        results.append({
+                            'success': False,
+                            'filename': filename,
+                            'error': 'Nested zip files are not supported',
+                            'error_type': 'nested_zip'
+                        })
                         continue
 
                     # Preserve folder structure in filename to avoid collisions
@@ -282,7 +309,9 @@ async def extract_and_process_zip(
                 for file_path, filename in temp_files
             ]
 
-            results = await asyncio.gather(*tasks)
+            # Append processing results to the existing results (which may contain skipped files)
+            processing_results = await asyncio.gather(*tasks)
+            results.extend(processing_results)
 
     finally:
         # Clean up temporary files

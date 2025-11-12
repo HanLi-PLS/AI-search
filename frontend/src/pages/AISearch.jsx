@@ -19,7 +19,6 @@ function AISearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
-  const [showAllDocuments, setShowAllDocuments] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topK, setTopK] = useState(10);
   const [searchMode, setSearchMode] = useState('auto');
@@ -39,13 +38,12 @@ function AISearch() {
 
   useEffect(() => {
     loadDocuments();
-  }, [currentConversationId, showAllDocuments]);
+  }, [currentConversationId]);
 
   const loadDocuments = async () => {
     try {
-      // Pass null to get ALL documents, or currentConversationId to filter by conversation
-      const conversationFilter = showAllDocuments ? null : currentConversationId;
-      const result = await getDocuments(conversationFilter);
+      // Always filter by current conversation
+      const result = await getDocuments(currentConversationId);
       if (result.success) {
         setDocuments(result.documents || []);
       }
@@ -83,26 +81,47 @@ function AISearch() {
         } else if (status.status === 'completed') {
           const successCount = status.processed_files - status.failed_files;
 
-          // Build message with failed files info if any
+          // Build message with failed/skipped files info if any
           let message;
           if (status.total_files > 1) {
             message = `✓ Complete: ${successCount}/${status.total_files} files processed, ${status.total_chunks} chunks created`;
 
-            // Add failed files details if any
+            // Separate skipped files from actual failures
             if (status.failed_files > 0 && status.file_results) {
               const failedFiles = status.file_results.filter(r => !r.success);
-              const failedList = failedFiles.map(f => `${f.filename}: ${f.error}`).join('; ');
-              message += `\n⚠️ ${status.failed_files} failed: ${failedList}`;
+
+              // Categorize into skipped (expected) vs failed (unexpected errors)
+              const skippedTypes = ['skipped_system_file', 'unsupported_file_type', 'nested_zip'];
+              const skipped = failedFiles.filter(f => skippedTypes.includes(f.error_type));
+              const actuallyFailed = failedFiles.filter(f => !skippedTypes.includes(f.error_type));
+
+              // Add skipped files info
+              if (skipped.length > 0) {
+                const skippedList = skipped.map(f => `${f.filename}: ${f.error}`).join('; ');
+                message += `\nℹ️ ${skipped.length} skipped: ${skippedList}`;
+              }
+
+              // Add failed files info
+              if (actuallyFailed.length > 0) {
+                const failedList = actuallyFailed.map(f => `${f.filename}: ${f.error}`).join('; ');
+                message += `\n⚠️ ${actuallyFailed.length} failed: ${failedList}`;
+              }
             }
           } else {
             message = `✓ Complete: ${status.total_chunks} chunks created`;
           }
 
+          // Determine status - only show warning if there are actual failures (not just skipped files)
+          const skippedTypes = ['skipped_system_file', 'unsupported_file_type', 'nested_zip'];
+          const actuallyFailed = status.file_results ?
+            status.file_results.filter(r => !r.success && !skippedTypes.includes(r.error_type)).length : 0;
+          const displayStatus = actuallyFailed > 0 ? 'warning' : 'complete';
+
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: {
               name: fileName,
-              status: status.failed_files > 0 ? 'warning' : 'complete',
+              status: displayStatus,
               message
             }
           }));
@@ -112,7 +131,7 @@ function AISearch() {
               const { [fileId]: _, ...rest } = prev;
               return rest;
             });
-          }, 10000); // Show for 10 seconds if there are errors
+          }, actuallyFailed > 0 ? 10000 : 5000); // Show longer if there are actual errors
         } else if (status.status === 'failed') {
           setUploadProgress(prev => ({
             ...prev,
@@ -379,17 +398,7 @@ function AISearch() {
         <section className="documents-section">
           <div className="section-header">
             <h2>Uploaded Documents</h2>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={showAllDocuments}
-                  onChange={(e) => setShowAllDocuments(e.target.checked)}
-                />
-                Show all documents
-              </label>
-              <button className="refresh-button" onClick={loadDocuments}>🔄 Refresh</button>
-            </div>
+            <button className="refresh-button" onClick={loadDocuments}>🔄 Refresh</button>
           </div>
           <div className="documents-list">
             {documents.length === 0 ? (
