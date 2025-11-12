@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 import logging
 
-from backend.app.api.routes import upload, search
+from backend.app.api.routes import upload, search, stocks
 from backend.app.config import settings
 
 # Configure logging
@@ -37,6 +37,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(search.router, prefix="/api", tags=["Search"])
+app.include_router(stocks.router, prefix="/api", tags=["Stocks"])
 
 # Mount static files (frontend)
 frontend_path = Path(__file__).parent.parent.parent / "frontend"
