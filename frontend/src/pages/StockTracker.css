@@ -39,6 +39,41 @@
   opacity: 0.8;
 }
 
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem auto;
+  max-width: 800px;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 200px;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
 .controls-section {
   display: flex;
   gap: 1rem;
@@ -324,6 +359,103 @@
   font-size: 0.85rem !important;
 }
 
+/* Coming Soon Section */
+.coming-soon-section {
+  max-width: 800px;
+  margin: 3rem auto;
+  padding: 2rem;
+}
+
+.coming-soon-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  color: #1e3c72;
+}
+
+.coming-soon-card h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: #1e3c72;
+}
+
+.coming-soon-card p {
+  font-size: 1.1rem;
+  color: #4b5563;
+  margin-bottom: 2rem;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 2rem 0;
+  text-align: left;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.feature-list li {
+  padding: 0.75rem 0;
+  font-size: 1rem;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.feature-list li:last-child {
+  border-bottom: none;
+}
+
+.status-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 25px;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-top: 1rem;
+}
+
+/* IPO Tracker Header */
+.ipo-tracker-header {
+  text-align: center;
+  max-width: 800px;
+  margin: 2rem auto 3rem;
+}
+
+.ipo-tracker-header h2 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.ipo-tracker-header p {
+  font-size: 1.1rem;
+  opacity: 0.8;
+}
+
+/* No IPOs Message */
+.no-ipos-message {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  max-width: 600px;
+  margin: 2rem auto;
+}
+
+.no-ipos-message p {
+  font-size: 1.2rem;
+  margin: 0.5rem 0;
+}
+
+.sub-message {
+  opacity: 0.7;
+  font-size: 1rem !important;
+}
+
 @media (max-width: 768px) {
   .tracker-header h1 {
     font-size: 2rem;
@@ -333,6 +465,15 @@
   .back-button {
     position: static;
     margin-bottom: 1rem;
+  }
+
+  .tab-navigation {
+    flex-direction: column;
+    max-width: 100%;
+  }
+
+  .tab-button {
+    min-width: 100%;
   }
 
   .controls-section {
@@ -346,5 +487,13 @@
   .stats-bar {
     flex-direction: column;
     gap: 1rem;
+  }
+
+  .coming-soon-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .ipo-list {
+    grid-template-columns: 1fr;
   }
 }
