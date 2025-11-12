@@ -63,6 +63,20 @@
   line-height: 1.6;
 }
 
+.tracker-features {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.tracker-features li {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  padding: 0.3rem 0;
+  line-height: 1.5;
+}
+
 .tracker-button {
   margin-top: 1.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

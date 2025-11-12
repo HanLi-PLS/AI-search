@@ -21,18 +21,23 @@ function Home() {
             className="tracker-button"
             onClick={() => navigate('/ai-search')}
           >
-            Open AI Search
+            AI Search
           </button>
         </div>
 
         <div className="feature-card highlight">
-          <h2>📊 HKEX Biotech Tracker</h2>
-          <p>Track real-time stock prices for HKEX 18A biotech companies</p>
+          <h2>📊 Public Market Tracker</h2>
+          <p>Track HKEX 18A biotech stocks, portfolio companies, and IPO listings</p>
+          <ul className="tracker-features">
+            <li>• HKEX 18A Biotech Tracker</li>
+            <li>• Portfolio Public Companies</li>
+            <li>• IPO Listing Tracker</li>
+          </ul>
           <button
             className="tracker-button"
             onClick={() => navigate('/stock-tracker')}
           >
-            Open Stock Tracker
+            Public Market Tracker
           </button>
         </div>
 
