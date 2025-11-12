@@ -16,7 +16,14 @@ try:
     AKSHARE_AVAILABLE = True
 except ImportError:
     AKSHARE_AVAILABLE = False
-    logging.warning("AKShare not available, will use demo data")
+    logging.warning("AKShare not available")
+
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+    logging.warning("yfinance not available")
 
 logger = logging.getLogger(__name__)
 
@@ -259,40 +266,50 @@ def get_hkex_biotech_companies() -> List[Dict[str, str]]:
         return FALLBACK_HKEX_BIOTECH_COMPANIES
 
 
-def get_stock_data_from_akshare(code: str, ticker: str) -> Dict[str, Any]:
+def get_stock_data_from_yfinance(ticker: str) -> Dict[str, Any]:
     """
-    Fetch stock data from AKShare for a specific HK stock
+    Fetch stock data from yfinance for a specific HK stock
 
     Args:
-        code: HK stock code in 5-digit format (e.g., "01801")
         ticker: Stock ticker (e.g., "1801.HK")
 
     Returns:
-        Dictionary containing stock data
+        Dictionary containing stock data or None if failed
     """
     try:
-        # Fetch all HK stocks data
-        df = ak.stock_hk_spot_em()
+        import time
 
-        # Filter for our specific stock
-        stock_row = df[df['代码'] == code]
+        stock = yf.Ticker(ticker)
 
-        if stock_row.empty:
-            logger.warning(f"No data found for {code} in AKShare")
+        # Add a small delay to avoid rate limiting
+        time.sleep(0.1)
+
+        # Get current data
+        info = stock.info
+        hist = stock.history(period="2d")  # Get last 2 days for previous close
+
+        if hist.empty or len(hist) == 0:
+            logger.warning(f"No historical data found for {ticker} in yfinance")
             return None
 
-        row = stock_row.iloc[0]
+        latest = hist.iloc[-1]
+        current_price = float(latest['Close'])
+        open_price = float(latest['Open'])
+        high = float(latest['High'])
+        low = float(latest['Low'])
+        volume = int(latest['Volume'])
 
-        # Extract data (column names in Chinese)
-        current_price = float(row.get('最新价', 0))
-        previous_close = float(row.get('昨收', current_price))
-        open_price = float(row.get('今开', current_price))
-        high = float(row.get('最高', current_price))
-        low = float(row.get('最低', current_price))
-        volume = int(row.get('成交量', 0))
-        turnover = float(row.get('成交额', 0))
-        change = float(row.get('涨跌额', 0))
-        change_percent = float(row.get('涨跌幅', 0))
+        # Calculate previous close and change
+        if len(hist) > 1:
+            previous_close = float(hist.iloc[-2]['Close'])
+        else:
+            previous_close = current_price
+
+        change = current_price - previous_close
+        change_percent = (change / previous_close * 100) if previous_close != 0 else 0
+
+        # Try to get market cap from info
+        market_cap = info.get('marketCap', None)
 
         stock_data = {
             "ticker": ticker,
@@ -302,25 +319,94 @@ def get_stock_data_from_akshare(code: str, ticker: str) -> Dict[str, Any]:
             "day_high": high,
             "day_low": low,
             "volume": volume,
-            "turnover": turnover,
             "change": change,
             "change_percent": change_percent,
-            "market_cap": None,  # AKShare doesn't provide market cap in spot data
+            "market_cap": market_cap,
             "currency": "HKD",
             "last_updated": datetime.now().isoformat(),
-            "data_source": "AKShare (East Money)"
+            "data_source": "Yahoo Finance (yfinance)"
         }
 
         return stock_data
 
     except Exception as e:
-        logger.error(f"Error fetching AKShare data for {code}: {str(e)}")
+        logger.debug(f"Error fetching yfinance data for {ticker}: {str(e)}")
         return None
+
+
+def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) -> Dict[str, Any]:
+    """
+    Fetch stock data from AKShare for a specific HK stock with retry logic
+
+    Args:
+        code: HK stock code in 5-digit format (e.g., "01801")
+        ticker: Stock ticker (e.g., "1801.HK")
+        retry_count: Number of retries on failure
+
+    Returns:
+        Dictionary containing stock data or None if failed
+    """
+    import time
+
+    for attempt in range(retry_count + 1):
+        try:
+            # Fetch all HK stocks data
+            df = ak.stock_hk_spot_em()
+
+            # Filter for our specific stock
+            stock_row = df[df['代码'] == code]
+
+            if stock_row.empty:
+                logger.warning(f"No data found for {code} in AKShare")
+                return None
+
+            row = stock_row.iloc[0]
+
+            # Extract data (column names in Chinese)
+            current_price = float(row.get('最新价', 0))
+            previous_close = float(row.get('昨收', current_price))
+            open_price = float(row.get('今开', current_price))
+            high = float(row.get('最高', current_price))
+            low = float(row.get('最低', current_price))
+            volume = int(row.get('成交量', 0))
+            turnover = float(row.get('成交额', 0))
+            change = float(row.get('涨跌额', 0))
+            change_percent = float(row.get('涨跌幅', 0))
+
+            stock_data = {
+                "ticker": ticker,
+                "current_price": current_price,
+                "open": open_price,
+                "previous_close": previous_close,
+                "day_high": high,
+                "day_low": low,
+                "volume": volume,
+                "turnover": turnover,
+                "change": change,
+                "change_percent": change_percent,
+                "market_cap": None,  # AKShare doesn't provide market cap in spot data
+                "currency": "HKD",
+                "last_updated": datetime.now().isoformat(),
+                "data_source": "AKShare (East Money)"
+            }
+
+            return stock_data
+
+        except Exception as e:
+            if attempt < retry_count:
+                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s
+                logger.debug(f"AKShare attempt {attempt + 1} failed for {code}, retrying in {wait_time}s: {str(e)}")
+                time.sleep(wait_time)
+            else:
+                logger.debug(f"AKShare failed for {code} after {retry_count + 1} attempts: {str(e)}")
+                return None
+
+    return None
 
 
 def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dict[str, Any]:
     """
-    Fetch stock data with caching, tries AKShare first, then falls back to demo data
+    Fetch stock data with caching, tries multiple sources: yfinance -> AKShare -> demo data
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
@@ -334,21 +420,35 @@ def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dic
     if use_cache and ticker in _stock_cache:
         cached_data, cached_time = _stock_cache[ticker]
         if datetime.now() - cached_time < _cache_ttl:
-            logger.info(f"Using cached data for {ticker}")
+            logger.debug(f"Using cached data for {ticker}")
             return cached_data
 
-    # Try AKShare first if available
-    if AKSHARE_AVAILABLE and code:
-        logger.info(f"Fetching {ticker} from AKShare")
-        stock_data = get_stock_data_from_akshare(code, ticker)
+    # Try multiple real data sources in order of preference
+
+    # 1. Try yfinance (usually more reliable for HK stocks)
+    if YFINANCE_AVAILABLE:
+        logger.debug(f"Trying yfinance for {ticker}")
+        stock_data = get_stock_data_from_yfinance(ticker)
 
         if stock_data:
+            logger.info(f"✓ Got real data from yfinance for {ticker}")
             # Cache the result
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # Fall back to demo data
-    logger.warning(f"Using demo data for {ticker}")
+    # 2. Try AKShare if yfinance failed
+    if AKSHARE_AVAILABLE and code:
+        logger.debug(f"Trying AKShare for {ticker} ({code})")
+        stock_data = get_stock_data_from_akshare(code, ticker)
+
+        if stock_data:
+            logger.info(f"✓ Got real data from AKShare for {ticker}")
+            # Cache the result
+            _stock_cache[ticker] = (stock_data, datetime.now())
+            return stock_data
+
+    # 3. Fall back to demo data only if all real sources failed
+    logger.warning(f"⚠ All real data sources failed for {ticker}, using demo data")
     return get_demo_stock_data(ticker)
 
 
@@ -386,7 +486,7 @@ def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
             "market_cap": demo["market_cap"],
             "currency": "HKD",
             "last_updated": datetime.now().isoformat(),
-            "data_source": "Demo Data (AKShare unavailable)"
+            "data_source": "Demo Data (All real sources unavailable)"
         }
     else:
         # Generate demo data for tickers without predefined data
@@ -423,7 +523,7 @@ def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
             "market_cap": market_cap,
             "currency": "HKD",
             "last_updated": datetime.now().isoformat(),
-            "data_source": "Demo Data (AKShare unavailable)"
+            "data_source": "Demo Data (All real sources unavailable)"
         }
 
     # Cache demo data too
@@ -479,9 +579,9 @@ async def get_all_prices():
                 "last_updated": datetime.now().isoformat(),
             })
 
-        # Add delay between requests to avoid rate limiting (except for last item)
+        # Add small delay between requests to avoid rate limiting (except for last item)
         if i < len(companies) - 1:
-            await asyncio.sleep(0.5)  # 500ms delay between requests
+            await asyncio.sleep(0.2)  # 200ms delay between requests
 
     return results
 
