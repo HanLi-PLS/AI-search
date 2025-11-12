@@ -10,6 +10,7 @@ import asyncio
 import requests
 from bs4 import BeautifulSoup
 import re
+import os
 
 try:
     import akshare as ak
@@ -24,6 +25,10 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
     logging.warning("yfinance not available")
+
+# Finnhub API key from environment
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
+FINNHUB_AVAILABLE = FINNHUB_API_KEY is not None
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +340,64 @@ def get_stock_data_from_yfinance(ticker: str) -> Dict[str, Any]:
         return None
 
 
+def get_stock_data_from_finnhub(ticker: str) -> Dict[str, Any]:
+    """
+    Fetch stock data from Finnhub for a specific HK stock
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+
+    Returns:
+        Dictionary containing stock data or None if failed
+    """
+    try:
+        # Finnhub quote endpoint
+        url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
+
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+
+        # Finnhub returns: c (current), o (open), h (high), l (low), pc (previous close)
+        current_price = float(data.get('c', 0))
+        open_price = float(data.get('o', 0))
+        high = float(data.get('h', 0))
+        low = float(data.get('l', 0))
+        previous_close = float(data.get('pc', 0))
+
+        # Calculate change
+        change = current_price - previous_close
+        change_percent = (change / previous_close * 100) if previous_close != 0 else 0
+
+        # Validate data
+        if current_price == 0:
+            logger.warning(f"No data found for {ticker} in Finnhub")
+            return None
+
+        stock_data = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "open": open_price,
+            "previous_close": previous_close,
+            "day_high": high,
+            "day_low": low,
+            "volume": None,  # Not included in basic quote
+            "change": change,
+            "change_percent": change_percent,
+            "market_cap": None,  # Requires separate API call
+            "currency": "HKD",
+            "last_updated": datetime.now().isoformat(),
+            "data_source": "Finnhub"
+        }
+
+        return stock_data
+
+    except Exception as e:
+        logger.debug(f"Error fetching Finnhub data for {ticker}: {str(e)}")
+        return None
+
+
 def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, Any]:
     """
     Fetch stock data using GPT-4 with web search tool as fallback when APIs fail
@@ -519,7 +582,7 @@ def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) ->
 
 def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: bool = True) -> Dict[str, Any]:
     """
-    Fetch stock data with caching, tries multiple sources: yfinance -> AKShare -> Web Search -> demo data
+    Fetch stock data with caching, tries multiple sources: yfinance -> Finnhub -> AKShare -> Web Search -> demo data
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
@@ -550,7 +613,18 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 2. Try AKShare if yfinance failed
+    # 2. Try Finnhub if yfinance failed
+    if FINNHUB_AVAILABLE:
+        logger.debug(f"Trying Finnhub for {ticker}")
+        stock_data = get_stock_data_from_finnhub(ticker)
+
+        if stock_data:
+            logger.info(f"✓ Got real data from Finnhub for {ticker}")
+            # Cache the result
+            _stock_cache[ticker] = (stock_data, datetime.now())
+            return stock_data
+
+    # 3. Try AKShare if yfinance and Finnhub failed
     if AKSHARE_AVAILABLE and code:
         logger.debug(f"Trying AKShare for {ticker} ({code})")
         stock_data = get_stock_data_from_akshare(code, ticker)
@@ -561,7 +635,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 3. Try web search with GPT-4 if both APIs failed
+    # 4. Try web search with GPT-4.1 if all APIs failed
     logger.debug(f"Trying web search for {ticker}")
     stock_data = get_stock_data_from_websearch(ticker, name=name)
 
@@ -571,7 +645,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
         _stock_cache[ticker] = (stock_data, datetime.now())
         return stock_data
 
-    # 4. Fall back to demo data only if ALL real sources failed
+    # 5. Fall back to demo data only if ALL real sources failed
     logger.warning(f"⚠ All real data sources failed for {ticker}, using demo data")
     return get_demo_stock_data(ticker)
 
