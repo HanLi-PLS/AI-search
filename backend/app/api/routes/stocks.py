@@ -403,21 +403,33 @@ def get_stock_data_from_tushare(ticker: str, code: str = None, get_name: bool = 
         # Initialize Pro API
         pro = ts.pro_api()
 
+        # Convert ticker to Tushare format (needs 5-digit code with leading zeros)
+        # e.g., "1801.HK" -> "01801.HK"
+        if code:
+            # Use the provided 5-digit code
+            tushare_ticker = f"{code}.HK"
+        else:
+            # Extract code from ticker and pad to 5 digits
+            stock_code = ticker.split('.')[0]
+            tushare_ticker = f"{stock_code.zfill(5)}.HK"
+
+        logger.debug(f"Using Tushare ticker format: {tushare_ticker}")
+
         # Try to get company name from Tushare hk_basic (if user has access)
         company_name = None
         if get_name:
             try:
-                basic_df = pro.hk_basic(ts_code=ticker, fields='ts_code,name')
+                basic_df = pro.hk_basic(ts_code=tushare_ticker, fields='ts_code,name')
                 if basic_df is not None and not basic_df.empty:
                     company_name = basic_df.iloc[0]['name']
                     logger.debug(f"Got company name from Tushare: {company_name}")
             except Exception as e:
-                logger.debug(f"Cannot fetch name from hk_basic for {ticker}: {str(e)}")
+                logger.debug(f"Cannot fetch name from hk_basic for {tushare_ticker}: {str(e)}")
                 # Will use name from AAStocks instead
 
         # Fetch latest daily data (most recent trading day)
         # Tushare uses format like "01801.HK"
-        df = pro.hk_daily(ts_code=ticker)
+        df = pro.hk_daily(ts_code=tushare_ticker)
 
         if df is None or df.empty:
             logger.warning(f"No data found for {ticker} in Tushare")
