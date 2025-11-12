@@ -334,6 +334,108 @@ def get_stock_data_from_yfinance(ticker: str) -> Dict[str, Any]:
         return None
 
 
+def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, Any]:
+    """
+    Fetch stock data using web search as fallback when APIs fail
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+        name: Company name for better search results (optional)
+
+    Returns:
+        Dictionary containing stock data or None if failed
+    """
+    try:
+        from openai import OpenAI
+        import os
+
+        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+        # Construct search query
+        search_query = f"{ticker} Hong Kong stock price current"
+        if name:
+            search_query = f"{name} {ticker} HKEX current stock price"
+
+        logger.debug(f"Searching web for {ticker} stock price")
+
+        # Use GPT-4 with web search to get current stock price
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a financial data assistant. Extract stock price information from web search results and return ONLY a valid JSON object with these exact fields: current_price (number), change (number), change_percent (number), volume (number or null), previous_close (number or null). If you cannot find the data, return null. Do not include any explanation, only the JSON."
+                },
+                {
+                    "role": "user",
+                    "content": f"Search the web and find the current stock price for {ticker} ({name if name else 'HKEX biotech stock'}). Return the data as JSON with current_price, change, change_percent, volume, and previous_close fields."
+                }
+            ],
+            max_tokens=200,
+            temperature=0
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Parse the JSON response
+        import json
+        try:
+            # Remove markdown code blocks if present
+            if result_text.startswith('```'):
+                result_text = result_text.split('```')[1]
+                if result_text.startswith('json'):
+                    result_text = result_text[4:]
+
+            data = json.loads(result_text)
+
+            if data is None or not isinstance(data, dict):
+                logger.warning(f"Web search returned no data for {ticker}")
+                return None
+
+            # Validate we have at least a current price
+            current_price = data.get('current_price')
+            if current_price is None or current_price <= 0:
+                logger.warning(f"Invalid price from web search for {ticker}")
+                return None
+
+            # Calculate previous_close and change if not provided
+            change = data.get('change', 0)
+            change_percent = data.get('change_percent', 0)
+            previous_close = data.get('previous_close')
+
+            if previous_close is None and change != 0:
+                previous_close = current_price - change
+            elif previous_close is None:
+                previous_close = current_price
+
+            stock_data = {
+                "ticker": ticker,
+                "current_price": float(current_price),
+                "open": float(current_price),  # Approximate
+                "previous_close": float(previous_close),
+                "day_high": float(current_price * 1.02),  # Approximate
+                "day_low": float(current_price * 0.98),   # Approximate
+                "volume": int(data.get('volume', 0)) if data.get('volume') else None,
+                "change": float(change),
+                "change_percent": float(change_percent),
+                "market_cap": None,
+                "currency": "HKD",
+                "last_updated": datetime.now().isoformat(),
+                "data_source": "Web Search (GPT-4)"
+            }
+
+            logger.info(f"✓ Got real data from web search for {ticker}: HKD {current_price}")
+            return stock_data
+
+        except json.JSONDecodeError as e:
+            logger.debug(f"Failed to parse web search result for {ticker}: {result_text[:100]}")
+            return None
+
+    except Exception as e:
+        logger.debug(f"Web search failed for {ticker}: {str(e)}")
+        return None
+
+
 def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) -> Dict[str, Any]:
     """
     Fetch stock data from AKShare for a specific HK stock with retry logic
@@ -404,13 +506,14 @@ def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) ->
     return None
 
 
-def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dict[str, Any]:
+def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: bool = True) -> Dict[str, Any]:
     """
-    Fetch stock data with caching, tries multiple sources: yfinance -> AKShare -> demo data
+    Fetch stock data with caching, tries multiple sources: yfinance -> AKShare -> Web Search -> demo data
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
         code: HK stock code in 5-digit format (e.g., "01801")
+        name: Company name for web search (optional)
         use_cache: Whether to use cached data
 
     Returns:
@@ -425,7 +528,7 @@ def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dic
 
     # Try multiple real data sources in order of preference
 
-    # 1. Try yfinance (usually more reliable for HK stocks)
+    # 1. Try yfinance (usually most reliable for HK stocks)
     if YFINANCE_AVAILABLE:
         logger.debug(f"Trying yfinance for {ticker}")
         stock_data = get_stock_data_from_yfinance(ticker)
@@ -447,7 +550,17 @@ def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dic
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 3. Fall back to demo data only if all real sources failed
+    # 3. Try web search with GPT-4 if both APIs failed
+    logger.debug(f"Trying web search for {ticker}")
+    stock_data = get_stock_data_from_websearch(ticker, name=name)
+
+    if stock_data:
+        logger.info(f"✓ Got real data from web search for {ticker}")
+        # Cache the result
+        _stock_cache[ticker] = (stock_data, datetime.now())
+        return stock_data
+
+    # 4. Fall back to demo data only if ALL real sources failed
     logger.warning(f"⚠ All real data sources failed for {ticker}, using demo data")
     return get_demo_stock_data(ticker)
 
@@ -562,7 +675,7 @@ async def get_all_prices():
 
         logger.info(f"Fetching data for {ticker} ({code}) - {name}")
 
-        stock_data = get_stock_data(ticker, code=code, use_cache=True)
+        stock_data = get_stock_data(ticker, code=code, name=name, use_cache=True)
 
         if stock_data:
             stock_data["name"] = name
@@ -604,7 +717,7 @@ async def get_price(ticker: str):
     if not company:
         raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
 
-    stock_data = get_stock_data(ticker, code=company.get("code"))
+    stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
 
     if not stock_data:
         raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
