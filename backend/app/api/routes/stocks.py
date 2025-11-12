@@ -55,26 +55,38 @@ DEMO_STOCK_DATA = {
 }
 
 # HKEX 18A Biotech Companies - Fallback list if web scraping fails
+# Updated from AAStocks biotech page as of 2025-11-12
 FALLBACK_HKEX_BIOTECH_COMPANIES = [
-    {"ticker": "1801.HK", "code": "01801", "name": "Innovent Biologics Inc."},
-    {"ticker": "6160.HK", "code": "06160", "name": "BeiGene Ltd."},
-    {"ticker": "9926.HK", "code": "09926", "name": "Akeso Inc."},
-    {"ticker": "2696.HK", "code": "02696", "name": "Shanghai Henlius Biotech Inc."},
-    {"ticker": "1877.HK", "code": "01877", "name": "Shanghai Junshi Biosciences"},
-    {"ticker": "6185.HK", "code": "06185", "name": "CanSino Biologics Inc."},
-    {"ticker": "2269.HK", "code": "02269", "name": "Wuxi Biologics (Cayman) Inc."},
-    {"ticker": "1952.HK", "code": "01952", "name": "Everest Medicines Ltd."},
-    {"ticker": "2171.HK", "code": "02171", "name": "Alphamab Oncology"},
-    {"ticker": "1996.HK", "code": "01996", "name": "Simcere Pharmaceutical Group Ltd."},
-    {"ticker": "9995.HK", "code": "09995", "name": "Remegen Co. Ltd."},
-    {"ticker": "9969.HK", "code": "09969", "name": "Innocare Pharma Ltd."},
-    {"ticker": "6996.HK", "code": "06996", "name": "Antengene Corporation Ltd."},
-    {"ticker": "9985.HK", "code": "09985", "name": "Hua Medicine (Shanghai) Ltd."},
-    {"ticker": "9688.HK", "code": "09688", "name": "Zai Lab Ltd."},
-    {"ticker": "9966.HK", "code": "09966", "name": "Alphamab Oncology"},
-    {"ticker": "9989.HK", "code": "09989", "name": "Hutchmed (China) Ltd."},
-    {"ticker": "9982.HK", "code": "09982", "name": "Sanyou Biopharmaceuticals Co. Ltd."},
-    {"ticker": "1302.HK", "code": "01302", "name": "Lifetech Scientific Corporation"},
+    {"ticker": "6990.HK", "code": "06990", "name": "科倫博泰生物－Ｂ"},
+    {"ticker": "2617.HK", "code": "02617", "name": "藥捷安康－Ｂ"},
+    {"ticker": "9606.HK", "code": "09606", "name": "映恩生物－Ｂ"},
+    {"ticker": "2252.HK", "code": "02252", "name": "微創機器人－Ｂ"},
+    {"ticker": "6855.HK", "code": "06855", "name": "亞盛醫藥－Ｂ"},
+    {"ticker": "2162.HK", "code": "02162", "name": "康諾亞－Ｂ"},
+    {"ticker": "2629.HK", "code": "02629", "name": "MIRXES-B"},
+    {"ticker": "2565.HK", "code": "02565", "name": "派格生物醫藥－Ｂ"},
+    {"ticker": "2591.HK", "code": "02591", "name": "銀諾醫藥－Ｂ"},
+    {"ticker": "2627.HK", "code": "02627", "name": "中慧生物－Ｂ"},
+    {"ticker": "2142.HK", "code": "02142", "name": "和鉑醫藥－Ｂ"},
+    {"ticker": "1672.HK", "code": "01672", "name": "歌禮製藥－Ｂ"},
+    {"ticker": "2157.HK", "code": "02157", "name": "樂普生物－Ｂ"},
+    {"ticker": "2575.HK", "code": "02575", "name": "軒竹生物－Ｂ"},
+    {"ticker": "2171.HK", "code": "02171", "name": "科濟藥業－Ｂ"},
+    {"ticker": "2595.HK", "code": "02595", "name": "勁方醫藥－Ｂ"},
+    {"ticker": "9966.HK", "code": "09966", "name": "康寧傑瑞製藥－Ｂ"},
+    {"ticker": "2256.HK", "code": "02256", "name": "和譽－Ｂ"},
+    {"ticker": "9887.HK", "code": "09887", "name": "維立志博－Ｂ"},
+    {"ticker": "6681.HK", "code": "06681", "name": "腦動極光－Ｂ"},
+    {"ticker": "2616.HK", "code": "02616", "name": "基石藥業－Ｂ"},
+    {"ticker": "1477.HK", "code": "01477", "name": "歐康維視生物－Ｂ"},
+    {"ticker": "1167.HK", "code": "01167", "name": "加科思－Ｂ"},
+    {"ticker": "2105.HK", "code": "02105", "name": "來凱醫藥－Ｂ"},
+    {"ticker": "2410.HK", "code": "02410", "name": "同源康醫藥－Ｂ"},
+    {"ticker": "2509.HK", "code": "02509", "name": "荃信生物－Ｂ"},
+    {"ticker": "2480.HK", "code": "02480", "name": "綠竹生物－Ｂ"},
+    {"ticker": "9996.HK", "code": "09996", "name": "沛嘉醫療－Ｂ"},
+    {"ticker": "6669.HK", "code": "06669", "name": "先瑞達醫療－Ｂ"},
+    {"ticker": "2592.HK", "code": "02592", "name": "撥康視雲－Ｂ"},
 ]
 
 
@@ -86,7 +98,11 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
         List of companies with ticker, code, and name, or None if scraping fails
     """
     try:
-        url = "https://www.aastocks.com/sc/stocks/market/topic/biotech?t=1"
+        # Try both Traditional Chinese and Simplified Chinese versions
+        urls = [
+            "https://www.aastocks.com/tc/stocks/market/topic/biotech",
+            "https://www.aastocks.com/sc/stocks/market/topic/biotech?t=1"
+        ]
 
         # Use headers to avoid 403 Forbidden
         headers = {
@@ -98,60 +114,60 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
             'Referer': 'https://www.aastocks.com/',
         }
 
-        logger.info(f"Scraping biotech companies from {url}")
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content, 'html.parser')
-
         companies = []
 
-        # Find the table with stock data
-        # AAStocks typically uses tables for stock listings
-        tables = soup.find_all('table')
+        for url in urls:
+            try:
+                logger.info(f"Scraping biotech companies from {url}")
+                response = requests.get(url, headers=headers, timeout=10)
+                response.raise_for_status()
 
-        for table in tables:
-            rows = table.find_all('tr')
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
+                # AAStocks structure: <a href='/tc/stocks/quote/detail-quote.aspx?symbol=06990'>06990.HK</a>
+                # Company name in: <span style='line-height:17px'>company name</span>
 
-                # Look for cells containing stock codes (format: 01801, 06160, etc.)
-                for i, cell in enumerate(cells):
-                    text = cell.get_text(strip=True)
+                # Find all stock links
+                stock_links = soup.find_all('a', href=re.compile(r'/stocks/quote/detail-quote\.aspx\?symbol=\d{5}'))
 
-                    # Match HK stock code pattern (5 digits, possibly with leading zero)
-                    code_match = re.match(r'^(\d{5})$', text)
+                for link in stock_links:
+                    # Extract ticker from link text (e.g., "06990.HK")
+                    ticker = link.get_text(strip=True)
 
-                    if code_match:
-                        code = code_match.group(1)
+                    if ticker and '.HK' in ticker:
+                        # Extract 5-digit code
+                        code = ticker.replace('.HK', '').zfill(5)
 
-                        # Get company name from adjacent cell
-                        name = None
-                        if i + 1 < len(cells):
-                            name = cells[i + 1].get_text(strip=True)
+                        # Find company name in the same row
+                        row = link.find_parent('tr')
+                        if row:
+                            # Look for company name in span with line-height style
+                            name_span = row.find('span', style=re.compile(r'line-height'))
+                            if name_span:
+                                name = name_span.get_text(strip=True)
 
-                        if name:
-                            # Convert code to ticker format (e.g., "01801" -> "1801.HK")
-                            ticker_num = str(int(code))  # Remove leading zeros
-                            ticker = f"{ticker_num}.HK"
+                                # Avoid duplicates
+                                if not any(c['code'] == code for c in companies):
+                                    companies.append({
+                                        "ticker": ticker,
+                                        "code": code,
+                                        "name": name
+                                    })
 
-                            companies.append({
-                                "ticker": ticker,
-                                "code": code,
-                                "name": name
-                            })
+                if companies:
+                    logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
+                    return companies
 
-        if companies:
-            logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
-            return companies
-        else:
-            logger.warning("No companies found in scraped data")
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"Failed to fetch {url}: {str(e)}")
+                continue  # Try next URL
+
+        if not companies:
+            logger.warning("No companies found in scraped data from any URL")
             return None
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching AAStocks page: {str(e)}")
-        return None
+        return companies
+
     except Exception as e:
         logger.error(f"Error parsing AAStocks data: {str(e)}")
         return None
