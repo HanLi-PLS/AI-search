@@ -38,7 +38,10 @@ function AISearch() {
   }, [currentConversationId]);
 
   useEffect(() => {
-    loadDocuments();
+    // Only load documents when we have a valid conversation ID
+    if (currentConversationId) {
+      loadDocuments();
+    }
   }, [currentConversationId]);
 
   // Cleanup polling timers on unmount
@@ -53,6 +56,12 @@ function AISearch() {
   }, []);
 
   const loadDocuments = async () => {
+    // Don't load documents if we don't have a conversation ID yet
+    if (!currentConversationId) {
+      setDocuments([]);
+      return;
+    }
+
     try {
       // Always filter by current conversation
       const result = await getDocuments(currentConversationId);
