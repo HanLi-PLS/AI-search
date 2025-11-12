@@ -214,8 +214,8 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
                                         })
 
                 if companies:
-                    logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
-                    return companies
+                    logger.info(f"Scraped {len(companies)} companies from {url}")
+                    # Don't return yet - try other URLs to get more companies
 
             except requests.exceptions.RequestException as e:
                 logger.debug(f"Failed to fetch {url}: {str(e)}")
@@ -225,6 +225,7 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
             logger.warning("No companies found in scraped data from any URL")
             return None
 
+        logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
         return companies
 
     except Exception as e:
