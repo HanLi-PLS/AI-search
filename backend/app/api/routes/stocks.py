@@ -18,6 +18,29 @@ router = APIRouter()
 _stock_cache = {}
 _cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
 
+# Demo/fallback data for when Yahoo Finance is blocked
+DEMO_STOCK_DATA = {
+    "1801.HK": {"price": 42.50, "change": 1.25, "volume": 12500000, "market_cap": 58000000000},
+    "6160.HK": {"price": 125.80, "change": -2.10, "volume": 8900000, "market_cap": 180000000000},
+    "9926.HK": {"price": 68.40, "change": 3.50, "volume": 15200000, "market_cap": 95000000000},
+    "2696.HK": {"price": 18.75, "change": 0.85, "volume": 6700000, "market_cap": 28000000000},
+    "1877.HK": {"price": 32.60, "change": -1.20, "volume": 9800000, "market_cap": 42000000000},
+    "6185.HK": {"price": 22.40, "change": 0.60, "volume": 4500000, "market_cap": 18000000000},
+    "2269.HK": {"price": 38.90, "change": 1.80, "volume": 22000000, "market_cap": 125000000000},
+    "1952.HK": {"price": 15.30, "change": -0.45, "volume": 3200000, "market_cap": 12000000000},
+    "2171.HK": {"price": 8.65, "change": 0.35, "volume": 2100000, "market_cap": 6500000000},
+    "1996.HK": {"price": 6.82, "change": -0.18, "volume": 1800000, "market_cap": 4200000000},
+    "9995.HK": {"price": 28.50, "change": 1.10, "volume": 5600000, "market_cap": 22000000000},
+    "9969.HK": {"price": 12.40, "change": -0.30, "volume": 2900000, "market_cap": 8500000000},
+    "6996.HK": {"price": 5.45, "change": 0.15, "volume": 1500000, "market_cap": 3800000000},
+    "9985.HK": {"price": 3.28, "change": -0.12, "volume": 980000, "market_cap": 2100000000},
+    "9688.HK": {"price": 45.60, "change": 2.30, "volume": 7800000, "market_cap": 38000000000},
+    "9966.HK": {"price": 9.12, "change": 0.48, "volume": 2400000, "market_cap": 7200000000},
+    "9989.HK": {"price": 18.95, "change": -0.65, "volume": 4100000, "market_cap": 16000000000},
+    "9982.HK": {"price": 4.67, "change": 0.08, "volume": 1200000, "market_cap": 2800000000},
+    "1302.HK": {"price": 1.85, "change": -0.05, "volume": 880000, "market_cap": 1500000000},
+}
+
 # HKEX 18A Biotech Companies
 HKEX_BIOTECH_COMPANIES = [
     {"ticker": "1801.HK", "name": "Innovent Biologics Inc."},
@@ -45,7 +68,7 @@ HKEX_BIOTECH_COMPANIES = [
 
 def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
     """
-    Fetch stock data from Yahoo Finance with caching
+    Fetch stock data from Yahoo Finance with caching and demo data fallback
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
@@ -76,8 +99,9 @@ def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
         history = stock.history(period="5d")  # Get 5 days for better reliability
 
         if history.empty:
-            logger.warning(f"No history data available for {ticker}")
-            return None
+            logger.warning(f"No history data available for {ticker}, using demo data")
+            # Use demo data as fallback
+            return get_demo_stock_data(ticker)
 
         # Get latest data
         current_price = history['Close'].iloc[-1] if len(history) > 0 else None
@@ -113,6 +137,7 @@ def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
             "market_cap": info.get('marketCap'),
             "currency": info.get('currency', 'HKD'),
             "last_updated": datetime.now().isoformat(),
+            "data_source": "Yahoo Finance"
         }
 
         # Cache the result
@@ -120,8 +145,49 @@ def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
         return stock_data
 
     except Exception as e:
-        logger.error(f"Error fetching data for {ticker}: {str(e)}")
+        logger.error(f"Error fetching data for {ticker}: {str(e)}, using demo data")
+        # Use demo data as fallback
+        return get_demo_stock_data(ticker)
+
+
+def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
+    """
+    Get demo/fallback stock data when Yahoo Finance fails
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Dictionary containing demo stock data
+    """
+    if ticker not in DEMO_STOCK_DATA:
         return None
+
+    demo = DEMO_STOCK_DATA[ticker]
+    current_price = demo["price"]
+    change = demo["change"]
+    change_percent = (change / current_price) * 100
+    previous_close = current_price - change
+
+    stock_data = {
+        "ticker": ticker,
+        "current_price": current_price,
+        "open": current_price - 0.5,
+        "previous_close": previous_close,
+        "day_high": current_price + abs(change) * 0.8,
+        "day_low": current_price - abs(change) * 0.6,
+        "volume": demo["volume"],
+        "change": change,
+        "change_percent": change_percent,
+        "market_cap": demo["market_cap"],
+        "currency": "HKD",
+        "last_updated": datetime.now().isoformat(),
+        "data_source": "Demo Data (Yahoo Finance unavailable)"
+    }
+
+    # Cache demo data too
+    _stock_cache[ticker] = (stock_data, datetime.now())
+    return stock_data
 
 
 @router.get("/stocks/companies")
