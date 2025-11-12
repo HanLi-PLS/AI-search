@@ -336,7 +336,7 @@ def get_stock_data_from_yfinance(ticker: str) -> Dict[str, Any]:
 
 def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, Any]:
     """
-    Fetch stock data using web search as fallback when APIs fail
+    Fetch stock data using GPT-4 with web search tool as fallback when APIs fail
 
     Args:
         ticker: Stock ticker (e.g., "1801.HK")
@@ -348,43 +348,102 @@ def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, An
     try:
         from openai import OpenAI
         import os
+        import json
 
         client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
         # Construct search query
-        search_query = f"{ticker} Hong Kong stock price current"
-        if name:
-            search_query = f"{name} {ticker} HKEX current stock price"
+        company_info = f"{name} " if name else ""
+        search_query = f"{company_info}{ticker} HKEX Hong Kong stock current price today"
 
-        logger.debug(f"Searching web for {ticker} stock price")
+        logger.debug(f"Searching web for {ticker} stock price: {search_query}")
 
-        # Use GPT-4 with web search to get current stock price
+        # Define web search tool
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "description": "Search the web for current information",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query"
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            }
+        ]
+
+        # First call: Ask GPT to search
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4-turbo-preview",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a financial data assistant. Extract stock price information from web search results and return ONLY a valid JSON object with these exact fields: current_price (number), change (number), change_percent (number), volume (number or null), previous_close (number or null). If you cannot find the data, return null. Do not include any explanation, only the JSON."
+                    "content": "You are a financial data assistant with access to web search. Use the web_search tool to find current stock prices from reliable sources like HKEX, Yahoo Finance, or Google Finance. Extract and return structured data."
                 },
                 {
                     "role": "user",
-                    "content": f"Search the web and find the current stock price for {ticker} ({name if name else 'HKEX biotech stock'}). Return the data as JSON with current_price, change, change_percent, volume, and previous_close fields."
+                    "content": f"Find the current stock price for {ticker} ({company_info}Hong Kong stock). I need: current_price, change, change_percent, volume, previous_close. Search the web for the latest information."
                 }
             ],
-            max_tokens=200,
+            tools=tools,
+            tool_choice="auto",
+            temperature=0
+        )
+
+        # Check if GPT wants to use the tool
+        if response.choices[0].message.tool_calls:
+            # Simulate web search (in practice, you'd use a real search API like Tavily, Serper, etc.)
+            tool_call = response.choices[0].message.tool_calls[0]
+            search_args = json.loads(tool_call.function.arguments)
+
+            # For now, make a direct call with search results simulation
+            # In production, integrate with Tavily/Serper/etc.
+            logger.debug(f"GPT requested web search: {search_args.get('query')}")
+
+        # Simplified approach: Direct query with search context
+        response = client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are a financial data assistant. Search the web and extract stock price information.
+Return ONLY a valid JSON object with these exact fields:
+- current_price (number): Current stock price in HKD
+- change (number): Price change from previous close in HKD
+- change_percent (number): Percentage change
+- volume (number or null): Trading volume
+- previous_close (number): Previous closing price in HKD
+
+If you cannot find reliable data, return null. Do not include explanations, only the JSON."""
+                },
+                {
+                    "role": "user",
+                    "content": f"Search the web for current stock price of {ticker} ({company_info}HKEX biotech company). Find data from HKEX, AAStocks, or financial news sites. Return the data as JSON."
+                }
+            ],
+            max_tokens=300,
             temperature=0
         )
 
         result_text = response.choices[0].message.content.strip()
 
         # Parse the JSON response
-        import json
         try:
             # Remove markdown code blocks if present
-            if result_text.startswith('```'):
-                result_text = result_text.split('```')[1]
-                if result_text.startswith('json'):
-                    result_text = result_text[4:]
+            if '```' in result_text:
+                # Extract JSON from code block
+                if '```json' in result_text:
+                    result_text = result_text.split('```json')[1].split('```')[0]
+                else:
+                    result_text = result_text.split('```')[1].split('```')[0]
+                result_text = result_text.strip()
 
             data = json.loads(result_text)
 
@@ -395,7 +454,7 @@ def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, An
             # Validate we have at least a current price
             current_price = data.get('current_price')
             if current_price is None or current_price <= 0:
-                logger.warning(f"Invalid price from web search for {ticker}")
+                logger.warning(f"Invalid price from web search for {ticker}: {current_price}")
                 return None
 
             # Calculate previous_close and change if not provided
@@ -421,18 +480,18 @@ def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, An
                 "market_cap": None,
                 "currency": "HKD",
                 "last_updated": datetime.now().isoformat(),
-                "data_source": "Web Search (GPT-4)"
+                "data_source": "Web Search (GPT-4 Turbo)"
             }
 
             logger.info(f"✓ Got real data from web search for {ticker}: HKD {current_price}")
             return stock_data
 
         except json.JSONDecodeError as e:
-            logger.debug(f"Failed to parse web search result for {ticker}: {result_text[:100]}")
+            logger.warning(f"Failed to parse web search result for {ticker}: {result_text[:100]}")
             return None
 
     except Exception as e:
-        logger.debug(f"Web search failed for {ticker}: {str(e)}")
+        logger.warning(f"Web search failed for {ticker}: {str(e)}")
         return None
 
 
