@@ -55,38 +55,74 @@ DEMO_STOCK_DATA = {
 }
 
 # HKEX 18A Biotech Companies - Fallback list if web scraping fails
-# Updated from AAStocks biotech page as of 2025-11-12
+# Updated from AAStocks biotech page as of 2025-11-12 (66 companies total)
 FALLBACK_HKEX_BIOTECH_COMPANIES = [
-    {"ticker": "6990.HK", "code": "06990", "name": "科倫博泰生物－Ｂ"},
-    {"ticker": "2617.HK", "code": "02617", "name": "藥捷安康－Ｂ"},
+    {"ticker": "2561.HK", "code": "02561", "name": "维升药业－Ｂ"},
+    {"ticker": "2552.HK", "code": "02552", "name": "华领医药－Ｂ"},
+    {"ticker": "2630.HK", "code": "02630", "name": "旺山旺水－Ｂ"},
+    {"ticker": "2315.HK", "code": "02315", "name": "百奥赛图－Ｂ"},
+    {"ticker": "6996.HK", "code": "06996", "name": "德琪医药－Ｂ"},
+    {"ticker": "1541.HK", "code": "01541", "name": "宜明昂科－Ｂ"},
+    {"ticker": "9877.HK", "code": "09877", "name": "健世科技－Ｂ"},
+    {"ticker": "2197.HK", "code": "02197", "name": "三叶草生物－Ｂ"},
+    {"ticker": "2160.HK", "code": "02160", "name": "心通医疗－Ｂ"},
+    {"ticker": "2487.HK", "code": "02487", "name": "科笛－Ｂ"},
+    {"ticker": "3681.HK", "code": "03681", "name": "中国抗体－Ｂ"},
+    {"ticker": "2181.HK", "code": "02181", "name": "迈博药业－Ｂ"},
+    {"ticker": "6978.HK", "code": "06978", "name": "永泰生物－Ｂ"},
+    {"ticker": "6622.HK", "code": "06622", "name": "兆科眼科－Ｂ"},
+    {"ticker": "2179.HK", "code": "02179", "name": "瑞科生物－Ｂ"},
+    {"ticker": "2511.HK", "code": "02511", "name": "君圣泰医药－Ｂ"},
+    {"ticker": "2185.HK", "code": "02185", "name": "百心安－Ｂ"},
+    {"ticker": "6998.HK", "code": "06998", "name": "嘉和生物－Ｂ"},
+    {"ticker": "1875.HK", "code": "01875", "name": "东曜药业－Ｂ"},
+    {"ticker": "6609.HK", "code": "06609", "name": "心玮医疗－Ｂ"},
+    {"ticker": "2126.HK", "code": "02126", "name": "药明巨诺－Ｂ"},
+    {"ticker": "2216.HK", "code": "02216", "name": "堃博医疗－Ｂ"},
+    {"ticker": "2137.HK", "code": "02137", "name": "腾盛博药－Ｂ"},
+    {"ticker": "6628.HK", "code": "06628", "name": "创胜集团－Ｂ"},
+    {"ticker": "2251.HK", "code": "02251", "name": "鹰瞳科技－Ｂ"},
+    {"ticker": "2898.HK", "code": "02898", "name": "盛禾生物－Ｂ"},
+    {"ticker": "2235.HK", "code": "02235", "name": "微泰医疗－Ｂ"},
+    {"ticker": "2500.HK", "code": "02500", "name": "启明医疗－Ｂ"},
+    {"ticker": "6922.HK", "code": "06922", "name": "康沣生物－Ｂ"},
+    {"ticker": "1228.HK", "code": "01228", "name": "北海康成－Ｂ"},
+    {"ticker": "9939.HK", "code": "09939", "name": "开拓药业－Ｂ"},
+    {"ticker": "2257.HK", "code": "02257", "name": "圣诺医药－Ｂ"},
+    {"ticker": "2496.HK", "code": "02496", "name": "友芝友生物－Ｂ"},
+    {"ticker": "2563.HK", "code": "02563", "name": "华昊中天医药－Ｂ"},
+    {"ticker": "2297.HK", "code": "02297", "name": "润迈德－Ｂ"},
+    {"ticker": "2170.HK", "code": "02170", "name": "贝康医疗－Ｂ"},
+    {"ticker": "6990.HK", "code": "06990", "name": "科伦博泰生物－Ｂ"},
+    {"ticker": "2617.HK", "code": "02617", "name": "药捷安康－Ｂ"},
     {"ticker": "9606.HK", "code": "09606", "name": "映恩生物－Ｂ"},
-    {"ticker": "2252.HK", "code": "02252", "name": "微創機器人－Ｂ"},
-    {"ticker": "6855.HK", "code": "06855", "name": "亞盛醫藥－Ｂ"},
-    {"ticker": "2162.HK", "code": "02162", "name": "康諾亞－Ｂ"},
+    {"ticker": "2252.HK", "code": "02252", "name": "微创机器人－Ｂ"},
+    {"ticker": "6855.HK", "code": "06855", "name": "亚盛医药－Ｂ"},
+    {"ticker": "2162.HK", "code": "02162", "name": "康诺亚－Ｂ"},
     {"ticker": "2629.HK", "code": "02629", "name": "MIRXES-B"},
-    {"ticker": "2565.HK", "code": "02565", "name": "派格生物醫藥－Ｂ"},
-    {"ticker": "2591.HK", "code": "02591", "name": "銀諾醫藥－Ｂ"},
+    {"ticker": "2565.HK", "code": "02565", "name": "派格生物医药－Ｂ"},
+    {"ticker": "2591.HK", "code": "02591", "name": "银诺医药－Ｂ"},
     {"ticker": "2627.HK", "code": "02627", "name": "中慧生物－Ｂ"},
-    {"ticker": "2142.HK", "code": "02142", "name": "和鉑醫藥－Ｂ"},
-    {"ticker": "1672.HK", "code": "01672", "name": "歌禮製藥－Ｂ"},
-    {"ticker": "2157.HK", "code": "02157", "name": "樂普生物－Ｂ"},
-    {"ticker": "2575.HK", "code": "02575", "name": "軒竹生物－Ｂ"},
-    {"ticker": "2171.HK", "code": "02171", "name": "科濟藥業－Ｂ"},
-    {"ticker": "2595.HK", "code": "02595", "name": "勁方醫藥－Ｂ"},
-    {"ticker": "9966.HK", "code": "09966", "name": "康寧傑瑞製藥－Ｂ"},
-    {"ticker": "2256.HK", "code": "02256", "name": "和譽－Ｂ"},
-    {"ticker": "9887.HK", "code": "09887", "name": "維立志博－Ｂ"},
-    {"ticker": "6681.HK", "code": "06681", "name": "腦動極光－Ｂ"},
-    {"ticker": "2616.HK", "code": "02616", "name": "基石藥業－Ｂ"},
-    {"ticker": "1477.HK", "code": "01477", "name": "歐康維視生物－Ｂ"},
+    {"ticker": "2142.HK", "code": "02142", "name": "和铂医药－Ｂ"},
+    {"ticker": "2157.HK", "code": "02157", "name": "乐普生物－Ｂ"},
+    {"ticker": "1672.HK", "code": "01672", "name": "歌礼制药－Ｂ"},
+    {"ticker": "2575.HK", "code": "02575", "name": "轩竹生物－Ｂ"},
+    {"ticker": "2595.HK", "code": "02595", "name": "劲方医药－Ｂ"},
+    {"ticker": "2171.HK", "code": "02171", "name": "科济药业－Ｂ"},
+    {"ticker": "9966.HK", "code": "09966", "name": "康宁杰瑞制药－Ｂ"},
+    {"ticker": "2256.HK", "code": "02256", "name": "和誉－Ｂ"},
+    {"ticker": "9887.HK", "code": "09887", "name": "维立志博－Ｂ"},
+    {"ticker": "6681.HK", "code": "06681", "name": "脑动极光－Ｂ"},
+    {"ticker": "2616.HK", "code": "02616", "name": "基石药业－Ｂ"},
+    {"ticker": "1477.HK", "code": "01477", "name": "欧康维视生物－Ｂ"},
     {"ticker": "1167.HK", "code": "01167", "name": "加科思－Ｂ"},
-    {"ticker": "2105.HK", "code": "02105", "name": "來凱醫藥－Ｂ"},
-    {"ticker": "2410.HK", "code": "02410", "name": "同源康醫藥－Ｂ"},
+    {"ticker": "2105.HK", "code": "02105", "name": "来凯医药－Ｂ"},
+    {"ticker": "2410.HK", "code": "02410", "name": "同源康医药－Ｂ"},
     {"ticker": "2509.HK", "code": "02509", "name": "荃信生物－Ｂ"},
-    {"ticker": "2480.HK", "code": "02480", "name": "綠竹生物－Ｂ"},
-    {"ticker": "9996.HK", "code": "09996", "name": "沛嘉醫療－Ｂ"},
-    {"ticker": "6669.HK", "code": "06669", "name": "先瑞達醫療－Ｂ"},
-    {"ticker": "2592.HK", "code": "02592", "name": "撥康視雲－Ｂ"},
+    {"ticker": "2480.HK", "code": "02480", "name": "绿竹生物－Ｂ"},
+    {"ticker": "9996.HK", "code": "09996", "name": "沛嘉医疗－Ｂ"},
+    {"ticker": "6669.HK", "code": "06669", "name": "先瑞达医疗－Ｂ"},
+    {"ticker": "2592.HK", "code": "02592", "name": "拨康视云－Ｂ"},
 ]
 
 
@@ -123,36 +159,52 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
                 response.raise_for_status()
 
                 soup = BeautifulSoup(response.content, 'html.parser')
+                page_text = str(soup)
 
-                # AAStocks structure: <a href='/tc/stocks/quote/detail-quote.aspx?symbol=06990'>06990.HK</a>
-                # Company name in: <span style='line-height:17px'>company name</span>
+                # Method 1: Parse JavaScript tsData array (contains ALL companies)
+                # Pattern: var tsData = [{d0:"...symbol=XXXXX...>XXXXX.HK</a>...<span style='line-height:17px'>Name</span>..."}]
+                tsdata_pattern = r"symbol=(\d{5})[^>]+>(\d+\.HK)</a>.*?<span style=['\"]line-height:17px['\"]>([^<]+)</span>"
+                js_matches = re.findall(tsdata_pattern, page_text, re.DOTALL)
 
-                # Find all stock links
-                stock_links = soup.find_all('a', href=re.compile(r'/stocks/quote/detail-quote\.aspx\?symbol=\d{5}'))
+                for code, ticker, name in js_matches:
+                    name = name.strip()
+                    # Avoid duplicates
+                    if not any(c['code'] == code for c in companies):
+                        companies.append({
+                            "ticker": ticker,
+                            "code": code,
+                            "name": name
+                        })
 
-                for link in stock_links:
-                    # Extract ticker from link text (e.g., "06990.HK")
-                    ticker = link.get_text(strip=True)
+                # Method 2: Parse HTML table (backup method)
+                if not companies:
+                    # AAStocks structure: <a href='/tc/stocks/quote/detail-quote.aspx?symbol=06990'>06990.HK</a>
+                    # Company name in: <span style='line-height:17px'>company name</span>
+                    stock_links = soup.find_all('a', href=re.compile(r'/stocks/quote/detail-quote\.aspx\?symbol=\d{5}'))
 
-                    if ticker and '.HK' in ticker:
-                        # Extract 5-digit code
-                        code = ticker.replace('.HK', '').zfill(5)
+                    for link in stock_links:
+                        # Extract ticker from link text (e.g., "06990.HK")
+                        ticker = link.get_text(strip=True)
 
-                        # Find company name in the same row
-                        row = link.find_parent('tr')
-                        if row:
-                            # Look for company name in span with line-height style
-                            name_span = row.find('span', style=re.compile(r'line-height'))
-                            if name_span:
-                                name = name_span.get_text(strip=True)
+                        if ticker and '.HK' in ticker:
+                            # Extract 5-digit code
+                            code = ticker.replace('.HK', '').zfill(5)
 
-                                # Avoid duplicates
-                                if not any(c['code'] == code for c in companies):
-                                    companies.append({
-                                        "ticker": ticker,
-                                        "code": code,
-                                        "name": name
-                                    })
+                            # Find company name in the same row
+                            row = link.find_parent('tr')
+                            if row:
+                                # Look for company name in span with line-height style
+                                name_span = row.find('span', style=re.compile(r'line-height'))
+                                if name_span:
+                                    name = name_span.get_text(strip=True)
+
+                                    # Avoid duplicates
+                                    if not any(c['code'] == code for c in companies):
+                                        companies.append({
+                                            "ticker": ticker,
+                                            "code": code,
+                                            "name": name
+                                        })
 
                 if companies:
                     logger.info(f"Successfully scraped {len(companies)} biotech companies from AAStocks")
