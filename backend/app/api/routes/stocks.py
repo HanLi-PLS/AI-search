@@ -637,29 +637,32 @@ async def get_companies():
 async def get_all_prices():
     """
     Get current prices for all HKEX 18A biotech companies
-    Uses caching and rate limiting to avoid Yahoo Finance 429 errors
+    Uses parallel processing with caching for fast response times
 
     Returns:
         List of stock data for all companies
     """
-    results = []
     companies = get_hkex_biotech_companies()
 
-    for i, company in enumerate(companies):
+    async def fetch_company_data(company: dict) -> dict:
+        """Async wrapper to fetch data for a single company"""
         ticker = company["ticker"]
-        code = company.get("code")  # Get the 5-digit code for AKShare
+        code = company.get("code")
         name = company["name"]
 
         logger.info(f"Fetching data for {ticker} ({code}) - {name}")
 
-        stock_data = get_stock_data(ticker, code=code, name=name, use_cache=True)
+        # Run the synchronous get_stock_data in a thread pool to avoid blocking
+        stock_data = await asyncio.to_thread(
+            get_stock_data, ticker, code=code, name=name, use_cache=True
+        )
 
         if stock_data:
             stock_data["name"] = name
-            results.append(stock_data)
+            return stock_data
         else:
             # Return company info with error
-            results.append({
+            return {
                 "ticker": ticker,
                 "name": name,
                 "error": "Unable to fetch data",
@@ -667,13 +670,13 @@ async def get_all_prices():
                 "change": None,
                 "change_percent": None,
                 "last_updated": datetime.now().isoformat(),
-            })
+            }
 
-        # Add small delay between requests to avoid rate limiting (except for last item)
-        if i < len(companies) - 1:
-            await asyncio.sleep(0.2)  # 200ms delay between requests
+    # Fetch all companies in parallel
+    logger.info(f"Fetching prices for {len(companies)} companies in parallel")
+    results = await asyncio.gather(*[fetch_company_data(company) for company in companies])
 
-    return results
+    return list(results)
 
 
 @router.get("/stocks/price/{ticker}")
