@@ -3,12 +3,17 @@ Stock tracker API endpoints for HKEX 18A biotech companies
 """
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
-import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
-import time
 import asyncio
+
+try:
+    import akshare as ak
+    AKSHARE_AVAILABLE = True
+except ImportError:
+    AKSHARE_AVAILABLE = False
+    logging.warning("AKShare not available, will use demo data")
 
 logger = logging.getLogger(__name__)
 
@@ -41,37 +46,96 @@ DEMO_STOCK_DATA = {
     "1302.HK": {"price": 1.85, "change": -0.05, "volume": 880000, "market_cap": 1500000000},
 }
 
-# HKEX 18A Biotech Companies
+# HKEX 18A Biotech Companies - using 5-digit code format for AKShare
 HKEX_BIOTECH_COMPANIES = [
-    {"ticker": "1801.HK", "name": "Innovent Biologics Inc."},
-    {"ticker": "6160.HK", "name": "BeiGene Ltd."},
-    {"ticker": "9926.HK", "name": "Akeso Inc."},
-    {"ticker": "2696.HK", "name": "Shanghai Henlius Biotech Inc."},
-    {"ticker": "1877.HK", "name": "Shanghai Junshi Biosciences"},
-    {"ticker": "6185.HK", "name": "CanSino Biologics Inc."},
-    {"ticker": "2269.HK", "name": "Wuxi Biologics (Cayman) Inc."},
-    {"ticker": "1952.HK", "name": "Everest Medicines Ltd."},
-    {"ticker": "2171.HK", "name": "Alphamab Oncology"},
-    {"ticker": "1996.HK", "name": "Simcere Pharmaceutical Group Ltd."},
-    {"ticker": "9995.HK", "name": "Remegen Co. Ltd."},
-    {"ticker": "9969.HK", "name": "Innocare Pharma Ltd."},
-    {"ticker": "6996.HK", "name": "Antengene Corporation Ltd."},
-    {"ticker": "9985.HK", "name": "Hua Medicine (Shanghai) Ltd."},
-    {"ticker": "9688.HK", "name": "Zai Lab Ltd."},
-    {"ticker": "9966.HK", "name": "Alphamab Oncology"},
-    {"ticker": "9989.HK", "name": "Hutchmed (China) Ltd."},
-    {"ticker": "1877.HK", "name": "Shanghai Junshi Biosciences Co. Ltd."},
-    {"ticker": "9982.HK", "name": "Sanyou Biopharmaceuticals Co. Ltd."},
-    {"ticker": "1302.HK", "name": "Lifetech Scientific Corporation"},
+    {"ticker": "1801.HK", "code": "01801", "name": "Innovent Biologics Inc."},
+    {"ticker": "6160.HK", "code": "06160", "name": "BeiGene Ltd."},
+    {"ticker": "9926.HK", "code": "09926", "name": "Akeso Inc."},
+    {"ticker": "2696.HK", "code": "02696", "name": "Shanghai Henlius Biotech Inc."},
+    {"ticker": "1877.HK", "code": "01877", "name": "Shanghai Junshi Biosciences"},
+    {"ticker": "6185.HK", "code": "06185", "name": "CanSino Biologics Inc."},
+    {"ticker": "2269.HK", "code": "02269", "name": "Wuxi Biologics (Cayman) Inc."},
+    {"ticker": "1952.HK", "code": "01952", "name": "Everest Medicines Ltd."},
+    {"ticker": "2171.HK", "code": "02171", "name": "Alphamab Oncology"},
+    {"ticker": "1996.HK", "code": "01996", "name": "Simcere Pharmaceutical Group Ltd."},
+    {"ticker": "9995.HK", "code": "09995", "name": "Remegen Co. Ltd."},
+    {"ticker": "9969.HK", "code": "09969", "name": "Innocare Pharma Ltd."},
+    {"ticker": "6996.HK", "code": "06996", "name": "Antengene Corporation Ltd."},
+    {"ticker": "9985.HK", "code": "09985", "name": "Hua Medicine (Shanghai) Ltd."},
+    {"ticker": "9688.HK", "code": "09688", "name": "Zai Lab Ltd."},
+    {"ticker": "9966.HK", "code": "09966", "name": "Alphamab Oncology"},
+    {"ticker": "9989.HK", "code": "09989", "name": "Hutchmed (China) Ltd."},
+    {"ticker": "9982.HK", "code": "09982", "name": "Sanyou Biopharmaceuticals Co. Ltd."},
+    {"ticker": "1302.HK", "code": "01302", "name": "Lifetech Scientific Corporation"},
 ]
 
 
-def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
+def get_stock_data_from_akshare(code: str, ticker: str) -> Dict[str, Any]:
     """
-    Fetch stock data from Yahoo Finance with caching and demo data fallback
+    Fetch stock data from AKShare for a specific HK stock
+
+    Args:
+        code: HK stock code in 5-digit format (e.g., "01801")
+        ticker: Stock ticker (e.g., "1801.HK")
+
+    Returns:
+        Dictionary containing stock data
+    """
+    try:
+        # Fetch all HK stocks data
+        df = ak.stock_hk_spot_em()
+
+        # Filter for our specific stock
+        stock_row = df[df['代码'] == code]
+
+        if stock_row.empty:
+            logger.warning(f"No data found for {code} in AKShare")
+            return None
+
+        row = stock_row.iloc[0]
+
+        # Extract data (column names in Chinese)
+        current_price = float(row.get('最新价', 0))
+        previous_close = float(row.get('昨收', current_price))
+        open_price = float(row.get('今开', current_price))
+        high = float(row.get('最高', current_price))
+        low = float(row.get('最低', current_price))
+        volume = int(row.get('成交量', 0))
+        turnover = float(row.get('成交额', 0))
+        change = float(row.get('涨跌额', 0))
+        change_percent = float(row.get('涨跌幅', 0))
+
+        stock_data = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "open": open_price,
+            "previous_close": previous_close,
+            "day_high": high,
+            "day_low": low,
+            "volume": volume,
+            "turnover": turnover,
+            "change": change,
+            "change_percent": change_percent,
+            "market_cap": None,  # AKShare doesn't provide market cap in spot data
+            "currency": "HKD",
+            "last_updated": datetime.now().isoformat(),
+            "data_source": "AKShare (East Money)"
+        }
+
+        return stock_data
+
+    except Exception as e:
+        logger.error(f"Error fetching AKShare data for {code}: {str(e)}")
+        return None
+
+
+def get_stock_data(ticker: str, code: str = None, use_cache: bool = True) -> Dict[str, Any]:
+    """
+    Fetch stock data with caching, tries AKShare first, then falls back to demo data
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
+        code: HK stock code in 5-digit format (e.g., "01801")
         use_cache: Whether to use cached data
 
     Returns:
@@ -84,70 +148,19 @@ def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
             logger.info(f"Using cached data for {ticker}")
             return cached_data
 
-    try:
-        # Configure yfinance with timeout and user agent
-        stock = yf.Ticker(ticker)
+    # Try AKShare first if available
+    if AKSHARE_AVAILABLE and code:
+        logger.info(f"Fetching {ticker} from AKShare")
+        stock_data = get_stock_data_from_akshare(code, ticker)
 
-        # Try to get info with timeout
-        try:
-            info = stock.info
-        except Exception as e:
-            logger.warning(f"Failed to get info for {ticker}: {str(e)}")
-            info = {}
+        if stock_data:
+            # Cache the result
+            _stock_cache[ticker] = (stock_data, datetime.now())
+            return stock_data
 
-        # Get history data - this is more reliable than info
-        history = stock.history(period="5d")  # Get 5 days for better reliability
-
-        if history.empty:
-            logger.warning(f"No history data available for {ticker}, using demo data")
-            # Use demo data as fallback
-            return get_demo_stock_data(ticker)
-
-        # Get latest data
-        current_price = history['Close'].iloc[-1] if len(history) > 0 else None
-        open_price = history['Open'].iloc[-1] if len(history) > 0 else None
-        high = history['High'].iloc[-1] if len(history) > 0 else None
-        low = history['Low'].iloc[-1] if len(history) > 0 else None
-        volume = history['Volume'].iloc[-1] if len(history) > 0 else None
-
-        # Get previous close (from previous day if available)
-        if len(history) >= 2:
-            previous_close = history['Close'].iloc[-2]
-        else:
-            previous_close = info.get('previousClose', current_price)
-
-        # Calculate changes
-        if current_price and previous_close and previous_close != 0:
-            change = current_price - previous_close
-            change_percent = (change / previous_close * 100)
-        else:
-            change = 0
-            change_percent = 0
-
-        stock_data = {
-            "ticker": ticker,
-            "current_price": float(current_price) if current_price else None,
-            "open": float(open_price) if open_price else None,
-            "previous_close": float(previous_close) if previous_close else None,
-            "day_high": float(high) if high else None,
-            "day_low": float(low) if low else None,
-            "volume": int(volume) if volume and not pd.isna(volume) else None,
-            "change": float(change),
-            "change_percent": float(change_percent),
-            "market_cap": info.get('marketCap'),
-            "currency": info.get('currency', 'HKD'),
-            "last_updated": datetime.now().isoformat(),
-            "data_source": "Yahoo Finance"
-        }
-
-        # Cache the result
-        _stock_cache[ticker] = (stock_data, datetime.now())
-        return stock_data
-
-    except Exception as e:
-        logger.error(f"Error fetching data for {ticker}: {str(e)}, using demo data")
-        # Use demo data as fallback
-        return get_demo_stock_data(ticker)
+    # Fall back to demo data
+    logger.warning(f"Using demo data for {ticker}")
+    return get_demo_stock_data(ticker)
 
 
 def get_demo_stock_data(ticker: str) -> Dict[str, Any]:
@@ -214,11 +227,12 @@ async def get_all_prices():
 
     for i, company in enumerate(HKEX_BIOTECH_COMPANIES):
         ticker = company["ticker"]
+        code = company.get("code")  # Get the 5-digit code for AKShare
         name = company["name"]
 
-        logger.info(f"Fetching data for {ticker} - {name}")
+        logger.info(f"Fetching data for {ticker} ({code}) - {name}")
 
-        stock_data = get_stock_data(ticker, use_cache=True)
+        stock_data = get_stock_data(ticker, code=code, use_cache=True)
 
         if stock_data:
             stock_data["name"] = name
@@ -253,13 +267,13 @@ async def get_price(ticker: str):
     Returns:
         Stock data for the specified ticker
     """
-    # Find company name
+    # Find company info
     company = next((c for c in HKEX_BIOTECH_COMPANIES if c["ticker"] == ticker), None)
 
     if not company:
         raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
 
-    stock_data = get_stock_data(ticker)
+    stock_data = get_stock_data(ticker, code=company.get("code"))
 
     if not stock_data:
         raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
@@ -273,49 +287,22 @@ async def get_history(ticker: str, period: str = "1mo"):
     """
     Get historical data for a specific ticker
 
+    Note: Historical data functionality is currently being migrated to AKShare.
+    This endpoint will return historical data in a future update.
+
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
         period: Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
 
     Returns:
-        Historical stock data
+        Historical stock data (placeholder for now)
     """
-    valid_periods = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
-
-    if period not in valid_periods:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid period. Must be one of: {', '.join(valid_periods)}"
-        )
-
-    try:
-        stock = yf.Ticker(ticker)
-        history = stock.history(period=period)
-
-        if history.empty:
-            raise HTTPException(status_code=404, detail=f"No historical data found for {ticker}")
-
-        # Convert to list of dictionaries
-        data = []
-        for date, row in history.iterrows():
-            data.append({
-                "date": date.isoformat(),
-                "open": float(row['Open']),
-                "high": float(row['High']),
-                "low": float(row['Low']),
-                "close": float(row['Close']),
-                "volume": int(row['Volume']),
-            })
-
-        return {
-            "ticker": ticker,
-            "period": period,
-            "data": data
-        }
-
-    except Exception as e:
-        logger.error(f"Error fetching historical data for {ticker}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "ticker": ticker,
+        "period": period,
+        "message": "Historical data feature coming soon with AKShare integration",
+        "data": []
+    }
 
 
 @router.get("/stocks/upcoming-ipos")
