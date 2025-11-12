@@ -390,13 +390,14 @@ def get_stock_data_from_finnhub(ticker: str) -> Dict[str, Any]:
         return None
 
 
-def get_stock_data_from_tushare(ticker: str, code: str = None) -> Dict[str, Any]:
+def get_stock_data_from_tushare(ticker: str, code: str = None, get_name: bool = True) -> Dict[str, Any]:
     """
     Fetch stock data from Tushare Pro for Hong Kong stocks
 
     Args:
         ticker: Stock ticker (e.g., "1801.HK")
         code: HK stock code in 5-digit format (e.g., "01801")
+        get_name: Whether to try fetching company name from Tushare
 
     Returns:
         Dictionary containing stock data or None if failed
@@ -409,6 +410,18 @@ def get_stock_data_from_tushare(ticker: str, code: str = None) -> Dict[str, Any]
 
         # Initialize Pro API
         pro = ts.pro_api()
+
+        # Try to get company name from Tushare hk_basic (if user has access)
+        company_name = None
+        if get_name:
+            try:
+                basic_df = pro.hk_basic(ts_code=ticker, fields='ts_code,name')
+                if basic_df is not None and not basic_df.empty:
+                    company_name = basic_df.iloc[0]['name']
+                    logger.debug(f"Got company name from Tushare: {company_name}")
+            except Exception as e:
+                logger.debug(f"Cannot fetch name from hk_basic for {ticker}: {str(e)}")
+                # Will use name from AAStocks instead
 
         # Fetch latest daily data (most recent trading day)
         # Tushare uses format like "01801.HK"
@@ -446,6 +459,10 @@ def get_stock_data_from_tushare(ticker: str, code: str = None) -> Dict[str, Any]
             "last_updated": datetime.now().isoformat(),
             "data_source": "Tushare Pro"
         }
+
+        # Add company name if we got it from Tushare
+        if company_name:
+            stock_data["name"] = company_name
 
         return stock_data
 
@@ -746,7 +763,9 @@ async def get_all_prices():
         )
 
         if stock_data:
-            stock_data["name"] = name
+            # Use name from Tushare if available, otherwise use AAStocks name
+            if "name" not in stock_data or not stock_data["name"]:
+                stock_data["name"] = name
             return stock_data
         else:
             # Return company info with error
