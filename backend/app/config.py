@@ -115,7 +115,7 @@ class Settings(BaseSettings):
             raise
 
     def _load_finnhub_key_from_aws(self):
-        """Load Finnhub API key from AWS Secrets Manager"""
+        """Load Finnhub API key from AWS Secrets Manager (optional - won't crash if fails)"""
         try:
             from backend.app.utils.aws_secrets import get_key
             self.FINNHUB_API_KEY = get_key(
@@ -124,8 +124,9 @@ class Settings(BaseSettings):
             )
             logger.info(f"Successfully loaded Finnhub API key from AWS Secrets Manager: {self.AWS_SECRET_NAME_FINNHUB}")
         except Exception as e:
-            logger.error(f"Failed to load Finnhub API key from AWS Secrets Manager: {str(e)}")
-            raise
+            logger.warning(f"Could not load Finnhub API key from AWS Secrets Manager: {str(e)}")
+            logger.warning("Stock tracker feature will not work without Finnhub API key")
+            # Don't crash - just leave FINNHUB_API_KEY empty
 
     def get_openai_api_key(self) -> str:
         """
