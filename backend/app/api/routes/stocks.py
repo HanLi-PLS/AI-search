@@ -4,6 +4,7 @@ Stock tracker API endpoints for HKEX 18A biotech companies
 from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 import yfinance as yf
+import pandas as pd
 from datetime import datetime
 import logging
 
@@ -47,23 +48,43 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
         Dictionary containing stock data
     """
     try:
+        # Configure yfinance with timeout and user agent
         stock = yf.Ticker(ticker)
-        info = stock.info
-        history = stock.history(period="1d")
+
+        # Try to get info with timeout
+        try:
+            info = stock.info
+        except Exception as e:
+            logger.warning(f"Failed to get info for {ticker}: {str(e)}")
+            info = {}
+
+        # Get history data - this is more reliable than info
+        history = stock.history(period="5d")  # Get 5 days for better reliability
 
         if history.empty:
-            logger.warning(f"No data available for {ticker}")
+            logger.warning(f"No history data available for {ticker}")
             return None
 
-        current_price = history['Close'].iloc[-1] if not history.empty else None
-        open_price = history['Open'].iloc[-1] if not history.empty else None
-        high = history['High'].iloc[-1] if not history.empty else None
-        low = history['Low'].iloc[-1] if not history.empty else None
-        volume = history['Volume'].iloc[-1] if not history.empty else None
+        # Get latest data
+        current_price = history['Close'].iloc[-1] if len(history) > 0 else None
+        open_price = history['Open'].iloc[-1] if len(history) > 0 else None
+        high = history['High'].iloc[-1] if len(history) > 0 else None
+        low = history['Low'].iloc[-1] if len(history) > 0 else None
+        volume = history['Volume'].iloc[-1] if len(history) > 0 else None
 
-        previous_close = info.get('previousClose', current_price)
-        change = current_price - previous_close if current_price and previous_close else 0
-        change_percent = (change / previous_close * 100) if previous_close and previous_close != 0 else 0
+        # Get previous close (from previous day if available)
+        if len(history) >= 2:
+            previous_close = history['Close'].iloc[-2]
+        else:
+            previous_close = info.get('previousClose', current_price)
+
+        # Calculate changes
+        if current_price and previous_close and previous_close != 0:
+            change = current_price - previous_close
+            change_percent = (change / previous_close * 100)
+        else:
+            change = 0
+            change_percent = 0
 
         return {
             "ticker": ticker,
@@ -72,7 +93,7 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
             "previous_close": float(previous_close) if previous_close else None,
             "day_high": float(high) if high else None,
             "day_low": float(low) if low else None,
-            "volume": int(volume) if volume else None,
+            "volume": int(volume) if volume and not pd.isna(volume) else None,
             "change": float(change),
             "change_percent": float(change_percent),
             "market_cap": info.get('marketCap'),
@@ -80,7 +101,7 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
             "last_updated": datetime.now().isoformat(),
         }
     except Exception as e:
-        logger.error(f"Error fetching data for {ticker}: {str(e)}")
+        logger.error(f"Error fetching data for {ticker}: {str(e)}", exc_info=True)
         return None
 
 
