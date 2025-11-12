@@ -232,8 +232,10 @@ def scrape_hkex_biotech_companies() -> Optional[List[Dict[str, str]]]:
 
 def get_hkex_biotech_companies() -> List[Dict[str, str]]:
     """
-    Get HKEX biotech company list, using cache or scraping from AAStocks
-    Falls back to hardcoded list if scraping fails
+    Get HKEX biotech company list from verified fallback list
+
+    Note: Web scraping from AAStocks was unreliable (ticker/name mismatches),
+    so we use a curated list that's manually verified and updated.
 
     Returns:
         List of companies with ticker, code, and name
@@ -247,21 +249,11 @@ def get_hkex_biotech_companies() -> List[Dict[str, str]]:
             logger.debug(f"Using cached company list (age: {cache_age})")
             return _company_list_cache
 
-    # Try to scrape fresh data
-    logger.info("Company list cache expired or empty, scraping fresh data")
-    scraped_companies = scrape_hkex_biotech_companies()
-
-    if scraped_companies:
-        # Update cache
-        _company_list_cache = scraped_companies
-        _company_list_cache_time = datetime.now()
-        return scraped_companies
-    else:
-        # Fall back to hardcoded list
-        logger.warning("Scraping failed, using fallback company list")
-        _company_list_cache = FALLBACK_HKEX_BIOTECH_COMPANIES
-        _company_list_cache_time = datetime.now()
-        return FALLBACK_HKEX_BIOTECH_COMPANIES
+    # Use the verified fallback list (web scraping was unreliable)
+    logger.info("Loading HKEX 18A biotech company list from verified source")
+    _company_list_cache = FALLBACK_HKEX_BIOTECH_COMPANIES
+    _company_list_cache_time = datetime.now()
+    return FALLBACK_HKEX_BIOTECH_COMPANIES
 
 
 def get_stock_data_from_yfinance(ticker: str) -> Dict[str, Any]:
