@@ -30,6 +30,19 @@ except ImportError:
 FINNHUB_API_KEY = settings.FINNHUB_API_KEY
 FINNHUB_AVAILABLE = FINNHUB_API_KEY is not None and FINNHUB_API_KEY != ""
 
+# Tushare API token from settings (loaded from AWS Secrets Manager or environment)
+TUSHARE_API_TOKEN = settings.TUSHARE_API_TOKEN
+TUSHARE_AVAILABLE = False
+if TUSHARE_API_TOKEN:
+    try:
+        import tushare as ts
+        ts.set_token(TUSHARE_API_TOKEN)
+        TUSHARE_AVAILABLE = True
+    except ImportError:
+        logging.warning("Tushare not available - install with: pip install tushare")
+    except Exception as e:
+        logging.warning(f"Tushare initialization failed: {str(e)}")
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -377,6 +390,70 @@ def get_stock_data_from_finnhub(ticker: str) -> Dict[str, Any]:
         return None
 
 
+def get_stock_data_from_tushare(ticker: str, code: str = None) -> Dict[str, Any]:
+    """
+    Fetch stock data from Tushare Pro for Hong Kong stocks
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+        code: HK stock code in 5-digit format (e.g., "01801")
+
+    Returns:
+        Dictionary containing stock data or None if failed
+    """
+    if not TUSHARE_AVAILABLE:
+        return None
+
+    try:
+        import tushare as ts
+
+        # Initialize Pro API
+        pro = ts.pro_api()
+
+        # Fetch latest daily data (most recent trading day)
+        # Tushare uses format like "01801.HK"
+        df = pro.hk_daily(ts_code=ticker)
+
+        if df is None or df.empty:
+            logger.warning(f"No data found for {ticker} in Tushare")
+            return None
+
+        # Get the most recent trading day
+        latest = df.iloc[0]
+
+        # Extract data
+        current_price = float(latest['close'])
+        previous_close = float(latest['pre_close'])
+        open_price = float(latest['open'])
+        high = float(latest['high'])
+        low = float(latest['low'])
+        volume = int(latest['vol']) if latest['vol'] else None
+        change = float(latest['change']) if 'change' in latest else (current_price - previous_close)
+        change_percent = float(latest['pct_chg']) if 'pct_chg' in latest else (change / previous_close * 100 if previous_close != 0 else 0)
+
+        stock_data = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "open": open_price,
+            "previous_close": previous_close,
+            "day_high": high,
+            "day_low": low,
+            "volume": volume,
+            "change": change,
+            "change_percent": change_percent,
+            "market_cap": None,  # Tushare doesn't provide market cap in daily data
+            "currency": "HKD",
+            "last_updated": datetime.now().isoformat(),
+            "data_source": "Tushare Pro"
+        }
+
+        return stock_data
+
+    except Exception as e:
+        logger.debug(f"Error fetching Tushare data for {ticker}: {str(e)}")
+        return None
+
+
 def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, Any]:
     """
     Fetch stock data using GPT-4 with web search tool as fallback when APIs fail
@@ -560,7 +637,7 @@ def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) ->
 
 def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: bool = True) -> Optional[Dict[str, Any]]:
     """
-    Fetch stock data with caching, tries multiple sources: Finnhub -> AKShare -> Web Search (GPT-4.1)
+    Fetch stock data with caching, tries multiple sources: Tushare -> Finnhub -> AKShare -> Web Search (GPT-4.1)
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
@@ -580,7 +657,18 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
 
     # Try multiple real data sources in order of preference
 
-    # 1. Try Finnhub (most reliable for HK stocks)
+    # 1. Try Tushare Pro (best for HK stocks - free & fast)
+    if TUSHARE_AVAILABLE:
+        logger.debug(f"Trying Tushare for {ticker}")
+        stock_data = get_stock_data_from_tushare(ticker, code=code)
+
+        if stock_data:
+            logger.info(f"✓ Got real data from Tushare for {ticker}")
+            # Cache the result
+            _stock_cache[ticker] = (stock_data, datetime.now())
+            return stock_data
+
+    # 2. Try Finnhub if Tushare failed
     if FINNHUB_AVAILABLE:
         logger.debug(f"Trying Finnhub for {ticker}")
         stock_data = get_stock_data_from_finnhub(ticker)
@@ -591,7 +679,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 2. Try AKShare if Finnhub failed
+    # 3. Try AKShare if both Tushare and Finnhub failed
     if AKSHARE_AVAILABLE and code:
         logger.debug(f"Trying AKShare for {ticker} ({code})")
         stock_data = get_stock_data_from_akshare(code, ticker)
@@ -602,7 +690,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 3. Try web search with GPT-4.1 if all APIs failed
+    # 4. Try web search with GPT-4.1 if all APIs failed
     if settings.OPENAI_API_KEY:
         logger.debug(f"Trying web search for {ticker}")
         stock_data = get_stock_data_from_websearch(ticker, name=name)

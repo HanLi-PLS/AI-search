@@ -33,10 +33,14 @@ class Settings(BaseSettings):
     # Finnhub Configuration (for stock data)
     FINNHUB_API_KEY: str = os.getenv("FINNHUB_API_KEY", "")
 
+    # Tushare Configuration (for stock data - primary source for HK stocks)
+    TUSHARE_API_TOKEN: str = os.getenv("TUSHARE_API_TOKEN", "")
+
     # AWS Secrets Manager Configuration (alternative to direct API key)
     USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "true").lower() == "true"
     AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
     AWS_SECRET_NAME_FINNHUB: str = os.getenv("AWS_SECRET_NAME_FINNHUB", "finnhub-api-key")
+    AWS_SECRET_NAME_TUSHARE: str = os.getenv("AWS_SECRET_NAME_TUSHARE", "tushare-api-token")
 
     # Vision Model Configuration (for image processing in PDFs)
     VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
@@ -99,6 +103,7 @@ class Settings(BaseSettings):
         if self.USE_AWS_SECRETS:
             self._load_openai_key_from_aws()
             self._load_finnhub_key_from_aws()
+            self._load_tushare_token_from_aws()
 
     def _load_openai_key_from_aws(self):
         """Load OpenAI API key from AWS Secrets Manager"""
@@ -127,6 +132,20 @@ class Settings(BaseSettings):
             logger.warning(f"Could not load Finnhub API key from AWS Secrets Manager: {str(e)}")
             logger.warning("Stock tracker feature will not work without Finnhub API key")
             # Don't crash - just leave FINNHUB_API_KEY empty
+
+    def _load_tushare_token_from_aws(self):
+        """Load Tushare API token from AWS Secrets Manager (optional - won't crash if fails)"""
+        try:
+            from backend.app.utils.aws_secrets import get_key
+            self.TUSHARE_API_TOKEN = get_key(
+                self.AWS_SECRET_NAME_TUSHARE,
+                self.AWS_REGION
+            )
+            logger.info(f"Successfully loaded Tushare API token from AWS Secrets Manager: {self.AWS_SECRET_NAME_TUSHARE}")
+        except Exception as e:
+            logger.warning(f"Could not load Tushare API token from AWS Secrets Manager: {str(e)}")
+            logger.warning("Will use fallback data sources for stock prices")
+            # Don't crash - just leave TUSHARE_API_TOKEN empty
 
     def get_openai_api_key(self) -> str:
         """
