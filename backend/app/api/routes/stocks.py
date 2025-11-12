@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
+from backend.app.config import settings
 
 try:
     import akshare as ak
@@ -25,9 +26,9 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
 
-# Finnhub API key from environment
-FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
-FINNHUB_AVAILABLE = FINNHUB_API_KEY is not None
+# Finnhub API key from settings (loaded from AWS Secrets Manager or environment)
+FINNHUB_API_KEY = settings.FINNHUB_API_KEY
+FINNHUB_AVAILABLE = FINNHUB_API_KEY is not None and FINNHUB_API_KEY != ""
 
 logger = logging.getLogger(__name__)
 
@@ -389,10 +390,9 @@ def get_stock_data_from_websearch(ticker: str, name: str = None) -> Dict[str, An
     """
     try:
         from openai import OpenAI
-        import os
         import json
 
-        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        client = OpenAI(api_key=settings.get_openai_api_key())
 
         # Construct search query
         company_info = f"{name} " if name else ""
@@ -603,7 +603,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             return stock_data
 
     # 3. Try web search with GPT-4.1 if all APIs failed
-    if os.getenv('OPENAI_API_KEY'):
+    if settings.OPENAI_API_KEY:
         logger.debug(f"Trying web search for {ticker}")
         stock_data = get_stock_data_from_websearch(ticker, name=name)
 

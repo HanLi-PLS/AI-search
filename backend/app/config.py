@@ -30,9 +30,13 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # Finnhub Configuration (for stock data)
+    FINNHUB_API_KEY: str = os.getenv("FINNHUB_API_KEY", "")
+
     # AWS Secrets Manager Configuration (alternative to direct API key)
     USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "false").lower() == "true"
     AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
+    AWS_SECRET_NAME_FINNHUB: str = os.getenv("AWS_SECRET_NAME_FINNHUB", "finnhub-api-key")
 
     # Vision Model Configuration (for image processing in PDFs)
     VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
@@ -90,10 +94,11 @@ class Settings(BaseSettings):
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Load OpenAI API key from AWS Secrets Manager if configured
+        # Load API keys from AWS Secrets Manager if configured
         # Always load from Secrets Manager when USE_AWS_SECRETS=true, regardless of .env value
         if self.USE_AWS_SECRETS:
             self._load_openai_key_from_aws()
+            self._load_finnhub_key_from_aws()
 
     def _load_openai_key_from_aws(self):
         """Load OpenAI API key from AWS Secrets Manager"""
@@ -107,6 +112,19 @@ class Settings(BaseSettings):
             logger.info(f"Successfully loaded OpenAI API key from AWS Secrets Manager: {self.AWS_SECRET_NAME_OPENAI}")
         except Exception as e:
             logger.error(f"Failed to load OpenAI API key from AWS Secrets Manager: {str(e)}")
+            raise
+
+    def _load_finnhub_key_from_aws(self):
+        """Load Finnhub API key from AWS Secrets Manager"""
+        try:
+            from backend.app.utils.aws_secrets import get_key
+            self.FINNHUB_API_KEY = get_key(
+                self.AWS_SECRET_NAME_FINNHUB,
+                self.AWS_REGION
+            )
+            logger.info(f"Successfully loaded Finnhub API key from AWS Secrets Manager: {self.AWS_SECRET_NAME_FINNHUB}")
+        except Exception as e:
+            logger.error(f"Failed to load Finnhub API key from AWS Secrets Manager: {str(e)}")
             raise
 
     def get_openai_api_key(self) -> str:
