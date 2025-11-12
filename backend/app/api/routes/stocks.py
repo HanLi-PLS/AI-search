@@ -5,12 +5,18 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Dict, Any
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import time
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Simple in-memory cache with TTL
+_stock_cache = {}
+_cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
 
 # HKEX 18A Biotech Companies
 HKEX_BIOTECH_COMPANIES = [
@@ -37,16 +43,24 @@ HKEX_BIOTECH_COMPANIES = [
 ]
 
 
-def get_stock_data(ticker: str) -> Dict[str, Any]:
+def get_stock_data(ticker: str, use_cache: bool = True) -> Dict[str, Any]:
     """
-    Fetch stock data from Yahoo Finance
+    Fetch stock data from Yahoo Finance with caching
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
+        use_cache: Whether to use cached data
 
     Returns:
         Dictionary containing stock data
     """
+    # Check cache first
+    if use_cache and ticker in _stock_cache:
+        cached_data, cached_time = _stock_cache[ticker]
+        if datetime.now() - cached_time < _cache_ttl:
+            logger.info(f"Using cached data for {ticker}")
+            return cached_data
+
     try:
         # Configure yfinance with timeout and user agent
         stock = yf.Ticker(ticker)
@@ -86,7 +100,7 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
             change = 0
             change_percent = 0
 
-        return {
+        stock_data = {
             "ticker": ticker,
             "current_price": float(current_price) if current_price else None,
             "open": float(open_price) if open_price else None,
@@ -100,8 +114,13 @@ def get_stock_data(ticker: str) -> Dict[str, Any]:
             "currency": info.get('currency', 'HKD'),
             "last_updated": datetime.now().isoformat(),
         }
+
+        # Cache the result
+        _stock_cache[ticker] = (stock_data, datetime.now())
+        return stock_data
+
     except Exception as e:
-        logger.error(f"Error fetching data for {ticker}: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching data for {ticker}: {str(e)}")
         return None
 
 
@@ -120,19 +139,20 @@ async def get_companies():
 async def get_all_prices():
     """
     Get current prices for all HKEX 18A biotech companies
+    Uses caching and rate limiting to avoid Yahoo Finance 429 errors
 
     Returns:
         List of stock data for all companies
     """
     results = []
 
-    for company in HKEX_BIOTECH_COMPANIES:
+    for i, company in enumerate(HKEX_BIOTECH_COMPANIES):
         ticker = company["ticker"]
         name = company["name"]
 
         logger.info(f"Fetching data for {ticker} - {name}")
 
-        stock_data = get_stock_data(ticker)
+        stock_data = get_stock_data(ticker, use_cache=True)
 
         if stock_data:
             stock_data["name"] = name
@@ -148,6 +168,10 @@ async def get_all_prices():
                 "change_percent": None,
                 "last_updated": datetime.now().isoformat(),
             })
+
+        # Add delay between requests to avoid rate limiting (except for last item)
+        if i < len(HKEX_BIOTECH_COMPANIES) - 1:
+            await asyncio.sleep(0.5)  # 500ms delay between requests
 
     return results
 
