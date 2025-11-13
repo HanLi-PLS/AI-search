@@ -853,3 +853,207 @@ async def get_upcoming_ipos():
         "message": "IPO data is not available yet",
         "upcoming_ipos": []
     }
+
+
+# ============================================================================
+# Historical Data Endpoints (Database-backed)
+# ============================================================================
+
+@router.get("/stocks/{ticker}/history")
+async def get_stock_history(
+    ticker: str,
+    days: int = 90,
+    start_date: str = None,
+    end_date: str = None
+):
+    """
+    Get historical price data for a stock from database
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+        days: Number of days to retrieve (default: 90)
+        start_date: Start date in YYYY-MM-DD format (optional)
+        end_date: End date in YYYY-MM-DD format (optional)
+
+    Returns:
+        List of historical price records
+    """
+    from backend.app.services.stock_data import StockDataService
+    from datetime import datetime, date, timedelta
+
+    service = StockDataService()
+
+    # Parse date parameters
+    if start_date:
+        start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    else:
+        start = date.today() - timedelta(days=days)
+
+    if end_date:
+        end = datetime.strptime(end_date, '%Y-%m-%d').date()
+    else:
+        end = date.today()
+
+    # Get data from database
+    history = service.get_historical_data(
+        ticker=ticker,
+        start_date=start,
+        end_date=end
+    )
+
+    # If no data found in database, trigger an update
+    if not history:
+        logger.info(f"No historical data found for {ticker}, fetching from Tushare...")
+
+        # Convert ticker to Tushare format
+        stock_code = ticker.split('.')[0]
+        ts_code = f"{stock_code.zfill(5)}.HK"
+
+        # Fetch and store historical data
+        service.fetch_and_store_historical_data(
+            ticker=ticker,
+            ts_code=ts_code,
+            start_date=start.strftime('%Y%m%d'),
+            end_date=end.strftime('%Y%m%d')
+        )
+
+        # Retrieve again
+        history = service.get_historical_data(
+            ticker=ticker,
+            start_date=start,
+            end_date=end
+        )
+
+    return {
+        "ticker": ticker,
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+        "count": len(history),
+        "data": history
+    }
+
+
+@router.post("/stocks/{ticker}/update-history")
+async def update_stock_history(ticker: str):
+    """
+    Manually trigger historical data update for a specific stock
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+
+    Returns:
+        Update status and statistics
+    """
+    from backend.app.services.stock_data import StockDataService
+
+    service = StockDataService()
+
+    # Convert ticker to Tushare format
+    stock_code = ticker.split('.')[0]
+    ts_code = f"{stock_code.zfill(5)}.HK"
+
+    try:
+        new_records = service.update_incremental(ticker, ts_code)
+
+        return {
+            "status": "success",
+            "ticker": ticker,
+            "new_records": new_records,
+            "message": f"Updated {ticker} with {new_records} new records"
+        }
+    except Exception as e:
+        logger.error(f"Error updating {ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/stocks/bulk-update-history")
+async def bulk_update_all_history():
+    """
+    Update historical data for all HKEX 18A stocks incrementally
+    Only fetches new trading days since last update
+
+    Returns:
+        Update statistics
+    """
+    from backend.app.services.stock_data import StockDataService
+
+    service = StockDataService()
+    companies = get_hkex_biotech_companies()
+
+    # Prepare list of (ticker, ts_code) tuples
+    tickers = []
+    for company in companies:
+        ticker = company["ticker"]
+        code = company.get("code")
+
+        if code:
+            ts_code = f"{code}.HK"
+        else:
+            stock_code = ticker.split('.')[0]
+            ts_code = f"{stock_code.zfill(5)}.HK"
+
+        tickers.append((ticker, ts_code))
+
+    # Run bulk update
+    stats = service.bulk_update_all_stocks(tickers)
+
+    return {
+        "status": "success",
+        "statistics": stats,
+        "message": f"Updated {stats['updated']} stocks with {stats['new_records']} new records"
+    }
+
+
+@router.get("/stocks/history/stats")
+async def get_history_stats():
+    """
+    Get statistics about stored historical data
+
+    Returns:
+        Database statistics
+    """
+    from backend.app.services.stock_data import StockDataService
+    from backend.app.database import SessionLocal
+    from sqlalchemy import func
+    from backend.app.models.stock import StockDaily
+
+    db = SessionLocal()
+
+    try:
+        # Total records
+        total_records = db.query(func.count(StockDaily.id)).scalar()
+
+        # Number of unique stocks
+        unique_stocks = db.query(func.count(func.distinct(StockDaily.ticker))).scalar()
+
+        # Date range
+        min_date = db.query(func.min(StockDaily.trade_date)).scalar()
+        max_date = db.query(func.max(StockDaily.trade_date)).scalar()
+
+        # Records per stock
+        stock_counts = db.query(
+            StockDaily.ticker,
+            func.count(StockDaily.id).label('count'),
+            func.min(StockDaily.trade_date).label('earliest'),
+            func.max(StockDaily.trade_date).label('latest')
+        ).group_by(StockDaily.ticker).all()
+
+        return {
+            "total_records": total_records,
+            "unique_stocks": unique_stocks,
+            "date_range": {
+                "earliest": min_date.isoformat() if min_date else None,
+                "latest": max_date.isoformat() if max_date else None
+            },
+            "stocks": [
+                {
+                    "ticker": row.ticker,
+                    "record_count": row.count,
+                    "earliest_date": row.earliest.isoformat() if row.earliest else None,
+                    "latest_date": row.latest.isoformat() if row.latest else None
+                }
+                for row in stock_counts
+            ]
+        }
+    finally:
+        db.close()

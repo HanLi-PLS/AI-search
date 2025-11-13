@@ -59,6 +59,14 @@ async def startup_event():
     logger.info(f"Qdrant host: {settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
     logger.info(f"Embedding model: {settings.EMBEDDING_MODEL}")
 
+    # Initialize database
+    try:
+        from backend.app.database import init_db
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {str(e)}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
