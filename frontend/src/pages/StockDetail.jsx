@@ -22,16 +22,33 @@ function StockDetail() {
       setLoading(true);
       setError(null);
 
+      console.log(`[StockDetail] Fetching data for ${ticker}, timeRange: ${timeRange}`);
+
       // Fetch current price
       const priceData = await stockAPI.getPrice(ticker);
       setStockData(priceData);
+      console.log('[StockDetail] Price data:', priceData);
 
       // Fetch historical data
+      console.log(`[StockDetail] Calling getHistory(${ticker}, ${timeRange})`);
       const history = await stockAPI.getHistory(ticker, timeRange);
+      console.log('[StockDetail] History data received:', {
+        count: history?.length || 0,
+        sample: history?.[0],
+      });
       setHistoryData(history);
+
+      if (!history || history.length === 0) {
+        console.warn('[StockDetail] No historical data returned from API');
+      }
     } catch (err) {
       setError('Failed to fetch stock details. Please try again.');
-      console.error('Error fetching stock details:', err);
+      console.error('[StockDetail] Error fetching stock details:', err);
+      console.error('[StockDetail] Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
     } finally {
       setLoading(false);
     }

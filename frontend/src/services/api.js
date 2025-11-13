@@ -41,13 +41,19 @@ export const stockAPI = {
     };
     const days = daysMap[timeRange] || 30;
 
-    const response = await api.get(`/api/stocks/${ticker}/history`, {
+    console.log(`[API] getHistory called: ticker=${ticker}, timeRange=${timeRange}, days=${days}`);
+    const url = `/api/stocks/${ticker}/history`;
+    console.log(`[API] Requesting: ${url}?days=${days}`);
+
+    const response = await api.get(url, {
       params: { days },
     });
 
+    console.log('[API] Raw response:', response.data);
+
     // Transform the response to match the expected format for the chart
     if (response.data && response.data.data) {
-      return response.data.data.map(item => ({
+      const transformed = response.data.data.map(item => ({
         date: item.trade_date,
         close: item.close,
         open: item.open,
@@ -55,7 +61,10 @@ export const stockAPI = {
         low: item.low,
         volume: item.volume,
       }));
+      console.log(`[API] Transformed ${transformed.length} records for chart`);
+      return transformed;
     }
+    console.warn('[API] No data found in response.data.data');
     return [];
   },
 
