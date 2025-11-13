@@ -180,12 +180,59 @@ class StockDataService:
                 # Fetch from day after latest date to today
                 start_date = (latest_date + timedelta(days=1)).strftime('%Y%m%d')
             else:
-                # No data exists, fetch last 90 days
-                start_date = (date.today() - timedelta(days=90)).strftime('%Y%m%d')
+                # No data exists, fetch last 365 days (1 year)
+                start_date = (date.today() - timedelta(days=365)).strftime('%Y%m%d')
 
             end_date = date.today().strftime('%Y%m%d')
 
             logger.info(f"Updating {ticker} from {start_date} to {end_date}")
+
+            return self.fetch_and_store_historical_data(
+                ticker=ticker,
+                ts_code=ts_code,
+                start_date=start_date,
+                end_date=end_date,
+                db=db
+            )
+        finally:
+            if close_db:
+                db.close()
+
+    def backfill_historical_data(self, ticker: str, ts_code: str, days: int = 365, db: Session = None) -> int:
+        """
+        Backfill older historical data for a stock that already has some data.
+        Fetches data from (earliest_date - days) to earliest_date.
+
+        Args:
+            ticker: Stock ticker (e.g., "1801.HK")
+            ts_code: Tushare format code (e.g., "01801.HK")
+            days: Number of days to backfill (default: 365)
+            db: Database session (optional)
+
+        Returns:
+            Number of new records stored
+        """
+        close_db = False
+        if db is None:
+            db = self.get_db()
+            close_db = True
+
+        try:
+            # Get earliest date we have
+            earliest_date = db.query(func.min(StockDaily.trade_date)).filter(
+                StockDaily.ticker == ticker
+            ).scalar()
+
+            if not earliest_date:
+                # No data exists, use regular update_incremental instead
+                logger.info(f"No existing data for {ticker}, use update_incremental instead")
+                return 0
+
+            # Calculate backfill range
+            end_date = (earliest_date - timedelta(days=1)).strftime('%Y%m%d')
+            start_date = (earliest_date - timedelta(days=days)).strftime('%Y%m%d')
+
+            logger.info(f"Backfilling {ticker} from {start_date} to {end_date}")
 
             return self.fetch_and_store_historical_data(
                 ticker=ticker,
@@ -276,6 +323,54 @@ class StockDataService:
                         stats['new_records'] += new_records
                 except Exception as e:
                     logger.error(f"Error updating {ticker}: {str(e)}")
+                    stats['errors'] += 1
+
+            return stats
+        finally:
+            if close_db:
+                db.close()
+
+    def bulk_backfill_all_stocks(self, tickers: List[tuple], days: int = 365, db: Session = None) -> Dict[str, int]:
+        """
+        Backfill older historical data for all stocks
+
+        Args:
+            tickers: List of (ticker, ts_code) tuples
+            days: Number of days to backfill for each stock (default: 365)
+            db: Database session (optional)
+
+        Returns:
+            Dictionary with backfill statistics
+        """
+        close_db = False
+        if db is None:
+            db = self.get_db()
+            close_db = True
+
+        stats = {
+            'total': len(tickers),
+            'backfilled': 0,
+            'new_records': 0,
+            'errors': 0,
+            'skipped': 0  # Stocks with no existing data
+        }
+
+        try:
+            for ticker, ts_code in tickers:
+                try:
+                    new_records = self.backfill_historical_data(ticker, ts_code, days, db)
+                    if new_records > 0:
+                        stats['backfilled'] += 1
+                        stats['new_records'] += new_records
+                    elif new_records == 0:
+                        # Check if it was skipped (no existing data)
+                        existing_count = db.query(func.count(StockDaily.id)).filter(
+                            StockDaily.ticker == ticker
+                        ).scalar()
+                        if existing_count == 0:
+                            stats['skipped'] += 1
+                except Exception as e:
+                    logger.error(f"Error backfilling {ticker}: {str(e)}")
                     stats['errors'] += 1
 
             return stats

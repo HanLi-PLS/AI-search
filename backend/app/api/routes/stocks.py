@@ -1035,3 +1035,71 @@ async def get_history_stats():
         }
     finally:
         db.close()
+
+
+@router.post("/stocks/{ticker}/backfill-history")
+async def backfill_single_stock_history(ticker: str, days: int = 365):
+    """
+    Backfill older historical data for a specific stock.
+    Fetches data going backwards from the earliest date we have.
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+        days: Number of days to backfill (default: 365)
+
+    Returns:
+        Status and number of new records added
+    """
+    try:
+        # Extract stock code and convert to Tushare format
+        stock_code = ticker.split('.')[0]
+        ts_code = f"{stock_code.zfill(5)}.HK"
+
+        service = StockDataService()
+        new_records = service.backfill_historical_data(ticker, ts_code, days)
+
+        return {
+            "status": "success",
+            "ticker": ticker,
+            "ts_code": ts_code,
+            "days_requested": days,
+            "new_records": new_records,
+            "message": f"Backfilled {ticker} with {new_records} new records"
+        }
+    except Exception as e:
+        logger.error(f"Error backfilling {ticker}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/stocks/bulk-backfill-history")
+async def bulk_backfill_all_history(days: int = 365):
+    """
+    Backfill older historical data for all HKEX 18A biotech stocks.
+    Goes backwards from the earliest date we have for each stock.
+
+    Args:
+        days: Number of days to backfill for each stock (default: 365)
+
+    Returns:
+        Statistics about the backfill operation
+    """
+    try:
+        # Get all biotech companies
+        companies = get_hkex_biotech_companies()
+
+        # Create list of (ticker, ts_code) tuples
+        tickers = [(company["ticker"], f"{company['code']}.HK") for company in companies]
+
+        service = StockDataService()
+        stats = service.bulk_backfill_all_stocks(tickers, days)
+
+        logger.info(f"Bulk backfill completed: {stats}")
+
+        return {
+            "status": "success",
+            "days_requested": days,
+            "statistics": stats
+        }
+    except Exception as e:
+        logger.error(f"Error during bulk backfill: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
