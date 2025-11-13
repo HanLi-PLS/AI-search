@@ -114,8 +114,8 @@ class IPODataService:
         """
         # Default S3 key if not provided - prefer CSV over Excel
         if s3_key is None:
-            # Try CSV first, fallback to Excel if not found
-            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.csv"
+            # Use latest uploaded CSV file
+            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
 
         try:
             # Read data from S3
@@ -175,4 +175,4 @@ class IPODataService:
         except Exception as e:
             logger.error(f"Error finding latest IPO file: {str(e)}")
             # Return default CSV file if can't find latest
-            return "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.csv"
+            return "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
