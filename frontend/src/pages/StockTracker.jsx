@@ -438,7 +438,9 @@ function StockTracker() {
 
       <footer className="tracker-footer">
         <p>
-          Data provided by Tushare Pro API. Updates cached for 5 minutes.
+          {activeTab === 'ipo'
+            ? 'Data provided by Felix screening.'
+            : 'Data provided by Tushare Pro API. Updates cached for 5 minutes.'}
         </p>
         <p className="disclaimer">
           Disclaimer: This is for informational purposes only. Not financial advice.
