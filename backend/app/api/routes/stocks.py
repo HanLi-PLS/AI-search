@@ -1013,11 +1013,12 @@ async def get_history_stats():
         Database statistics
     """
     from backend.app.services.stock_data import StockDataService
-    from backend.app.database import SessionLocal
+    from backend.app.database import get_session_local
     from sqlalchemy import func
     from backend.app.models.stock import StockDaily
 
-    db = SessionLocal()
+    session_local = get_session_local()
+    db = session_local()
 
     try:
         # Total records

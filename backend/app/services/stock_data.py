@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 import logging
 import tushare as ts
 from backend.app.models.stock import StockDaily
-from backend.app.database import SessionLocal
+from backend.app.database import get_session_local
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,8 @@ class StockDataService:
 
     def get_db(self) -> Session:
         """Get database session"""
-        return SessionLocal()
+        session_local = get_session_local()
+        return session_local()
 
     def get_latest_date(self, ticker: str, db: Session = None) -> Optional[date]:
         """
