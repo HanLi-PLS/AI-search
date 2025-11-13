@@ -95,8 +95,9 @@ class StockDataService:
             res = finnhub_client.stock_candles(ticker, 'D', start_timestamp, end_timestamp)
 
             if res.get('s') != 'ok' or not res.get('c'):
-                logger.warning(f"No Finnhub data for {ticker}: status={res.get('s')}, response={res}")
-                return 0
+                logger.warning(f"Finnhub candles not available for {ticker}: status={res.get('s')}")
+                logger.info(f"Falling back to yfinance for {ticker} historical data")
+                return self._fetch_us_stock_from_yfinance(ticker, start_date, end_date, db)
 
             records_stored = 0
 
@@ -148,7 +149,100 @@ class StockDataService:
             return records_stored
 
         except Exception as e:
-            logger.error(f"Error fetching Finnhub data for {ticker}: {str(e)}")
+            logger.warning(f"Finnhub failed for {ticker}: {str(e)}")
+            logger.info(f"Falling back to yfinance for {ticker} historical data")
+            return self._fetch_us_stock_from_yfinance(ticker, start_date, end_date, db)
+
+    def _fetch_us_stock_from_yfinance(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        db: Session
+    ) -> int:
+        """
+        Fetch US stock historical data from yfinance (fallback when Finnhub fails)
+
+        Args:
+            ticker: Stock ticker (e.g., "ZBIO")
+            start_date: Start date in YYYYMMDD format
+            end_date: End date in YYYYMMDD format
+            db: Database session
+
+        Returns:
+            Number of records stored
+        """
+        try:
+            import yfinance as yf
+
+            # Convert date format from YYYYMMDD to YYYY-MM-DD
+            start_dt = datetime.strptime(start_date, '%Y%m%d')
+            end_dt = datetime.strptime(end_date, '%Y%m%d')
+
+            start_str = start_dt.strftime('%Y-%m-%d')
+            end_str = end_dt.strftime('%Y-%m-%d')
+
+            logger.info(f"Fetching yfinance data for {ticker} from {start_str} to {end_str}")
+
+            # Fetch historical data
+            stock = yf.Ticker(ticker)
+            df = stock.history(start=start_str, end=end_str)
+
+            if df is None or df.empty:
+                logger.warning(f"No yfinance data for {ticker}")
+                return 0
+
+            records_stored = 0
+
+            # Process each row
+            for trade_date, row in df.iterrows():
+                trade_date = trade_date.date()
+
+                # Check if record already exists
+                existing = db.query(StockDaily).filter(
+                    and_(
+                        StockDaily.ticker == ticker,
+                        StockDaily.trade_date == trade_date
+                    )
+                ).first()
+
+                close_price = float(row['Close'])
+                open_price = float(row['Open'])
+                high_price = float(row['High'])
+                low_price = float(row['Low'])
+                volume = float(row['Volume'])
+
+                if existing:
+                    # Update existing record
+                    existing.open = open_price
+                    existing.high = high_price
+                    existing.low = low_price
+                    existing.close = close_price
+                    existing.volume = volume
+                    existing.updated_at = datetime.now()
+                else:
+                    # Create new record
+                    stock_daily = StockDaily(
+                        ticker=ticker,
+                        ts_code=ticker,
+                        trade_date=trade_date,
+                        open=open_price,
+                        high=high_price,
+                        low=low_price,
+                        close=close_price,
+                        volume=volume,
+                        data_source="Yahoo Finance"
+                    )
+                    db.add(stock_daily)
+
+                records_stored += 1
+
+            db.commit()
+            logger.info(f"Stored {records_stored} yfinance records for {ticker}")
+            return records_stored
+
+        except Exception as e:
+            logger.error(f"Error fetching yfinance data for {ticker}: {str(e)}")
             db.rollback()
             return 0
 

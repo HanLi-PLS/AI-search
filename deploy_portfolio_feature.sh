@@ -12,8 +12,20 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${YELLOW}Step 1: Installing dependencies...${NC}"
-echo "Installing finnhub-python for NASDAQ stock data..."
-pip3 install finnhub-python>=2.4.0 || echo -e "${RED}Warning: finnhub-python installation failed${NC}"
+echo "Installing finnhub-python and yfinance for US stock data..."
+
+# Install for user's Python environment
+pip3 install finnhub-python>=2.4.0 yfinance>=0.2.40 || echo -e "${RED}Warning: user pip installation failed${NC}"
+
+# Install in backend virtualenv if it exists
+if [ -d "/opt/ai-search/backend/venv" ]; then
+    echo "Installing in backend virtualenv..."
+    /opt/ai-search/backend/venv/bin/pip install finnhub-python>=2.4.0 yfinance>=0.2.40 || echo -e "${RED}Warning: venv installation failed${NC}"
+elif [ -d "backend/venv" ]; then
+    echo "Installing in backend virtualenv (relative path)..."
+    backend/venv/bin/pip install finnhub-python>=2.4.0 yfinance>=0.2.40 || echo -e "${RED}Warning: venv installation failed${NC}"
+fi
+
 echo ""
 
 echo -e "${YELLOW}Step 2: Pulling latest code...${NC}"
@@ -76,7 +88,8 @@ echo "  2. Zenas Biopharma (ZBIO) - NASDAQ"
 echo ""
 echo "Data sources:"
 echo "  - HKEX stocks: Tushare Pro API"
-echo "  - NASDAQ stocks: Finnhub API (primary), Tushare/yfinance (fallback)"
+echo "  - NASDAQ stocks current price: Finnhub API (primary), yfinance (fallback)"
+echo "  - NASDAQ stocks historical: yfinance (Finnhub free tier doesn't support historical)"
 echo "  - Finnhub requires API key from AWS Secrets Manager: finnhub-api-key"
 echo ""
 echo "Deployment complete!"
