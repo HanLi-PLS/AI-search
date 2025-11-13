@@ -5,10 +5,17 @@ import logging
 import pandas as pd
 import boto3
 from io import BytesIO
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+# Global cache for IPO data (lasts 5 minutes)
+_ipo_cache = {
+    'data': None,
+    'timestamp': None,
+    's3_key': None
+}
 
 
 class IPODataService:
@@ -102,20 +109,34 @@ class IPODataService:
         logger.info(f"Processed {len(processed_records)} IPO records")
         return processed_records
 
-    def get_ipo_tracker_data(self, s3_key: str = None) -> Dict[str, Any]:
+    def get_ipo_tracker_data(self, s3_key: str = None, use_cache: bool = True) -> Dict[str, Any]:
         """
-        Get IPO tracker data from S3
+        Get IPO tracker data from S3 with caching
 
         Args:
             s3_key: S3 object key (optional, uses default if not provided)
+            use_cache: If True, uses cached data if available (default: True)
 
         Returns:
             Dictionary with IPO data and metadata
         """
+        global _ipo_cache
+
         # Default S3 key if not provided - prefer CSV over Excel
         if s3_key is None:
             # Use latest uploaded CSV file
             s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
+
+        # Check cache if enabled
+        if use_cache and _ipo_cache['data'] is not None and _ipo_cache['s3_key'] == s3_key:
+            # Check if cache is still valid (5 minutes)
+            if _ipo_cache['timestamp']:
+                cache_age = (datetime.now() - _ipo_cache['timestamp']).total_seconds()
+                if cache_age < 300:  # 5 minutes
+                    logger.info(f"Returning cached IPO data (age: {cache_age:.1f}s)")
+                    return _ipo_cache['data']
+
+        logger.info(f"Cache miss or expired, fetching fresh data from S3")
 
         try:
             # Read data from S3
@@ -127,7 +148,7 @@ class IPODataService:
             # Get column names for frontend reference
             columns = df.columns.tolist()
 
-            return {
+            result = {
                 "success": True,
                 "count": len(records),
                 "columns": columns,
@@ -135,6 +156,14 @@ class IPODataService:
                 "source": f"s3://{self.bucket_name}/{s3_key}",
                 "last_updated": datetime.now().isoformat()
             }
+
+            # Update cache
+            _ipo_cache['data'] = result.copy()
+            _ipo_cache['timestamp'] = datetime.now()
+            _ipo_cache['s3_key'] = s3_key
+            logger.info(f"Cached {len(records)} IPO records")
+
+            return result
 
         except Exception as e:
             logger.error(f"Error getting IPO tracker data: {str(e)}")
