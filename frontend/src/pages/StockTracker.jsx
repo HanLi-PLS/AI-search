@@ -15,6 +15,8 @@ function StockTracker() {
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [historyStats, setHistoryStats] = useState(null);
+  const [isUpdatingHistory, setIsUpdatingHistory] = useState(false);
 
   // Cache keys
   const CACHE_KEY = 'hkex_stock_data';
@@ -42,6 +44,7 @@ function StockTracker() {
     // No cache or cache is stale, fetch fresh data
     fetchStockData();
     fetchUpcomingIPOs();
+    fetchHistoryStats();
   }, []);
 
   const fetchStockData = async (isManualRefresh = false) => {
@@ -81,6 +84,33 @@ function StockTracker() {
       setUpcomingIPOs(data);
     } catch (err) {
       console.error('Error fetching upcoming IPOs:', err);
+    }
+  };
+
+  const fetchHistoryStats = async () => {
+    try {
+      const stats = await stockAPI.getHistoryStats();
+      setHistoryStats(stats);
+    } catch (err) {
+      console.error('Error fetching history stats:', err);
+    }
+  };
+
+  const handleBulkUpdateHistory = async () => {
+    try {
+      setIsUpdatingHistory(true);
+      const result = await stockAPI.bulkUpdateHistory();
+      console.log('Bulk update result:', result);
+
+      // Refresh stats after update
+      await fetchHistoryStats();
+
+      alert(`Successfully updated ${result.statistics.updated} stocks with ${result.statistics.new_records} new records!`);
+    } catch (err) {
+      console.error('Error updating historical data:', err);
+      alert('Failed to update historical data. Please try again.');
+    } finally {
+      setIsUpdatingHistory(false);
     }
   };
 
@@ -173,6 +203,15 @@ function StockTracker() {
             >
               {isRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
             </button>
+
+            <button
+              onClick={handleBulkUpdateHistory}
+              className="refresh-button"
+              disabled={isUpdatingHistory}
+              title="Update historical data for all stocks"
+            >
+              {isUpdatingHistory ? '📊 Updating History...' : '📊 Update History'}
+            </button>
           </div>
 
           <div className="stats-bar">
@@ -188,6 +227,14 @@ function StockTracker() {
               <div className="stat">
                 <span className="stat-label">Last Updated:</span>
                 <span className="stat-value">{lastUpdated.toLocaleTimeString()}</span>
+              </div>
+            )}
+            {historyStats && historyStats.total_records > 0 && (
+              <div className="stat">
+                <span className="stat-label">Historical Data:</span>
+                <span className="stat-value" title={`${historyStats.total_records} records in database`}>
+                  {historyStats.total_records.toLocaleString()} records
+                </span>
               </div>
             )}
           </div>

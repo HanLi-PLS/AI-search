@@ -29,11 +29,51 @@ export const stockAPI = {
     return response.data;
   },
 
-  // Get historical data
-  getHistory: async (ticker, period = '1mo') => {
-    const response = await api.get(`/api/stocks/history/${ticker}`, {
-      params: { period },
+  // Get historical data from database
+  getHistory: async (ticker, timeRange = '1M') => {
+    // Convert time range to days
+    const daysMap = {
+      '1W': 7,
+      '1M': 30,
+      '3M': 90,
+      '6M': 180,
+      '1Y': 365,
+    };
+    const days = daysMap[timeRange] || 30;
+
+    const response = await api.get(`/api/stocks/${ticker}/history`, {
+      params: { days },
     });
+
+    // Transform the response to match the expected format for the chart
+    if (response.data && response.data.data) {
+      return response.data.data.map(item => ({
+        date: item.trade_date,
+        close: item.close,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        volume: item.volume,
+      }));
+    }
+    return [];
+  },
+
+  // Update single stock historical data
+  updateStockHistory: async (ticker) => {
+    const response = await api.post(`/api/stocks/${ticker}/update-history`);
+    return response.data;
+  },
+
+  // Bulk update all stocks
+  bulkUpdateHistory: async () => {
+    const response = await api.post('/api/stocks/bulk-update-history');
+    return response.data;
+  },
+
+  // Get database statistics
+  getHistoryStats: async () => {
+    const response = await api.get('/api/stocks/history/stats');
     return response.data;
   },
 
