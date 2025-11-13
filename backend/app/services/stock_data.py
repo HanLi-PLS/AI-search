@@ -85,12 +85,26 @@ class StockDataService:
         try:
             pro = ts.pro_api()
 
-            # Fetch data from Tushare
-            df = pro.hk_daily(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date
-            )
+            # Determine if this is a US stock or HK stock based on ts_code
+            # US stocks end with .O (e.g., ZBIO.O)
+            # HK stocks end with .HK (e.g., 02561.HK)
+            is_us_stock = ts_code.endswith('.O')
+
+            # Fetch data from Tushare using appropriate API
+            if is_us_stock:
+                logger.info(f"Fetching US stock data for {ticker} ({ts_code})")
+                df = pro.us_daily(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            else:
+                logger.info(f"Fetching HK stock data for {ticker} ({ts_code})")
+                df = pro.hk_daily(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date
+                )
 
             if df is None or df.empty:
                 logger.info(f"No historical data found for {ticker}")

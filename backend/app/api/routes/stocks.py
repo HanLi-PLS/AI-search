@@ -907,8 +907,14 @@ async def get_stock_history(
         logger.info(f"No historical data found for {ticker}, fetching from Tushare...")
 
         # Convert ticker to Tushare format
-        stock_code = ticker.split('.')[0]
-        ts_code = f"{stock_code.zfill(5)}.HK"
+        # HK stocks: ticker ends with .HK, format as 5-digit code + .HK (e.g., 02561.HK)
+        # US stocks: ticker doesn't end with .HK, add .O suffix (e.g., ZBIO.O)
+        if ticker.endswith('.HK'):
+            stock_code = ticker.split('.')[0]
+            ts_code = f"{stock_code.zfill(5)}.HK"
+        else:
+            # US stock - use ticker as-is + .O for Tushare
+            ts_code = f"{ticker}.O"
 
         # Fetch and store historical data
         service.fetch_and_store_historical_data(
@@ -950,8 +956,12 @@ async def update_stock_history(ticker: str):
     service = StockDataService()
 
     # Convert ticker to Tushare format
-    stock_code = ticker.split('.')[0]
-    ts_code = f"{stock_code.zfill(5)}.HK"
+    if ticker.endswith('.HK'):
+        stock_code = ticker.split('.')[0]
+        ts_code = f"{stock_code.zfill(5)}.HK"
+    else:
+        # US stock
+        ts_code = f"{ticker}.O"
 
     try:
         new_records = service.update_incremental(ticker, ts_code)
@@ -1078,8 +1088,12 @@ async def backfill_single_stock_history(ticker: str, days: int = 365):
 
     try:
         # Extract stock code and convert to Tushare format
-        stock_code = ticker.split('.')[0]
-        ts_code = f"{stock_code.zfill(5)}.HK"
+        if ticker.endswith('.HK'):
+            stock_code = ticker.split('.')[0]
+            ts_code = f"{stock_code.zfill(5)}.HK"
+        else:
+            # US stock
+            ts_code = f"{ticker}.O"
 
         service = StockDataService()
         new_records = service.backfill_historical_data(ticker, ts_code, days)
