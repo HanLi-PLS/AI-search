@@ -52,6 +52,103 @@ class StockDataService:
             if close_db:
                 db.close()
 
+    def _fetch_us_stock_from_finnhub(
+        self,
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        db: Session
+    ) -> int:
+        """
+        Fetch US stock historical data from Finnhub
+
+        Args:
+            ticker: Stock ticker (e.g., "ZBIO")
+            start_date: Start date in YYYYMMDD format
+            end_date: End date in YYYYMMDD format
+            db: Database session
+
+        Returns:
+            Number of records stored
+        """
+        try:
+            import finnhub
+            from backend.app.config import settings
+
+            if not settings.FINNHUB_API_KEY:
+                logger.warning("Finnhub API key not available")
+                return 0
+
+            finnhub_client = finnhub.Client(api_key=settings.FINNHUB_API_KEY)
+
+            # Convert date format from YYYYMMDD to Unix timestamp
+            start_dt = datetime.strptime(start_date, '%Y%m%d')
+            end_dt = datetime.strptime(end_date, '%Y%m%d')
+
+            start_timestamp = int(start_dt.timestamp())
+            end_timestamp = int(end_dt.timestamp())
+
+            # Fetch candle data (daily OHLCV)
+            res = finnhub_client.stock_candles(ticker, 'D', start_timestamp, end_timestamp)
+
+            if res.get('s') != 'ok' or not res.get('c'):
+                logger.warning(f"No Finnhub data for {ticker}")
+                return 0
+
+            records_stored = 0
+
+            # Process each candle
+            for i in range(len(res['c'])):
+                trade_date = datetime.fromtimestamp(res['t'][i]).date()
+
+                # Check if record already exists
+                existing = db.query(StockDaily).filter(
+                    and_(
+                        StockDaily.ticker == ticker,
+                        StockDaily.trade_date == trade_date
+                    )
+                ).first()
+
+                close_price = float(res['c'][i])
+                open_price = float(res['o'][i])
+                high_price = float(res['h'][i])
+                low_price = float(res['l'][i])
+                volume = float(res['v'][i])
+
+                if existing:
+                    # Update existing record
+                    existing.open = open_price
+                    existing.high = high_price
+                    existing.low = low_price
+                    existing.close = close_price
+                    existing.volume = volume
+                    existing.updated_at = datetime.now()
+                else:
+                    # Create new record
+                    stock_daily = StockDaily(
+                        ticker=ticker,
+                        ts_code=ticker,
+                        trade_date=trade_date,
+                        open=open_price,
+                        high=high_price,
+                        low=low_price,
+                        close=close_price,
+                        volume=volume,
+                        data_source="Finnhub"
+                    )
+                    db.add(stock_daily)
+
+                records_stored += 1
+
+            db.commit()
+            logger.info(f"Stored {records_stored} Finnhub records for {ticker}")
+            return records_stored
+
+        except Exception as e:
+            logger.error(f"Error fetching Finnhub data for {ticker}: {str(e)}")
+            db.rollback()
+            return 0
+
     def fetch_and_store_historical_data(
         self,
         ticker: str,
@@ -90,14 +187,11 @@ class StockDataService:
             # US stocks don't have suffix (e.g., ZBIO, AAPL)
             is_us_stock = not ts_code.endswith('.HK')
 
-            # Fetch data from Tushare using appropriate API
+            # Fetch data from appropriate source
             if is_us_stock:
-                logger.info(f"Fetching US stock data for {ticker} ({ts_code})")
-                df = pro.us_daily(
-                    ts_code=ts_code,
-                    start_date=start_date,
-                    end_date=end_date
-                )
+                # Use Finnhub for US stocks (Tushare requires special permission)
+                logger.info(f"Fetching US stock data from Finnhub for {ticker} ({ts_code})")
+                return self._fetch_us_stock_from_finnhub(ticker, start_date, end_date, db)
             else:
                 logger.info(f"Fetching HK stock data for {ticker} ({ts_code})")
                 df = pro.hk_daily(
