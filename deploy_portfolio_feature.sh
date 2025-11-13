@@ -11,8 +11,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Step 1: Installing yfinance dependency...${NC}"
-pip3 install yfinance>=0.2.40 || echo -e "${RED}Warning: yfinance installation failed${NC}"
+echo -e "${YELLOW}Step 1: Checking dependencies...${NC}"
+echo "Note: yfinance is optional (fallback only), Tushare Pro is primary data source"
+pip3 list | grep -E "(tushare|yfinance)" || echo "Dependencies will be checked by backend"
 echo ""
 
 echo -e "${YELLOW}Step 2: Pulling latest code...${NC}"
@@ -70,7 +71,8 @@ echo "  2. Zenas Biopharma (ZBIO) - NASDAQ"
 echo ""
 echo "Data sources:"
 echo "  - HKEX stocks: Tushare Pro API"
-echo "  - NASDAQ stocks: yfinance (Yahoo Finance)"
+echo "  - NASDAQ stocks: Tushare Pro API (primary), yfinance (fallback)"
+echo "  - Tushare uses .O suffix for NASDAQ stocks (e.g., ZBIO.O)"
 echo ""
 echo "Deployment complete!"
 echo "Visit the Stock Tracker and click the 'Portfolio Companies' tab to see the results."
