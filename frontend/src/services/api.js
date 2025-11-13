@@ -61,7 +61,9 @@ export const stockAPI = {
         low: item.low,
         volume: item.volume,
       }));
-      console.log(`[API] Transformed ${transformed.length} records for chart`);
+      // Reverse the array so oldest date is first (left side of chart)
+      transformed.reverse();
+      console.log(`[API] Transformed ${transformed.length} records for chart (oldest to newest)`);
       return transformed;
     }
     console.warn('[API] No data found in response.data.data');
