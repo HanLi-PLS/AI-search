@@ -140,7 +140,8 @@ class PortfolioService:
         # Try Tushare as fallback
         try:
             pro = ts.pro_api()
-            ts_code = f"{ticker}.O"
+            # Tushare uses ticker directly for US stocks (e.g., 'ZBIO', not 'ZBIO.O')
+            ts_code = ticker
 
             from datetime import date, timedelta
             end_date = date.today().strftime('%Y%m%d')

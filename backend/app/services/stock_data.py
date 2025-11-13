@@ -86,9 +86,9 @@ class StockDataService:
             pro = ts.pro_api()
 
             # Determine if this is a US stock or HK stock based on ts_code
-            # US stocks end with .O (e.g., ZBIO.O)
             # HK stocks end with .HK (e.g., 02561.HK)
-            is_us_stock = ts_code.endswith('.O')
+            # US stocks don't have suffix (e.g., ZBIO, AAPL)
+            is_us_stock = not ts_code.endswith('.HK')
 
             # Fetch data from Tushare using appropriate API
             if is_us_stock:
