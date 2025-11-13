@@ -76,9 +76,11 @@ class StockDataService:
             from backend.app.config import settings
 
             if not settings.FINNHUB_API_KEY:
-                logger.warning("Finnhub API key not available")
+                logger.error(f"Finnhub API key not available for {ticker} - cannot fetch US stock data")
+                logger.error("Check AWS Secrets Manager for 'finnhub-api-key' or set FINNHUB_API_KEY in .env")
                 return 0
 
+            logger.info(f"Using Finnhub API key: {settings.FINNHUB_API_KEY[:10]}... for {ticker}")
             finnhub_client = finnhub.Client(api_key=settings.FINNHUB_API_KEY)
 
             # Convert date format from YYYYMMDD to Unix timestamp
@@ -89,10 +91,11 @@ class StockDataService:
             end_timestamp = int(end_dt.timestamp())
 
             # Fetch candle data (daily OHLCV)
+            logger.info(f"Fetching Finnhub candles for {ticker} from {start_date} to {end_date}")
             res = finnhub_client.stock_candles(ticker, 'D', start_timestamp, end_timestamp)
 
             if res.get('s') != 'ok' or not res.get('c'):
-                logger.warning(f"No Finnhub data for {ticker}")
+                logger.warning(f"No Finnhub data for {ticker}: status={res.get('s')}, response={res}")
                 return 0
 
             records_stored = 0
