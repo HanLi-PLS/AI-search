@@ -29,10 +29,10 @@ class IPODataService:
 
     def read_ipo_tracker_from_s3(self, s3_key: str) -> pd.DataFrame:
         """
-        Read Excel file from S3 and return as DataFrame
+        Read CSV or Excel file from S3 and return as DataFrame
 
         Args:
-            s3_key: S3 object key (e.g., "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.xlsx")
+            s3_key: S3 object key (e.g., "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025.csv")
 
         Returns:
             DataFrame with IPO data
@@ -44,8 +44,17 @@ class IPODataService:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
             file_content = response['Body'].read()
 
-            # Read Excel file into DataFrame
-            df = pd.read_excel(BytesIO(file_content))
+            # Determine file type and read accordingly
+            if s3_key.lower().endswith('.csv'):
+                # Read CSV file (faster, no extra dependencies)
+                df = pd.read_csv(BytesIO(file_content))
+                logger.info(f"Read CSV file with {len(df)} rows")
+            elif s3_key.lower().endswith(('.xlsx', '.xls')):
+                # Read Excel file (requires openpyxl for .xlsx)
+                df = pd.read_excel(BytesIO(file_content))
+                logger.info(f"Read Excel file with {len(df)} rows")
+            else:
+                raise ValueError(f"Unsupported file format: {s3_key}. Use .csv, .xlsx, or .xls")
 
             logger.info(f"Successfully read {len(df)} rows from IPO tracker")
             return df
@@ -103,9 +112,10 @@ class IPODataService:
         Returns:
             Dictionary with IPO data and metadata
         """
-        # Default S3 key if not provided
+        # Default S3 key if not provided - prefer CSV over Excel
         if s3_key is None:
-            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.xlsx"
+            # Try CSV first, fallback to Excel if not found
+            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.csv"
 
         try:
             # Read data from S3
@@ -164,5 +174,5 @@ class IPODataService:
 
         except Exception as e:
             logger.error(f"Error finding latest IPO file: {str(e)}")
-            # Return default file if can't find latest
-            return "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.xlsx"
+            # Return default CSV file if can't find latest
+            return "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251112.csv"
