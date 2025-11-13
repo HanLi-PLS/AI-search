@@ -53,6 +53,11 @@ else
 fi
 echo ""
 
+echo -e "${YELLOW}Step 7: Initializing historical data for portfolio companies...${NC}"
+chmod +x init_portfolio_history.sh
+./init_portfolio_history.sh
+echo ""
+
 echo "==========================================="
 echo "Summary of Changes"
 echo "==========================================="
