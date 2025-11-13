@@ -496,4 +496,119 @@
   .ipo-list {
     grid-template-columns: 1fr;
   }
+
+  .ipo-table-container {
+    overflow-x: auto;
+  }
+
+  .ipo-table {
+    font-size: 0.9rem;
+  }
+
+  .ipo-table th,
+  .ipo-table td {
+    padding: 0.5rem;
+  }
+}
+
+/* IPO Table Styles */
+.ipo-metadata {
+  display: flex;
+  gap: 2rem;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.metadata-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ipo-table-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-top: 1.5rem;
+}
+
+.ipo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.ipo-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ipo-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ipo-table th:last-child {
+  border-right: none;
+}
+
+.ipo-table tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.ipo-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.ipo-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.ipo-table td {
+  padding: 0.875rem 1rem;
+  vertical-align: top;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ipo-table .empty-cell {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.table-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+  word-break: break-all;
+}
+
+.table-link:hover {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.table-link:visited {
+  color: #7c3aed;
+}
+
+/* Alternate row colors for better readability */
+.ipo-table tbody tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.ipo-table tbody tr:nth-child(even):hover {
+  background-color: #f3f4f6;
 }

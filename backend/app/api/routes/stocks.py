@@ -818,18 +818,42 @@ async def get_price(ticker: str):
 
 
 @router.get("/stocks/upcoming-ipos")
-async def get_upcoming_ipos():
+async def get_upcoming_ipos(use_latest: bool = True):
     """
-    Get upcoming HKEX biotech IPOs (placeholder)
+    Get HKEX IPO tracker data from S3
+
+    Args:
+        use_latest: If True, automatically finds the latest file. If False, uses default file.
 
     Returns:
-        List of upcoming IPOs
+        IPO tracker data with company listings
     """
-    # This is a placeholder - real implementation would need HKEX API or web scraping
-    return {
-        "message": "IPO data is not available yet",
-        "upcoming_ipos": []
-    }
+    from backend.app.services.ipo_data import IPODataService
+
+    try:
+        service = IPODataService()
+
+        # Get the latest file or use default
+        if use_latest:
+            try:
+                s3_key = service.get_latest_ipo_file()
+            except Exception as e:
+                logger.warning(f"Could not find latest file, using default: {str(e)}")
+                s3_key = None
+        else:
+            s3_key = None
+
+        # Get IPO data
+        result = service.get_ipo_tracker_data(s3_key)
+
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to load IPO data"))
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error fetching IPO data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================

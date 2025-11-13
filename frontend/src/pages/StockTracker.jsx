@@ -13,6 +13,8 @@ function StockTracker() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name', 'price', 'change'
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
+  const [ipoColumns, setIpoColumns] = useState([]);
+  const [ipoMetadata, setIpoMetadata] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [historyStats, setHistoryStats] = useState(null);
@@ -80,10 +82,24 @@ function StockTracker() {
 
   const fetchUpcomingIPOs = async () => {
     try {
-      const data = await stockAPI.getUpcomingIPOs();
-      setUpcomingIPOs(data);
+      const response = await stockAPI.getUpcomingIPOs();
+      console.log('[IPO] Response:', response);
+
+      if (response.success && response.data) {
+        setUpcomingIPOs(response.data);
+        setIpoColumns(response.columns || []);
+        setIpoMetadata({
+          count: response.count,
+          source: response.source,
+          last_updated: response.last_updated
+        });
+      } else {
+        console.error('[IPO] Failed to load IPO data:', response.error);
+        setUpcomingIPOs([]);
+      }
     } catch (err) {
       console.error('Error fetching upcoming IPOs:', err);
+      setUpcomingIPOs([]);
     }
   };
 
@@ -112,6 +128,87 @@ function StockTracker() {
     } finally {
       setIsUpdatingHistory(false);
     }
+  };
+
+  // Helper function to render cell values with clickable links
+  const renderCellValue = (value, columnName) => {
+    if (value === null || value === undefined) {
+      return <span className="empty-cell">-</span>;
+    }
+
+    // Convert value to string for checking
+    const strValue = String(value);
+
+    // Check if value looks like a URL
+    const urlPattern = /^(https?:\/\/|www\.)/i;
+    const isUrl = urlPattern.test(strValue);
+
+    if (isUrl) {
+      // Ensure URL has protocol
+      const fullUrl = strValue.startsWith('http') ? strValue : `https://${strValue}`;
+      return (
+        <a
+          href={fullUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="table-link"
+        >
+          {strValue}
+        </a>
+      );
+    }
+
+    // Check if value contains a URL (e.g., "See: https://example.com")
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = strValue.match(urlRegex);
+
+    if (urls && urls.length > 0) {
+      // Split text and URLs
+      const parts = strValue.split(urlRegex);
+      return (
+        <span>
+          {parts.map((part, index) => {
+            if (urls.includes(part)) {
+              return (
+                <a
+                  key={index}
+                  href={part}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="table-link"
+                >
+                  {part}
+                </a>
+              );
+            }
+            return <span key={index}>{part}</span>;
+          })}
+        </span>
+      );
+    }
+
+    // Regular value - format if it's a number or date
+    if (typeof value === 'number') {
+      // Check if it looks like a date (year > 1900)
+      if (value > 19000000 && value < 21000000) {
+        // Might be a date in YYYYMMDD format
+        const dateStr = strValue;
+        if (dateStr.length === 8) {
+          const year = dateStr.substring(0, 4);
+          const month = dateStr.substring(4, 6);
+          const day = dateStr.substring(6, 8);
+          return `${year}-${month}-${day}`;
+        }
+      }
+      return value.toLocaleString();
+    }
+
+    // Check if it's an ISO date string
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return new Date(value).toLocaleString();
+    }
+
+    return strValue;
   };
 
   // Memoize filtered and sorted stocks to avoid duplicate calculations
@@ -291,36 +388,49 @@ function StockTracker() {
       {activeTab === 'ipo' && (
         <>
           <div className="ipo-tracker-header">
-            <h2>🚀 Upcoming IPO Listings</h2>
-            <p>Track upcoming HKEX 18A biotech IPOs and listing dates</p>
+            <h2>🚀 HKEX IPO Tracker</h2>
+            <p>Public company tracker for HKEX listings</p>
+            {ipoMetadata && (
+              <div className="ipo-metadata">
+                <span className="metadata-item">
+                  📊 {ipoMetadata.count} companies tracked
+                </span>
+                {ipoMetadata.last_updated && (
+                  <span className="metadata-item">
+                    🕒 Updated: {new Date(ipoMetadata.last_updated).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {upcomingIPOs && upcomingIPOs.length > 0 ? (
-            <div className="ipo-list">
-              {upcomingIPOs.map((ipo, index) => (
-                <div key={index} className="ipo-card">
-                  <div className="ipo-header">
-                    <h4>{ipo.company_name}</h4>
-                    <span className="ipo-date">{ipo.expected_date || 'TBA'}</span>
-                  </div>
-                  <div className="ipo-details">
-                    {ipo.price_range && (
-                      <div className="ipo-detail">
-                        <span className="detail-label">Price Range:</span>
-                        <span className="detail-value">{ipo.price_range}</span>
-                      </div>
-                    )}
-                    {ipo.description && (
-                      <p className="ipo-description">{ipo.description}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="ipo-table-container">
+              <table className="ipo-table">
+                <thead>
+                  <tr>
+                    {ipoColumns.map((col, index) => (
+                      <th key={index}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {upcomingIPOs.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {ipoColumns.map((col, colIndex) => (
+                        <td key={colIndex}>
+                          {renderCellValue(row[col], col)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="no-ipos-message">
-              <p>No upcoming IPOs at this time</p>
-              <p className="sub-message">Check back later for new listings</p>
+              <p>Loading IPO data...</p>
+              <p className="sub-message">Please wait</p>
             </div>
           )}
         </>
