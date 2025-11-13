@@ -796,12 +796,36 @@ async def get_price(ticker: str):
     Get current price for a specific ticker
 
     Args:
-        ticker: Stock ticker symbol (e.g., "1801.HK")
+        ticker: Stock ticker symbol (e.g., "1801.HK", "ZBIO")
 
     Returns:
         Stock data for the specified ticker
     """
-    # Find company info
+    # First, check if it's a portfolio company
+    from backend.app.services.portfolio import PortfolioService, PORTFOLIO_COMPANIES
+
+    portfolio_company = next((c for c in PORTFOLIO_COMPANIES if c["ticker"] == ticker), None)
+
+    if portfolio_company:
+        # It's a portfolio company, fetch data accordingly
+        portfolio_service = PortfolioService()
+
+        if portfolio_company['market'] == 'HKEX':
+            stock_data = portfolio_service.get_hk_stock_data(ticker, portfolio_company['ts_code'])
+        elif portfolio_company['market'] == 'NASDAQ':
+            stock_data = portfolio_service.get_us_stock_data(ticker)
+        else:
+            raise HTTPException(status_code=500, detail=f"Unknown market for {ticker}")
+
+        if not stock_data:
+            raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
+
+        # Add name and currency
+        stock_data["name"] = portfolio_company["name"]
+        stock_data["currency"] = portfolio_company["currency"]
+        return stock_data
+
+    # If not portfolio company, check HKEX biotech companies
     companies = get_hkex_biotech_companies()
     company = next((c for c in companies if c["ticker"] == ticker), None)
 

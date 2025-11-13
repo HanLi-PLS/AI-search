@@ -55,7 +55,8 @@ function StockDetail() {
   };
 
   const formatPrice = (price) => {
-    return `HKD ${price ? price.toFixed(2) : 'N/A'}`;
+    const currency = stockData?.currency || 'HKD';
+    return `${currency} ${price ? price.toFixed(2) : 'N/A'}`;
   };
 
   const formatPercent = (percent) => {
@@ -126,11 +127,11 @@ function StockDetail() {
           </div>
           <div className="stat-item">
             <span className="stat-label">Day High</span>
-            <span className="stat-value">{formatPrice(stockData.high)}</span>
+            <span className="stat-value">{formatPrice(stockData.day_high)}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Day Low</span>
-            <span className="stat-value">{formatPrice(stockData.low)}</span>
+            <span className="stat-value">{formatPrice(stockData.day_low)}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Volume</span>
