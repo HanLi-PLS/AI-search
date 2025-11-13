@@ -817,29 +817,6 @@ async def get_price(ticker: str):
     return stock_data
 
 
-@router.get("/stocks/history/{ticker}")
-async def get_history(ticker: str, period: str = "1mo"):
-    """
-    Get historical data for a specific ticker
-
-    Note: Historical data functionality is currently being migrated to AKShare.
-    This endpoint will return historical data in a future update.
-
-    Args:
-        ticker: Stock ticker symbol (e.g., "1801.HK")
-        period: Time period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
-
-    Returns:
-        Historical stock data (placeholder for now)
-    """
-    return {
-        "ticker": ticker,
-        "period": period,
-        "message": "Historical data feature coming soon with AKShare integration",
-        "data": []
-    }
-
-
 @router.get("/stocks/upcoming-ipos")
 async def get_upcoming_ipos():
     """
