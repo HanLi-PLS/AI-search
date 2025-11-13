@@ -19,6 +19,8 @@ function StockTracker() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [historyStats, setHistoryStats] = useState(null);
   const [isUpdatingHistory, setIsUpdatingHistory] = useState(false);
+  const [portfolioCompanies, setPortfolioCompanies] = useState([]);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
 
   // Cache keys
   const CACHE_KEY = 'hkex_stock_data';
@@ -47,6 +49,7 @@ function StockTracker() {
     fetchStockData();
     fetchUpcomingIPOs();
     fetchHistoryStats();
+    fetchPortfolioCompanies();
   }, []);
 
   const fetchStockData = async (isManualRefresh = false) => {
@@ -127,6 +130,26 @@ function StockTracker() {
       alert('Failed to update historical data. Please try again.');
     } finally {
       setIsUpdatingHistory(false);
+    }
+  };
+
+  const fetchPortfolioCompanies = async () => {
+    try {
+      setPortfolioLoading(true);
+      const response = await stockAPI.getPortfolioCompanies();
+      console.log('[Portfolio] Response:', response);
+
+      if (response.success && response.companies) {
+        setPortfolioCompanies(response.companies);
+      } else {
+        console.error('[Portfolio] Failed to load portfolio data');
+        setPortfolioCompanies([]);
+      }
+    } catch (err) {
+      console.error('Error fetching portfolio companies:', err);
+      setPortfolioCompanies([]);
+    } finally {
+      setPortfolioLoading(false);
     }
   };
 
@@ -369,19 +392,52 @@ function StockTracker() {
 
       {/* Portfolio Companies Tab */}
       {activeTab === 'portfolio' && (
-        <div className="coming-soon-section">
-          <div className="coming-soon-card">
-            <h2>💼 Portfolio Companies Tracker</h2>
-            <p>Track your portfolio's public companies in one place</p>
-            <ul className="feature-list">
-              <li>• Monitor portfolio company stock prices</li>
-              <li>• Performance tracking and analytics</li>
-              <li>• Custom alerts and notifications</li>
-              <li>• Portfolio valuation insights</li>
-            </ul>
-            <div className="status-badge">Coming Soon</div>
+        <>
+          <div className="tracker-header">
+            <h2>💼 Portfolio Companies</h2>
+            <p className="header-subtitle">Track your portfolio's public companies across markets</p>
           </div>
-        </div>
+
+          <div className="controls-section">
+            <div className="control-group">
+              <button
+                onClick={fetchPortfolioCompanies}
+                className="refresh-button"
+                disabled={portfolioLoading}
+              >
+                {portfolioLoading ? '🔄 Refreshing...' : '🔄 Refresh'}
+              </button>
+            </div>
+
+            <div className="stats-bar">
+              <div className="stat">
+                <span className="stat-label">Portfolio Companies:</span>
+                <span className="stat-value">{portfolioCompanies.length}</span>
+              </div>
+              <div className="stat">
+                <span className="stat-label">Markets:</span>
+                <span className="stat-value">HKEX, NASDAQ</span>
+              </div>
+            </div>
+          </div>
+
+          {portfolioLoading && portfolioCompanies.length === 0 ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p>Loading portfolio companies...</p>
+            </div>
+          ) : portfolioCompanies.length > 0 ? (
+            <div className="stocks-grid">
+              {portfolioCompanies.map((company) => (
+                <StockCard key={company.ticker} stock={company} />
+              ))}
+            </div>
+          ) : (
+            <div className="no-results">
+              <p>No portfolio companies to display</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* IPO Listings Tab */}

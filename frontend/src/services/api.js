@@ -93,6 +93,12 @@ export const stockAPI = {
     const response = await api.get('/api/stocks/upcoming-ipos');
     return response.data;
   },
+
+  // Get portfolio companies
+  getPortfolioCompanies: async () => {
+    const response = await api.get('/api/stocks/portfolio');
+    return response.data;
+  },
 };
 
 // AI Search API functions (matching HTML version API)

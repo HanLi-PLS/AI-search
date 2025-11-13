@@ -1131,3 +1131,34 @@ async def bulk_backfill_all_history(days: int = 365):
     except Exception as e:
         logger.error(f"Error during bulk backfill: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Portfolio Companies Endpoints
+# ============================================================================
+
+@router.get("/stocks/portfolio")
+async def get_portfolio_companies():
+    """
+    Get portfolio companies data (both HKEX and NASDAQ)
+
+    Returns:
+        List of portfolio companies with current prices and performance
+    """
+    from backend.app.services.portfolio import PortfolioService
+
+    try:
+        service = PortfolioService()
+        companies = service.get_portfolio_companies()
+
+        return {
+            "success": True,
+            "count": len(companies),
+            "companies": companies,
+            "last_updated": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching portfolio companies: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
