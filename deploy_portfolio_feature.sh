@@ -11,9 +11,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Step 1: Checking dependencies...${NC}"
-echo "Note: yfinance is optional (fallback only), Tushare Pro is primary data source"
-pip3 list | grep -E "(tushare|yfinance)" || echo "Dependencies will be checked by backend"
+echo -e "${YELLOW}Step 1: Installing dependencies...${NC}"
+echo "Installing finnhub-python for NASDAQ stock data..."
+pip3 install finnhub-python>=2.4.0 || echo -e "${RED}Warning: finnhub-python installation failed${NC}"
 echo ""
 
 echo -e "${YELLOW}Step 2: Pulling latest code...${NC}"
@@ -71,8 +71,8 @@ echo "  2. Zenas Biopharma (ZBIO) - NASDAQ"
 echo ""
 echo "Data sources:"
 echo "  - HKEX stocks: Tushare Pro API"
-echo "  - NASDAQ stocks: Tushare Pro API (primary), yfinance (fallback)"
-echo "  - Tushare uses .O suffix for NASDAQ stocks (e.g., ZBIO.O)"
+echo "  - NASDAQ stocks: Finnhub API (primary), Tushare/yfinance (fallback)"
+echo "  - Finnhub requires API key from AWS Secrets Manager: finnhub-api-key"
 echo ""
 echo "Deployment complete!"
 echo "Visit the Stock Tracker and click the 'Portfolio Companies' tab to see the results."

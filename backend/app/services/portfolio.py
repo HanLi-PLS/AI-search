@@ -83,7 +83,7 @@ class PortfolioService:
 
     def get_us_stock_data(self, ticker: str) -> Dict[str, Any]:
         """
-        Get US stock data from Tushare (preferred) or yfinance (fallback)
+        Get US stock data from Finnhub (preferred) or fallbacks
 
         Args:
             ticker: Stock ticker (e.g., "ZBIO")
@@ -91,14 +91,57 @@ class PortfolioService:
         Returns:
             Stock data dictionary
         """
-        # Try Tushare first (more reliable for NASDAQ stocks)
+        # Try Finnhub first (most reliable for NASDAQ stocks)
+        try:
+            import finnhub
+            from backend.app.config import settings
+
+            if settings.FINNHUB_API_KEY:
+                finnhub_client = finnhub.Client(api_key=settings.FINNHUB_API_KEY)
+
+                # Get quote (current price)
+                quote = finnhub_client.quote(ticker)
+
+                # Get company profile for additional info
+                try:
+                    profile = finnhub_client.company_profile2(symbol=ticker)
+                    market_cap = profile.get('marketCapitalization', None)
+                    if market_cap:
+                        market_cap = market_cap * 1_000_000  # Finnhub returns in millions
+                except:
+                    market_cap = None
+
+                if quote and quote.get('c'):  # 'c' is current price
+                    current_price = float(quote['c'])
+                    previous_close = float(quote['pc']) if quote.get('pc') else None
+                    change = float(quote['d']) if quote.get('d') else None
+                    change_percent = float(quote['dp']) if quote.get('dp') else None
+
+                    logger.info(f"Successfully fetched {ticker} data from Finnhub")
+
+                    return {
+                        "ticker": ticker,
+                        "ts_code": ticker,
+                        "current_price": current_price,
+                        "open": float(quote['o']) if quote.get('o') else None,
+                        "high": float(quote['h']) if quote.get('h') else None,
+                        "low": float(quote['l']) if quote.get('l') else None,
+                        "previous_close": previous_close,
+                        "volume": None,  # Not available in quote endpoint
+                        "market_cap": market_cap,
+                        "change": change,
+                        "change_percent": change_percent,
+                        "data_source": "Finnhub",
+                        "last_updated": datetime.now().isoformat()
+                    }
+        except Exception as e:
+            logger.warning(f"Finnhub failed for {ticker}, trying Tushare: {str(e)}")
+
+        # Try Tushare as fallback
         try:
             pro = ts.pro_api()
-
-            # Tushare uses .O suffix for NASDAQ stocks
             ts_code = f"{ticker}.O"
 
-            # Get recent trading data (last 30 days to ensure we have data)
             from datetime import date, timedelta
             end_date = date.today().strftime('%Y%m%d')
             start_date = (date.today() - timedelta(days=30)).strftime('%Y%m%d')
@@ -106,7 +149,6 @@ class PortfolioService:
             df = pro.us_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
 
             if df is not None and not df.empty:
-                # Data is sorted by date descending, so first row is most recent
                 latest = df.iloc[0]
                 previous = df.iloc[1] if len(df) > 1 else latest
 
@@ -130,7 +172,7 @@ class PortfolioService:
         except Exception as e:
             logger.warning(f"Tushare failed for {ticker}, trying yfinance: {str(e)}")
 
-        # Fallback to yfinance
+        # Last resort: yfinance
         try:
             import yfinance as yf
 
@@ -144,14 +186,6 @@ class PortfolioService:
             latest = hist.iloc[-1]
             previous = hist.iloc[-2] if len(hist) > 1 else latest
 
-            # Try to get market cap from fast_info
-            market_cap = None
-            try:
-                if hasattr(stock, 'fast_info'):
-                    market_cap = stock.fast_info.get('market_cap', None)
-            except Exception as e:
-                logger.debug(f"Could not get fast_info for {ticker}: {e}")
-
             logger.info(f"Successfully fetched {ticker} data from yfinance")
 
             return {
@@ -163,7 +197,6 @@ class PortfolioService:
                 "low": float(latest['Low']) if 'Low' in latest else None,
                 "previous_close": float(previous['Close']) if 'Close' in previous else None,
                 "volume": int(latest['Volume']) if 'Volume' in latest else None,
-                "market_cap": market_cap,
                 "change": None,  # Calculate below
                 "change_percent": None,  # Calculate below
                 "data_source": "Yahoo Finance",
@@ -171,7 +204,7 @@ class PortfolioService:
             }
 
         except Exception as e:
-            logger.error(f"Both Tushare and yfinance failed for {ticker}: {str(e)}")
+            logger.error(f"All data sources failed for {ticker}: {str(e)}")
             return None
 
     def get_portfolio_companies(self) -> List[Dict[str, Any]]:

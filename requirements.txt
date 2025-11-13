@@ -42,6 +42,7 @@ boto3>=1.34.0
 python-dotenv==1.0.1
 
 # Stock Data
+finnhub-python>=2.4.0
 yfinance>=0.2.40
 pandas>=2.0.0
 akshare>=1.14.0
