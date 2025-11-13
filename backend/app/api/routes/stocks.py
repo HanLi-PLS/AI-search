@@ -1050,6 +1050,8 @@ async def backfill_single_stock_history(ticker: str, days: int = 365):
     Returns:
         Status and number of new records added
     """
+    from backend.app.services.stock_data import StockDataService
+
     try:
         # Extract stock code and convert to Tushare format
         stock_code = ticker.split('.')[0]
@@ -1083,6 +1085,8 @@ async def bulk_backfill_all_history(days: int = 365):
     Returns:
         Statistics about the backfill operation
     """
+    from backend.app.services.stock_data import StockDataService
+
     try:
         # Get all biotech companies
         companies = get_hkex_biotech_companies()
