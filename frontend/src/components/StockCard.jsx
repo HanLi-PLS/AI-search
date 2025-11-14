@@ -66,15 +66,31 @@ function StockCard({ stock }) {
           <span className="price">{formatNumber(stock.current_price)}</span>
         </div>
         {stock.change !== null && stock.change !== undefined && (
-          <div className={`price-change ${getChangeClass(stock.change)}`}>
-            <span className="change-value">
-              {stock.change >= 0 ? '+' : ''}
-              {formatNumber(stock.change)}
-            </span>
-            <span className="change-percent">
-              ({stock.change_percent >= 0 ? '+' : ''}
-              {formatNumber(stock.change_percent)}%)
-            </span>
+          <div className="price-changes">
+            <div className={`price-change ${getChangeClass(stock.change)}`}>
+              <span className="change-label">Daily:</span>
+              <span className="change-value">
+                {stock.change >= 0 ? '+' : ''}
+                {formatNumber(stock.change)}
+              </span>
+              <span className="change-percent">
+                ({stock.change_percent >= 0 ? '+' : ''}
+                {formatNumber(stock.change_percent)}%)
+              </span>
+            </div>
+            {stock.intraday_change !== null && stock.intraday_change !== undefined && (
+              <div className={`price-change ${getChangeClass(stock.intraday_change)}`}>
+                <span className="change-label">Intraday:</span>
+                <span className="change-value">
+                  {stock.intraday_change >= 0 ? '+' : ''}
+                  {formatNumber(stock.intraday_change)}
+                </span>
+                <span className="change-percent">
+                  ({stock.intraday_change_percent >= 0 ? '+' : ''}
+                  {formatNumber(stock.intraday_change_percent)}%)
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

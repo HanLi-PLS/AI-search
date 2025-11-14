@@ -81,6 +81,13 @@
   color: #ef4444;
 }
 
+.price-changes-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .stock-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

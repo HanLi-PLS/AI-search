@@ -59,15 +59,15 @@ _company_list_cache_ttl = timedelta(hours=24)
 
 def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Calculate daily change from the last 2 records in database
-    This ensures consistent daily change across cover page and detail page
+    Calculate daily and intraday changes from database
+    This ensures consistent changes across cover page and detail page
 
     Args:
         ticker: Stock ticker
         stock_data: Current stock data from API
 
     Returns:
-        Updated stock_data with daily change calculated from DB
+        Updated stock_data with daily and intraday changes calculated from DB
     """
     from backend.app.services.stock_data import StockDataService
     from datetime import datetime
@@ -83,25 +83,33 @@ def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> D
             # Previous trading day
             previous = last_two[1]
 
-            latest_price = float(latest['close'])
-            previous_price = float(previous['close'])
+            latest_close = float(latest['close'])
+            latest_open = float(latest['open'])
+            previous_close = float(previous['close'])
 
-            # Calculate change
-            change = latest_price - previous_price
-            change_percent = (change / previous_price * 100) if previous_price != 0 else 0
+            # Daily change (close vs previous close)
+            daily_change = latest_close - previous_close
+            daily_change_percent = (daily_change / previous_close * 100) if previous_close != 0 else 0
+
+            # Intraday change (close vs open)
+            intraday_change = latest_close - latest_open
+            intraday_change_percent = (intraday_change / latest_open * 100) if latest_open != 0 else 0
 
             # Update stock_data with DB-based values
-            stock_data['current_price'] = latest_price
-            stock_data['previous_close'] = previous_price
-            stock_data['change'] = change
-            stock_data['change_percent'] = change_percent
+            stock_data['current_price'] = latest_close
+            stock_data['open'] = latest_open
+            stock_data['previous_close'] = previous_close
+            stock_data['change'] = daily_change  # Daily change
+            stock_data['change_percent'] = daily_change_percent  # Daily change %
+            stock_data['intraday_change'] = intraday_change  # Intraday change
+            stock_data['intraday_change_percent'] = intraday_change_percent  # Intraday change %
 
-            logger.info(f"Updated {ticker} daily change from DB: {change_percent:.2f}%")
+            logger.info(f"Updated {ticker} - Daily: {daily_change_percent:.2f}%, Intraday: {intraday_change_percent:.2f}%")
         else:
             logger.debug(f"Not enough historical data for {ticker}, keeping API values")
 
     except Exception as e:
-        logger.warning(f"Failed to calculate daily change from DB for {ticker}: {str(e)}")
+        logger.warning(f"Failed to calculate changes from DB for {ticker}: {str(e)}")
         # Keep original API values
 
     return stock_data

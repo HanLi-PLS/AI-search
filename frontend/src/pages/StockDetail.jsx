@@ -120,8 +120,17 @@ function StockDetail() {
           </div>
           <div className="current-price">
             <div className="price-large">{formatPrice(stockData.current_price)}</div>
-            <div className={`change ${getChangeClass(stockData.change_percent)}`}>
-              {formatPercent(stockData.change_percent)} ({formatPrice(stockData.change)})
+            <div className="price-changes-detail">
+              <div className={`change ${getChangeClass(stockData.change_percent)}`}>
+                <span style={{ fontSize: '12px', opacity: 0.8 }}>Daily: </span>
+                {formatPercent(stockData.change_percent)} ({formatPrice(stockData.change)})
+              </div>
+              {stockData.intraday_change !== null && stockData.intraday_change !== undefined && (
+                <div className={`change ${getChangeClass(stockData.intraday_change_percent)}`}>
+                  <span style={{ fontSize: '12px', opacity: 0.8 }}>Intraday: </span>
+                  {formatPercent(stockData.intraday_change_percent)} ({formatPrice(stockData.intraday_change)})
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -221,7 +230,29 @@ function StockDetail() {
                 dataKey="close"
                 stroke="#2563eb"
                 strokeWidth={2}
-                dot={false}
+                dot={(props) => {
+                  const { cx, cy, index, payload } = props;
+                  const isLast = index === historyData.length - 1;
+                  if (isLast) {
+                    return (
+                      <g>
+                        <circle cx={cx} cy={cy} r={6} fill="#2563eb" stroke="#fff" strokeWidth={2} />
+                        <text
+                          x={cx + 15}
+                          y={cy}
+                          fill="#2563eb"
+                          fontSize={14}
+                          fontWeight="bold"
+                          textAnchor="start"
+                          dominantBaseline="middle"
+                        >
+                          ${payload.close.toFixed(2)}
+                        </text>
+                      </g>
+                    );
+                  }
+                  return null;
+                }}
                 name="Close Price"
               />
             </LineChart>
