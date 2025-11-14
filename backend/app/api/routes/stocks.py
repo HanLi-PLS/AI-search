@@ -985,10 +985,14 @@ async def get_stock_returns(ticker: str):
     service = StockDataService()
 
     try:
-        # Get latest price (today)
+        # Get latest price - query up to today to match what the chart shows
+        end_date = date.today()
+        start_date = end_date - timedelta(days=7)  # Look back 7 days to find latest
+
         latest_data = service.get_historical_data(
             ticker=ticker,
-            limit=1
+            start_date=start_date,
+            end_date=end_date
         )
 
         if not latest_data:
@@ -998,6 +1002,7 @@ async def get_stock_returns(ticker: str):
                 "returns": {}
             }
 
+        # Get the most recent record (data is sorted descending)
         latest_price = latest_data[0]['close']
         latest_date = datetime.fromisoformat(latest_data[0]['trade_date']).date()
 
@@ -1143,6 +1148,8 @@ async def get_stock_returns(ticker: str):
             "ticker": ticker,
             "current_price": round(latest_price, 2),
             "as_of_date": latest_date.isoformat(),
+            "query_end_date": end_date.isoformat(),  # What date we queried up to (today)
+            "latest_data_date": latest_date.isoformat(),  # Most recent data we actually have
             "returns": returns
         }
 
