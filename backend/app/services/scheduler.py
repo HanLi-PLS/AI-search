@@ -17,7 +17,7 @@ class DataRefreshScheduler:
         self.base_url = "http://localhost:8000"
 
     def start(self):
-        """Start the scheduler with jobs for 12 AM and 12 PM"""
+        """Start the scheduler with jobs for 12 AM and 12 PM, plus weekly archival"""
         # Refresh at 12 AM (midnight) every day
         self.scheduler.add_job(
             func=self.refresh_all_stock_data,
@@ -36,8 +36,17 @@ class DataRefreshScheduler:
             replace_existing=True
         )
 
+        # Archive old data to S3 weekly (Sunday at 2 AM)
+        self.scheduler.add_job(
+            func=self.archive_old_data_to_s3,
+            trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
+            id='archive_weekly',
+            name='Archive old data to S3 weekly',
+            replace_existing=True
+        )
+
         self.scheduler.start()
-        logger.info("Data refresh scheduler started (12 AM and 12 PM)")
+        logger.info("Data refresh scheduler started (12 AM and 12 PM daily, archival Sunday 2 AM)")
 
     def stop(self):
         """Stop the scheduler"""
@@ -79,6 +88,53 @@ class DataRefreshScheduler:
 
         except Exception as e:
             logger.error(f"Error in scheduled data refresh: {str(e)}")
+
+    def archive_old_data_to_s3(self):
+        """Archive data older than 90 days from SQLite to S3"""
+        try:
+            logger.info("Starting scheduled data archival to S3...")
+
+            from backend.app.services.s3_storage import S3StockDataService
+            from backend.app.api.routes.stocks import get_hkex_biotech_companies
+            from backend.app.services.portfolio import PORTFOLIO_COMPANIES
+
+            s3_service = S3StockDataService()
+
+            # Archive HKEX 18A companies
+            try:
+                companies = get_hkex_biotech_companies()
+                hkex_archived = 0
+                hkex_deleted = 0
+
+                for company in companies:
+                    ticker = company['ticker']
+                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                    hkex_archived += archived
+                    hkex_deleted += deleted
+
+                logger.info(f"✓ HKEX 18A: Archived {hkex_archived} records, deleted {hkex_deleted} from SQLite")
+            except Exception as e:
+                logger.error(f"✗ Error archiving HKEX data: {str(e)}")
+
+            # Archive Portfolio companies
+            try:
+                portfolio_archived = 0
+                portfolio_deleted = 0
+
+                for company in PORTFOLIO_COMPANIES:
+                    ticker = company['ticker']
+                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                    portfolio_archived += archived
+                    portfolio_deleted += deleted
+
+                logger.info(f"✓ Portfolio: Archived {portfolio_archived} records, deleted {portfolio_deleted} from SQLite")
+            except Exception as e:
+                logger.error(f"✗ Error archiving Portfolio data: {str(e)}")
+
+            logger.info(f"Scheduled data archival completed at {datetime.now()}")
+
+        except Exception as e:
+            logger.error(f"Error in scheduled data archival: {str(e)}")
 
 
 # Global scheduler instance

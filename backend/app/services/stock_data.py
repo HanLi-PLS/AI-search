@@ -459,7 +459,11 @@ class StockDataService:
         db: Session = None
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve historical data from database
+        Retrieve historical data from database (SQLite) and S3 (if needed)
+
+        Hybrid approach:
+        - Recent data (last 90 days): Fetched from SQLite (fast)
+        - Older data: Fetched from S3 (archived)
 
         Args:
             ticker: Stock ticker (e.g., "1801.HK")
@@ -477,6 +481,7 @@ class StockDataService:
             close_db = True
 
         try:
+            # Query SQLite first
             query = db.query(StockDaily).filter(StockDaily.ticker == ticker)
 
             if start_date:
@@ -490,7 +495,46 @@ class StockDataService:
                 query = query.limit(limit)
 
             records = query.all()
-            return [record.to_dict() for record in records]
+            sqlite_data = [record.to_dict() for record in records]
+
+            # Check if we need to fetch from S3 for older data
+            # If start_date is requested and we don't have data going back that far
+            if start_date and sqlite_data:
+                # Find earliest date in SQLite results
+                earliest_sqlite = min(
+                    datetime.fromisoformat(r['trade_date']).date()
+                    for r in sqlite_data
+                )
+
+                # If there's a gap, fetch from S3
+                if earliest_sqlite > start_date:
+                    logger.info(f"Fetching older data for {ticker} from S3 ({start_date} to {earliest_sqlite})")
+                    try:
+                        from backend.app.services.s3_storage import S3StockDataService
+                        s3_service = S3StockDataService()
+
+                        # Fetch missing data from S3
+                        s3_data = s3_service.load_from_s3(
+                            ticker=ticker,
+                            start_date=start_date,
+                            end_date=earliest_sqlite - timedelta(days=1)
+                        )
+
+                        if s3_data:
+                            logger.info(f"Loaded {len(s3_data)} records from S3 for {ticker}")
+                            # Combine SQLite and S3 data
+                            all_data = sqlite_data + s3_data
+                            # Sort by date descending
+                            all_data.sort(
+                                key=lambda x: datetime.fromisoformat(x['trade_date']),
+                                reverse=True
+                            )
+                            return all_data
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch from S3 for {ticker}: {str(e)}")
+                        # Continue with SQLite data only
+
+            return sqlite_data
 
         finally:
             if close_db:
