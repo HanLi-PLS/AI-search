@@ -968,6 +968,103 @@ async def get_stock_history(
     }
 
 
+@router.get("/stocks/{ticker}/returns")
+async def get_stock_returns(ticker: str):
+    """
+    Calculate returns (% gain/loss) for different time periods
+
+    Args:
+        ticker: Stock ticker (e.g., "1801.HK")
+
+    Returns:
+        Returns for 1W, 1M, 3M, 6M, 1Y periods
+    """
+    from backend.app.services.stock_data import StockDataService
+    from datetime import datetime, date, timedelta
+
+    service = StockDataService()
+
+    try:
+        # Get latest price (today)
+        latest_data = service.get_historical_data(
+            ticker=ticker,
+            limit=1
+        )
+
+        if not latest_data:
+            return {
+                "ticker": ticker,
+                "error": "No data available",
+                "returns": {}
+            }
+
+        latest_price = latest_data[0]['close']
+        latest_date = datetime.fromisoformat(latest_data[0]['trade_date']).date()
+
+        # Calculate returns for different periods
+        periods = {
+            '1W': 7,
+            '1M': 30,
+            '3M': 90,
+            '6M': 180,
+            '1Y': 365
+        }
+
+        returns = {}
+
+        for period_name, days in periods.items():
+            # Get price from N days ago
+            start_date = latest_date - timedelta(days=days)
+
+            historical_data = service.get_historical_data(
+                ticker=ticker,
+                start_date=start_date,
+                end_date=start_date + timedelta(days=30),  # Give 30-day buffer
+                limit=1
+            )
+
+            if historical_data:
+                old_price = historical_data[-1]['close']  # Oldest record in range
+                old_date = datetime.fromisoformat(historical_data[-1]['trade_date']).date()
+
+                # Calculate return percentage
+                return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
+
+                returns[period_name] = {
+                    'return': round(return_pct, 2) if return_pct is not None else None,
+                    'start_price': round(old_price, 2) if old_price else None,
+                    'end_price': round(latest_price, 2),
+                    'start_date': old_date.isoformat(),
+                    'end_date': latest_date.isoformat(),
+                    'days': (latest_date - old_date).days
+                }
+            else:
+                returns[period_name] = {
+                    'return': None,
+                    'start_price': None,
+                    'end_price': round(latest_price, 2),
+                    'start_date': None,
+                    'end_date': latest_date.isoformat(),
+                    'days': None,
+                    'note': 'Insufficient historical data'
+                }
+
+        return {
+            "ticker": ticker,
+            "current_price": round(latest_price, 2),
+            "as_of_date": latest_date.isoformat(),
+            "returns": returns
+        }
+
+    except Exception as e:
+        logger.error(f"Error calculating returns for {ticker}: {str(e)}")
+        return {
+            "ticker": ticker,
+            "error": str(e),
+            "returns": {}
+        }
+
+
 @router.post("/stocks/{ticker}/update-history")
 async def update_stock_history(ticker: str):
     """

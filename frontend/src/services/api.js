@@ -103,6 +103,12 @@ export const stockAPI = {
     });
     return response.data;
   },
+
+  // Get returns (% gain/loss) for different time periods
+  getReturns: async (ticker) => {
+    const response = await api.get(`/api/stocks/${ticker}/returns`);
+    return response.data;
+  },
 };
 
 // AI Search API functions (matching HTML version API)

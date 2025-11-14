@@ -9,6 +9,7 @@ function StockDetail() {
   const navigate = useNavigate();
   const [stockData, setStockData] = useState(null);
   const [historyData, setHistoryData] = useState([]);
+  const [returnsData, setReturnsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('1M'); // 1W, 1M, 3M, 6M, 1Y
@@ -40,6 +41,15 @@ function StockDetail() {
 
       if (!history || history.length === 0) {
         console.warn('[StockDetail] No historical data returned from API');
+      }
+
+      // Fetch returns data
+      try {
+        const returns = await stockAPI.getReturns(ticker);
+        setReturnsData(returns);
+        console.log('[StockDetail] Returns data:', returns);
+      } catch (err) {
+        console.warn('[StockDetail] Could not fetch returns:', err);
       }
     } catch (err) {
       setError('Failed to fetch stock details. Please try again.');
@@ -149,6 +159,27 @@ function StockDetail() {
           </div>
         )}
       </div>
+
+      {/* Returns Section */}
+      {returnsData && returnsData.returns && (
+        <div className="returns-section">
+          <h2>Performance Returns</h2>
+          <div className="returns-grid">
+            {Object.entries(returnsData.returns).map(([period, data]) => (
+              <div key={period} className="return-item">
+                <div className="return-period">{period}</div>
+                <div className={`return-value ${data.return !== null && data.return >= 0 ? 'positive' : 'negative'}`}>
+                  {data.return !== null ? `${data.return >= 0 ? '+' : ''}${data.return}%` : 'N/A'}
+                </div>
+                {data.note && <div className="return-note">{data.note}</div>}
+              </div>
+            ))}
+          </div>
+          <div className="returns-note">
+            Volume: Number of shares traded per day. Higher volume = more liquidity.
+          </div>
+        </div>
+      )}
 
       <div className="chart-section">
         <div className="chart-header">
