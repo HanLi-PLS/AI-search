@@ -913,15 +913,20 @@ async def get_stock_history(
     service = StockDataService()
 
     # Parse date parameters
-    if start_date:
-        start = datetime.strptime(start_date, '%Y-%m-%d').date()
-    else:
-        start = date.today() - timedelta(days=days)
-
     if end_date:
         end = datetime.strptime(end_date, '%Y-%m-%d').date()
     else:
-        end = date.today()
+        # Use the last date in DB (not today) to match returns calculation
+        latest_data = service.get_historical_data(ticker=ticker, limit=1)
+        if latest_data:
+            end = datetime.fromisoformat(latest_data[0]['trade_date']).date()
+        else:
+            end = date.today()
+
+    if start_date:
+        start = datetime.strptime(start_date, '%Y-%m-%d').date()
+    else:
+        start = end - timedelta(days=days)
 
     # Get data from database
     history = service.get_historical_data(
