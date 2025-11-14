@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Manual script to archive old historical data from SQLite to S3
-Archives data older than 90 days to reduce local storage usage
+Archives data older than 1 year (365 days) to reduce local storage usage
 """
 import sys
 import os
@@ -30,7 +30,7 @@ def main():
     print("=" * 60)
     print()
     print("This script will:")
-    print("  1. Archive data older than 90 days from SQLite to S3")
+    print("  1. Archive data older than 1 year (365 days) from SQLite to S3")
     print("  2. Delete archived data from SQLite to free up space")
     print("  3. Store data in parquet format (compressed)")
     print()
@@ -69,7 +69,7 @@ def main():
             print(f"\n[{i}/{len(companies)}] Processing {ticker} ({name})...")
 
             try:
-                archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                archived, deleted = s3_service.archive_old_data(ticker, older_than_days=365)
 
                 if archived > 0:
                     print(f"  ✓ Archived {archived} records, deleted {deleted} from SQLite")
@@ -106,7 +106,7 @@ def main():
             print(f"\n[{i}/{len(PORTFOLIO_COMPANIES)}] Processing {ticker} ({name})...")
 
             try:
-                archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                archived, deleted = s3_service.archive_old_data(ticker, older_than_days=365)
 
                 if archived > 0:
                     print(f"  ✓ Archived {archived} records, deleted {deleted} from SQLite")

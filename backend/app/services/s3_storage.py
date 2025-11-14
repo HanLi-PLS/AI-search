@@ -179,13 +179,13 @@ class S3StockDataService:
             logger.error(f"Error loading {ticker} from S3: {str(e)}")
             return []
 
-    def archive_old_data(self, ticker: str, older_than_days: int = 90) -> tuple[int, int]:
+    def archive_old_data(self, ticker: str, older_than_days: int = 365) -> tuple[int, int]:
         """
         Archive data older than specified days from SQLite to S3
 
         Args:
             ticker: Stock ticker
-            older_than_days: Archive data older than this many days (default: 90)
+            older_than_days: Archive data older than this many days (default: 365)
 
         Returns:
             Tuple of (records_archived, records_deleted)

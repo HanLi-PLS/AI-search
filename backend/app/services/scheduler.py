@@ -36,21 +36,18 @@ class DataRefreshScheduler:
             replace_existing=True
         )
 
-        # S3 archival temporarily disabled
-        # The archival feature needs more testing before automatic scheduling
-        # You can manually archive using: python3 archive_to_s3.py
-        #
-        # Uncomment the lines below after verifying S3 retrieval works correctly:
-        # self.scheduler.add_job(
-        #     func=self.archive_old_data_to_s3,
-        #     trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
-        #     id='archive_weekly',
-        #     name='Archive old data to S3 weekly',
-        #     replace_existing=True
-        # )
+        # Archive data older than 1 year to S3 weekly (Sunday at 2 AM)
+        # This keeps SQLite lean while preserving historical data in S3
+        self.scheduler.add_job(
+            func=self.archive_old_data_to_s3,
+            trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
+            id='archive_weekly',
+            name='Archive data older than 1 year to S3 weekly',
+            replace_existing=True
+        )
 
         self.scheduler.start()
-        logger.info("Data refresh scheduler started (12 AM and 12 PM daily)")
+        logger.info("Data refresh scheduler started (12 AM and 12 PM daily, archival of >1 year data on Sundays)")
 
     def stop(self):
         """Stop the scheduler"""
@@ -94,9 +91,9 @@ class DataRefreshScheduler:
             logger.error(f"Error in scheduled data refresh: {str(e)}")
 
     def archive_old_data_to_s3(self):
-        """Archive data older than 90 days from SQLite to S3"""
+        """Archive data older than 1 year from SQLite to S3"""
         try:
-            logger.info("Starting scheduled data archival to S3...")
+            logger.info("Starting scheduled data archival to S3 (>1 year old data)...")
 
             from backend.app.services.s3_storage import S3StockDataService
             from backend.app.api.routes.stocks import get_hkex_biotech_companies
@@ -112,7 +109,7 @@ class DataRefreshScheduler:
 
                 for company in companies:
                     ticker = company['ticker']
-                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=365)
                     hkex_archived += archived
                     hkex_deleted += deleted
 
@@ -127,7 +124,7 @@ class DataRefreshScheduler:
 
                 for company in PORTFOLIO_COMPANIES:
                     ticker = company['ticker']
-                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=90)
+                    archived, deleted = s3_service.archive_old_data(ticker, older_than_days=365)
                     portfolio_archived += archived
                     portfolio_deleted += deleted
 
