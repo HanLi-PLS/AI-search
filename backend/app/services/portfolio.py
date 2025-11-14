@@ -4,9 +4,14 @@ Portfolio Companies Service - Track specific portfolio companies across markets
 import logging
 import tushare as ts
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+# Cache for portfolio companies data
+_portfolio_cache = None
+_portfolio_cache_time = None
+_portfolio_cache_ttl = timedelta(hours=12)  # Cache for 12 hours
 
 # Portfolio companies configuration
 PORTFOLIO_COMPANIES = [
@@ -208,13 +213,26 @@ class PortfolioService:
             logger.error(f"All data sources failed for {ticker}: {str(e)}")
             return None
 
-    def get_portfolio_companies(self) -> List[Dict[str, Any]]:
+    def get_portfolio_companies(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Get data for all portfolio companies
+
+        Args:
+            use_cache: Whether to use cached data (default: True)
 
         Returns:
             List of portfolio company data
         """
+        global _portfolio_cache, _portfolio_cache_time
+
+        # Check cache first
+        if use_cache and _portfolio_cache is not None and _portfolio_cache_time is not None:
+            cache_age = datetime.now() - _portfolio_cache_time
+            if cache_age < _portfolio_cache_ttl:
+                logger.info(f"Using cached portfolio data (age: {cache_age})")
+                return _portfolio_cache
+
+        logger.info("Fetching fresh portfolio data from APIs...")
         results = []
 
         for company in PORTFOLIO_COMPANIES:
@@ -261,5 +279,10 @@ class PortfolioService:
                     "change_percent": None,
                     "last_updated": datetime.now().isoformat()
                 })
+
+        # Update cache
+        _portfolio_cache = results
+        _portfolio_cache_time = datetime.now()
+        logger.info(f"Portfolio cache updated with {len(results)} companies")
 
         return results

@@ -67,11 +67,28 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize database: {str(e)}")
 
+    # Start data refresh scheduler
+    try:
+        from backend.app.services.scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler.start()
+        logger.info("Data refresh scheduler started (refreshes at 12 AM and 12 PM)")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {str(e)}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("Shutting down AI Search Tool...")
+
+    # Stop data refresh scheduler
+    try:
+        from backend.app.services.scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler.stop()
+    except Exception as e:
+        logger.error(f"Error stopping scheduler: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -21,59 +21,35 @@ function StockTracker() {
   const [isUpdatingHistory, setIsUpdatingHistory] = useState(false);
   const [portfolioCompanies, setPortfolioCompanies] = useState([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
-
-  // Cache keys
-  const CACHE_KEY = 'hkex_stock_data';
-  const CACHE_TIMESTAMP_KEY = 'hkex_stock_data_timestamp';
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+  const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
 
   useEffect(() => {
-    // Try to load cached data first
-    const cachedData = localStorage.getItem(CACHE_KEY);
-    const cachedTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-
-    if (cachedData && cachedTimestamp) {
-      const cacheAge = Date.now() - parseInt(cachedTimestamp);
-      if (cacheAge < CACHE_DURATION) {
-        // Use cached data if it's less than 5 minutes old
-        const parsed = JSON.parse(cachedData);
-        setStockData(parsed);
-        setLastUpdated(new Date(parseInt(cachedTimestamp)));
-        setLoading(false);
-        console.log('Using cached stock data, age:', Math.round(cacheAge / 1000), 'seconds');
-        return; // Don't fetch if cache is fresh
-      }
-    }
-
-    // No cache or cache is stale, fetch fresh data
+    // Fetch data on initial load
+    // Data is cached on server for 12 hours, so this won't cause excessive API calls
     fetchStockData();
     fetchUpcomingIPOs();
     fetchHistoryStats();
     fetchPortfolioCompanies();
   }, []);
 
-  const fetchStockData = async (isManualRefresh = false) => {
+  const fetchStockData = async (forceRefresh = false) => {
     try {
-      // If we have cached data and this is a background refresh, don't show loading spinner
       const hasCachedData = stockData.length > 0;
 
       if (!hasCachedData) {
         setLoading(true);
-      } else if (isManualRefresh) {
+      } else if (forceRefresh) {
         setIsRefreshing(true);
       }
 
       setError(null);
-      const data = await stockAPI.getAllPrices();
+
+      // Pass forceRefresh to API - server caches data for 12 hours
+      const data = await stockAPI.getAllPrices(forceRefresh);
       setStockData(data);
+      setLastUpdated(new Date());
 
-      // Cache the data
-      const timestamp = Date.now();
-      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-      localStorage.setItem(CACHE_TIMESTAMP_KEY, timestamp.toString());
-      setLastUpdated(new Date(timestamp));
-
-      console.log('Fetched fresh stock data and cached it');
+      console.log(forceRefresh ? 'Force refreshed stock data' : 'Loaded stock data from server cache');
     } catch (err) {
       setError('Failed to fetch stock data. Please make sure the backend is running.');
       console.error('Error fetching stock data:', err);
@@ -133,10 +109,18 @@ function StockTracker() {
     }
   };
 
-  const fetchPortfolioCompanies = async () => {
+  const fetchPortfolioCompanies = async (forceRefresh = false) => {
     try {
-      setPortfolioLoading(true);
-      const response = await stockAPI.getPortfolioCompanies();
+      const hasCachedData = portfolioCompanies.length > 0;
+
+      if (!hasCachedData) {
+        setPortfolioLoading(true);
+      } else if (forceRefresh) {
+        setPortfolioRefreshing(true);
+      }
+
+      // Pass forceRefresh to API - server caches data for 12 hours
+      const response = await stockAPI.getPortfolioCompanies(forceRefresh);
       console.log('[Portfolio] Response:', response);
 
       if (response.success && response.companies) {
@@ -145,11 +129,14 @@ function StockTracker() {
         console.error('[Portfolio] Failed to load portfolio data');
         setPortfolioCompanies([]);
       }
+
+      console.log(forceRefresh ? 'Force refreshed portfolio data' : 'Loaded portfolio data from server cache');
     } catch (err) {
       console.error('Error fetching portfolio companies:', err);
       setPortfolioCompanies([]);
     } finally {
       setPortfolioLoading(false);
+      setPortfolioRefreshing(false);
     }
   };
 
@@ -401,11 +388,11 @@ function StockTracker() {
           <div className="controls-section">
             <div className="control-group">
               <button
-                onClick={fetchPortfolioCompanies}
+                onClick={() => fetchPortfolioCompanies(true)}
                 className="refresh-button"
-                disabled={portfolioLoading}
+                disabled={portfolioRefreshing}
               >
-                {portfolioLoading ? '🔄 Refreshing...' : '🔄 Refresh'}
+                {portfolioRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
               </button>
             </div>
 
@@ -496,7 +483,7 @@ function StockTracker() {
         <p>
           {activeTab === 'ipo'
             ? 'Data provided by Felix screening.'
-            : 'Data provided by Tushare Pro API. Updates cached for 5 minutes.'}
+            : 'Data provided by Tushare Pro API, Finnhub, and Yahoo Finance. Auto-refreshes at 12 AM and 12 PM daily.'}
         </p>
         <p className="disclaimer">
           Disclaimer: This is for informational purposes only. Not financial advice.

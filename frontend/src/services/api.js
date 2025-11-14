@@ -18,8 +18,10 @@ export const stockAPI = {
   },
 
   // Get all stock prices
-  getAllPrices: async () => {
-    const response = await api.get('/api/stocks/prices');
+  getAllPrices: async (forceRefresh = false) => {
+    const response = await api.get('/api/stocks/prices', {
+      params: { force_refresh: forceRefresh }
+    });
     return response.data;
   },
 
@@ -95,8 +97,10 @@ export const stockAPI = {
   },
 
   // Get portfolio companies
-  getPortfolioCompanies: async () => {
-    const response = await api.get('/api/stocks/portfolio');
+  getPortfolioCompanies: async (forceRefresh = false) => {
+    const response = await api.get('/api/stocks/portfolio', {
+      params: { force_refresh: forceRefresh }
+    });
     return response.data;
   },
 };

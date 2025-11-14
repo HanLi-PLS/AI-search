@@ -49,7 +49,7 @@ router = APIRouter()
 
 # Simple in-memory cache with TTL
 _stock_cache = {}
-_cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
+_cache_ttl = timedelta(hours=12)  # Cache for 12 hours (refreshed at 12 AM and 12 PM)
 
 # Company list cache (24 hour TTL)
 _company_list_cache = None
@@ -743,10 +743,13 @@ async def get_companies():
 
 
 @router.get("/stocks/prices")
-async def get_all_prices():
+async def get_all_prices(force_refresh: bool = False):
     """
     Get current prices for all HKEX 18A biotech companies
     Uses parallel processing with caching for fast response times
+
+    Args:
+        force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
         List of stock data for all companies
@@ -762,8 +765,9 @@ async def get_all_prices():
         logger.info(f"Fetching data for {ticker} ({code}) - {name}")
 
         # Run the synchronous get_stock_data in a thread pool to avoid blocking
+        # Use cache unless force_refresh is True
         stock_data = await asyncio.to_thread(
-            get_stock_data, ticker, code=code, name=name, use_cache=True
+            get_stock_data, ticker, code=code, name=name, use_cache=(not force_refresh)
         )
 
         if stock_data:
@@ -1176,9 +1180,12 @@ async def bulk_backfill_all_history(days: int = 365):
 # ============================================================================
 
 @router.get("/stocks/portfolio")
-async def get_portfolio_companies():
+async def get_portfolio_companies(force_refresh: bool = False):
     """
     Get portfolio companies data (both HKEX and NASDAQ)
+
+    Args:
+        force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
         List of portfolio companies with current prices and performance
@@ -1187,7 +1194,7 @@ async def get_portfolio_companies():
 
     try:
         service = PortfolioService()
-        companies = service.get_portfolio_companies()
+        companies = service.get_portfolio_companies(use_cache=(not force_refresh))
 
         return {
             "success": True,
