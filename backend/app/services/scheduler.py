@@ -17,7 +17,7 @@ class DataRefreshScheduler:
         self.base_url = "http://localhost:8000"
 
     def start(self):
-        """Start the scheduler with jobs for 12 AM and 12 PM, plus weekly archival"""
+        """Start the scheduler with jobs for 12 AM and 12 PM"""
         # Refresh at 12 AM (midnight) every day
         self.scheduler.add_job(
             func=self.refresh_all_stock_data,
@@ -36,17 +36,21 @@ class DataRefreshScheduler:
             replace_existing=True
         )
 
-        # Archive old data to S3 weekly (Sunday at 2 AM)
-        self.scheduler.add_job(
-            func=self.archive_old_data_to_s3,
-            trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
-            id='archive_weekly',
-            name='Archive old data to S3 weekly',
-            replace_existing=True
-        )
+        # S3 archival temporarily disabled
+        # The archival feature needs more testing before automatic scheduling
+        # You can manually archive using: python3 archive_to_s3.py
+        #
+        # Uncomment the lines below after verifying S3 retrieval works correctly:
+        # self.scheduler.add_job(
+        #     func=self.archive_old_data_to_s3,
+        #     trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
+        #     id='archive_weekly',
+        #     name='Archive old data to S3 weekly',
+        #     replace_existing=True
+        # )
 
         self.scheduler.start()
-        logger.info("Data refresh scheduler started (12 AM and 12 PM daily, archival Sunday 2 AM)")
+        logger.info("Data refresh scheduler started (12 AM and 12 PM daily)")
 
     def stop(self):
         """Stop the scheduler"""
