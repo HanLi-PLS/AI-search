@@ -167,16 +167,13 @@ function StockDetail() {
           <div className="returns-grid">
             {Object.entries(returnsData.returns).map(([period, data]) => (
               <div key={period} className="return-item">
-                <div className="return-period">{period}</div>
+                <div className="return-period">{data.since_listed ? 'Since Listed' : period}</div>
                 <div className={`return-value ${data.return !== null && data.return >= 0 ? 'positive' : 'negative'}`}>
                   {data.return !== null ? `${data.return >= 0 ? '+' : ''}${data.return}%` : 'N/A'}
                 </div>
                 {data.note && <div className="return-note">{data.note}</div>}
               </div>
             ))}
-          </div>
-          <div className="returns-note">
-            Volume: Number of shares traded per day. Higher volume = more liquidity.
           </div>
         </div>
       )}

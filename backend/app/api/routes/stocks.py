@@ -1001,6 +1001,17 @@ async def get_stock_returns(ticker: str):
         latest_price = latest_data[0]['close']
         latest_date = datetime.fromisoformat(latest_data[0]['trade_date']).date()
 
+        # Get earliest available date to check if we have enough history
+        earliest_date = service.get_latest_date(ticker)  # This gets the earliest date in DB
+        all_historical = service.get_historical_data(ticker=ticker)
+        if all_historical:
+            earliest_date = min(
+                datetime.fromisoformat(r['trade_date']).date()
+                for r in all_historical
+            )
+        else:
+            earliest_date = latest_date
+
         # Calculate returns for different periods
         periods = {
             '1W': 7,
@@ -1050,7 +1061,53 @@ async def get_stock_returns(ticker: str):
                         'end_price': round(latest_price, 2),
                         'start_date': old_date.isoformat(),
                         'end_date': latest_date.isoformat(),
-                        'days': (latest_date - old_date).days
+                        'days': (latest_date - old_date).days,
+                        'since_listed': False
+                    }
+                else:
+                    # No data in buffer range, fall back to "since listed"
+                    if all_historical and len(all_historical) > 1:
+                        earliest_record = all_historical[-1]  # Last record (oldest)
+                        old_price = earliest_record['close']
+                        old_date = datetime.fromisoformat(earliest_record['trade_date']).date()
+                        return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
+
+                        returns[period_name] = {
+                            'return': round(return_pct, 2) if return_pct is not None else None,
+                            'start_price': round(old_price, 2) if old_price else None,
+                            'end_price': round(latest_price, 2),
+                            'start_date': old_date.isoformat(),
+                            'end_date': latest_date.isoformat(),
+                            'days': (latest_date - old_date).days,
+                            'since_listed': True
+                        }
+                    else:
+                        returns[period_name] = {
+                            'return': None,
+                            'start_price': None,
+                            'end_price': round(latest_price, 2),
+                            'start_date': None,
+                            'end_date': latest_date.isoformat(),
+                            'days': None,
+                            'since_listed': False,
+                            'note': 'Insufficient historical data'
+                        }
+            else:
+                # No data in buffer range, fall back to "since listed"
+                if all_historical and len(all_historical) > 1:
+                    earliest_record = all_historical[-1]  # Last record (oldest)
+                    old_price = earliest_record['close']
+                    old_date = datetime.fromisoformat(earliest_record['trade_date']).date()
+                    return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
+
+                    returns[period_name] = {
+                        'return': round(return_pct, 2) if return_pct is not None else None,
+                        'start_price': round(old_price, 2) if old_price else None,
+                        'end_price': round(latest_price, 2),
+                        'start_date': old_date.isoformat(),
+                        'end_date': latest_date.isoformat(),
+                        'days': (latest_date - old_date).days,
+                        'since_listed': True
                     }
                 else:
                     returns[period_name] = {
@@ -1060,18 +1117,9 @@ async def get_stock_returns(ticker: str):
                         'start_date': None,
                         'end_date': latest_date.isoformat(),
                         'days': None,
+                        'since_listed': False,
                         'note': 'Insufficient historical data'
                     }
-            else:
-                returns[period_name] = {
-                    'return': None,
-                    'start_price': None,
-                    'end_price': round(latest_price, 2),
-                    'start_date': None,
-                    'end_date': latest_date.isoformat(),
-                    'days': None,
-                    'note': 'Insufficient historical data'
-                }
 
         return {
             "ticker": ticker,
