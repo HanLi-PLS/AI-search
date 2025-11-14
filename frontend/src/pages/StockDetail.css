@@ -174,37 +174,6 @@
   color: #ef4444;
 }
 
-.return-note {
-  font-size: 11px;
-  color: #9ca3af;
-  margin-top: 5px;
-}
-
-.return-debug {
-  font-size: 10px;
-  color: #6b7280;
-  margin-top: 10px;
-  padding: 8px;
-  background: #f9fafb;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  text-align: left;
-  line-height: 1.5;
-}
-
-.return-debug div {
-  margin-bottom: 3px;
-}
-
-.returns-note {
-  font-size: 13px;
-  color: #6b7280;
-  font-style: italic;
-  padding: 12px;
-  background: #f3f4f6;
-  border-radius: 8px;
-}
-
 .chart-section {
   max-width: 1200px;
   margin: 0 auto;
