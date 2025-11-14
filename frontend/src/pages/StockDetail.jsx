@@ -171,6 +171,14 @@ function StockDetail() {
                 <div className={`return-value ${data.return !== null && data.return >= 0 ? 'positive' : 'negative'}`}>
                   {data.return !== null ? `${data.return >= 0 ? '+' : ''}${data.return}%` : 'N/A'}
                 </div>
+                {data.start_date && data.end_date && (
+                  <div className="return-debug">
+                    <div>Start: {data.start_date} (${data.start_price})</div>
+                    <div>End: {data.end_date} (${data.end_price})</div>
+                    {data.target_date && <div>Target: {data.target_date} (wanted {data.target_days} days)</div>}
+                    <div>Actual: {data.days} days{data.days_off_target && ` (${data.days_off_target > 0 ? '+' : ''}${data.days_off_target} from target)`}</div>
+                  </div>
+                )}
                 {data.note && <div className="return-note">{data.note}</div>}
               </div>
             ))}

@@ -1055,13 +1055,19 @@ async def get_stock_returns(ticker: str):
                     # Calculate return percentage
                     return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
 
+                    actual_days = (latest_date - old_date).days
+                    days_diff_from_target = (old_date - target_date).days
+
                     returns[period_name] = {
                         'return': round(return_pct, 2) if return_pct is not None else None,
                         'start_price': round(old_price, 2) if old_price else None,
                         'end_price': round(latest_price, 2),
                         'start_date': old_date.isoformat(),
                         'end_date': latest_date.isoformat(),
-                        'days': (latest_date - old_date).days,
+                        'days': actual_days,
+                        'target_days': days,  # The requested period (7, 30, etc.)
+                        'target_date': target_date.isoformat(),  # The ideal date we wanted
+                        'days_off_target': days_diff_from_target,  # How many days off from target
                         'since_listed': False
                     }
                 else:
@@ -1072,13 +1078,19 @@ async def get_stock_returns(ticker: str):
                         old_date = datetime.fromisoformat(earliest_record['trade_date']).date()
                         return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
 
+                        actual_days = (latest_date - old_date).days
+                        days_diff_from_target = (old_date - target_date).days
+
                         returns[period_name] = {
                             'return': round(return_pct, 2) if return_pct is not None else None,
                             'start_price': round(old_price, 2) if old_price else None,
                             'end_price': round(latest_price, 2),
                             'start_date': old_date.isoformat(),
                             'end_date': latest_date.isoformat(),
-                            'days': (latest_date - old_date).days,
+                            'days': actual_days,
+                            'target_days': days,
+                            'target_date': target_date.isoformat(),
+                            'days_off_target': days_diff_from_target,
                             'since_listed': True
                         }
                     else:
@@ -1100,13 +1112,19 @@ async def get_stock_returns(ticker: str):
                     old_date = datetime.fromisoformat(earliest_record['trade_date']).date()
                     return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
 
+                    actual_days = (latest_date - old_date).days
+                    days_diff_from_target = (old_date - target_date).days
+
                     returns[period_name] = {
                         'return': round(return_pct, 2) if return_pct is not None else None,
                         'start_price': round(old_price, 2) if old_price else None,
                         'end_price': round(latest_price, 2),
                         'start_date': old_date.isoformat(),
                         'end_date': latest_date.isoformat(),
-                        'days': (latest_date - old_date).days,
+                        'days': actual_days,
+                        'target_days': days,
+                        'target_date': target_date.isoformat(),
+                        'days_off_target': days_diff_from_target,
                         'since_listed': True
                     }
                 else:
