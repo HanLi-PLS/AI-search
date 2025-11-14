@@ -65,16 +65,38 @@ function StockCard({ stock }) {
           <span className="currency">{stock.currency}</span>
           <span className="price">{formatNumber(stock.current_price)}</span>
         </div>
+
+        {/* Daily Change (Today vs Yesterday) */}
         {stock.change !== null && stock.change !== undefined && (
-          <div className={`price-change ${getChangeClass(stock.change)}`}>
-            <span className="change-value">
-              {stock.change >= 0 ? '+' : ''}
-              {formatNumber(stock.change)}
-            </span>
-            <span className="change-percent">
-              ({stock.change_percent >= 0 ? '+' : ''}
-              {formatNumber(stock.change_percent)}%)
-            </span>
+          <div className="change-row">
+            <span className="change-label">Daily:</span>
+            <div className={`price-change ${getChangeClass(stock.change)}`}>
+              <span className="change-value">
+                {stock.change >= 0 ? '+' : ''}
+                {formatNumber(stock.change)}
+              </span>
+              <span className="change-percent">
+                ({stock.change_percent >= 0 ? '+' : ''}
+                {formatNumber(stock.change_percent)}%)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Intraday Change (Close vs Open) */}
+        {stock.intraday_change !== null && stock.intraday_change !== undefined && (
+          <div className="change-row">
+            <span className="change-label">Intraday:</span>
+            <div className={`price-change ${getChangeClass(stock.intraday_change)}`}>
+              <span className="change-value">
+                {stock.intraday_change >= 0 ? '+' : ''}
+                {formatNumber(stock.intraday_change)}
+              </span>
+              <span className="change-percent">
+                ({stock.intraday_change_percent >= 0 ? '+' : ''}
+                {formatNumber(stock.intraday_change_percent)}%)
+              </span>
+            </div>
           </div>
         )}
       </div>

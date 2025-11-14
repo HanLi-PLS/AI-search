@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Label } from 'recharts';
 import { stockAPI } from '../services/api';
 import './StockDetail.css';
 
@@ -120,9 +120,24 @@ function StockDetail() {
           </div>
           <div className="current-price">
             <div className="price-large">{formatPrice(stockData.current_price)}</div>
-            <div className={`change ${getChangeClass(stockData.change_percent)}`}>
-              {formatPercent(stockData.change_percent)} ({formatPrice(stockData.change)})
+
+            {/* Daily Change (Today vs Yesterday) */}
+            <div className="change-container">
+              <span className="change-label-detail">Daily:</span>
+              <div className={`change ${getChangeClass(stockData.change_percent)}`}>
+                {formatPercent(stockData.change_percent)} ({formatPrice(stockData.change)})
+              </div>
             </div>
+
+            {/* Intraday Change (Close vs Open) */}
+            {stockData.intraday_change !== null && stockData.intraday_change !== undefined && (
+              <div className="change-container">
+                <span className="change-label-detail">Intraday:</span>
+                <div className={`change ${getChangeClass(stockData.intraday_change_percent)}`}>
+                  {formatPercent(stockData.intraday_change_percent)} ({formatPrice(stockData.intraday_change)})
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -195,7 +210,7 @@ function StockDetail() {
 
         {historyData && historyData.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={historyData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={historyData} margin={{ top: 5, right: 80, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
@@ -203,9 +218,16 @@ function StockDetail() {
                 tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               />
               <YAxis
+                yAxisId="left"
                 tick={{ fontSize: 12 }}
                 domain={['auto', 'auto']}
                 tickFormatter={(value) => `$${value.toFixed(2)}`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={false}
+                axisLine={false}
               />
               <Tooltip
                 formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
@@ -216,7 +238,27 @@ function StockDetail() {
                 })}
               />
               <Legend />
+
+              {/* Reference line showing latest close price */}
+              <ReferenceLine
+                yAxisId="left"
+                y={historyData[historyData.length - 1].close}
+                stroke="#2563eb"
+                strokeDasharray="5 5"
+                strokeWidth={1.5}
+              >
+                <Label
+                  value={`$${historyData[historyData.length - 1].close.toFixed(2)}`}
+                  position="right"
+                  fill="#2563eb"
+                  fontSize={14}
+                  fontWeight="bold"
+                  offset={10}
+                />
+              </ReferenceLine>
+
               <Line
+                yAxisId="left"
                 type="monotone"
                 dataKey="close"
                 stroke="#2563eb"
