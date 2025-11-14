@@ -56,6 +56,57 @@ _company_list_cache = None
 _company_list_cache_time = None
 _company_list_cache_ttl = timedelta(hours=24)
 
+
+def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate daily change from the last 2 records in database
+    This ensures consistent daily change across cover page and detail page
+
+    Args:
+        ticker: Stock ticker
+        stock_data: Current stock data from API
+
+    Returns:
+        Updated stock_data with daily change calculated from DB
+    """
+    from backend.app.services.stock_data import StockDataService
+    from datetime import datetime
+
+    try:
+        service = StockDataService()
+        # Get last 2 records from database
+        last_two = service.get_historical_data(ticker=ticker, limit=2)
+
+        if last_two and len(last_two) >= 2:
+            # Most recent record (today/latest)
+            latest = last_two[0]
+            # Previous trading day
+            previous = last_two[1]
+
+            latest_price = float(latest['close'])
+            previous_price = float(previous['close'])
+
+            # Calculate change
+            change = latest_price - previous_price
+            change_percent = (change / previous_price * 100) if previous_price != 0 else 0
+
+            # Update stock_data with DB-based values
+            stock_data['current_price'] = latest_price
+            stock_data['previous_close'] = previous_price
+            stock_data['change'] = change
+            stock_data['change_percent'] = change_percent
+
+            logger.info(f"Updated {ticker} daily change from DB: {change_percent:.2f}%")
+        else:
+            logger.debug(f"Not enough historical data for {ticker}, keeping API values")
+
+    except Exception as e:
+        logger.warning(f"Failed to calculate daily change from DB for {ticker}: {str(e)}")
+        # Keep original API values
+
+    return stock_data
+
+
 # No demo/fallback data - return None if real sources fail
 
 # HKEX 18A Biotech Companies - Fallback list if web scraping fails
@@ -774,6 +825,10 @@ async def get_all_prices(force_refresh: bool = False):
             # Use name from Tushare if available, otherwise use AAStocks name
             if "name" not in stock_data or not stock_data["name"]:
                 stock_data["name"] = name
+
+            # Calculate daily change from database (last 2 records)
+            stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
             return stock_data
         else:
             # Return company info with error
@@ -827,6 +882,10 @@ async def get_price(ticker: str):
         # Add name and currency
         stock_data["name"] = portfolio_company["name"]
         stock_data["currency"] = portfolio_company["currency"]
+
+        # Calculate daily change from database (last 2 records)
+        stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
         return stock_data
 
     # If not portfolio company, check HKEX biotech companies
@@ -842,6 +901,10 @@ async def get_price(ticker: str):
         raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
 
     stock_data["name"] = company["name"]
+
+    # Calculate daily change from database (last 2 records)
+    stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
     return stock_data
 
 
