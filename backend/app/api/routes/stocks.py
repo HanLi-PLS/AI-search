@@ -1013,31 +1013,55 @@ async def get_stock_returns(ticker: str):
         returns = {}
 
         for period_name, days in periods.items():
-            # Get price from N days ago
-            start_date = latest_date - timedelta(days=days)
+            # Get price from N days ago (with a buffer to find closest date)
+            target_date = latest_date - timedelta(days=days)
+            buffer_start = target_date - timedelta(days=5)  # Look 5 days before
+            buffer_end = target_date + timedelta(days=5)    # Look 5 days after
 
             historical_data = service.get_historical_data(
                 ticker=ticker,
-                start_date=start_date,
-                end_date=start_date + timedelta(days=30),  # Give 30-day buffer
-                limit=1
+                start_date=buffer_start,
+                end_date=buffer_end
             )
 
             if historical_data:
-                old_price = historical_data[-1]['close']  # Oldest record in range
-                old_date = datetime.fromisoformat(historical_data[-1]['trade_date']).date()
+                # Find the record closest to our target date
+                # Data is sorted descending (newest first)
+                closest_record = None
+                min_diff = float('inf')
 
-                # Calculate return percentage
-                return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
+                for record in historical_data:
+                    record_date = datetime.fromisoformat(record['trade_date']).date()
+                    diff = abs((record_date - target_date).days)
+                    if diff < min_diff:
+                        min_diff = diff
+                        closest_record = record
 
-                returns[period_name] = {
-                    'return': round(return_pct, 2) if return_pct is not None else None,
-                    'start_price': round(old_price, 2) if old_price else None,
-                    'end_price': round(latest_price, 2),
-                    'start_date': old_date.isoformat(),
-                    'end_date': latest_date.isoformat(),
-                    'days': (latest_date - old_date).days
-                }
+                if closest_record:
+                    old_price = closest_record['close']
+                    old_date = datetime.fromisoformat(closest_record['trade_date']).date()
+
+                    # Calculate return percentage
+                    return_pct = ((latest_price - old_price) / old_price) * 100 if old_price else None
+
+                    returns[period_name] = {
+                        'return': round(return_pct, 2) if return_pct is not None else None,
+                        'start_price': round(old_price, 2) if old_price else None,
+                        'end_price': round(latest_price, 2),
+                        'start_date': old_date.isoformat(),
+                        'end_date': latest_date.isoformat(),
+                        'days': (latest_date - old_date).days
+                    }
+                else:
+                    returns[period_name] = {
+                        'return': None,
+                        'start_price': None,
+                        'end_price': round(latest_price, 2),
+                        'start_date': None,
+                        'end_date': latest_date.isoformat(),
+                        'days': None,
+                        'note': 'Insufficient historical data'
+                    }
             else:
                 returns[period_name] = {
                     'return': None,
