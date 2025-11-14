@@ -164,11 +164,9 @@ function StockDetail() {
       {returnsData && returnsData.returns && (
         <div className="returns-section">
           <h2>Performance Returns</h2>
-          {returnsData.query_end_date && returnsData.latest_data_date && (
+          {returnsData.as_of_date && (
             <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '15px', padding: '8px', background: '#f3f4f6', borderRadius: '6px' }}>
-              Query up to: {returnsData.query_end_date} | Latest data available: {returnsData.latest_data_date}
-              {returnsData.query_end_date !== returnsData.latest_data_date &&
-                <span style={{ color: '#ef4444', fontWeight: 'bold' }}> ⚠️ Data may be stale</span>}
+              Returns calculated as of: {returnsData.as_of_date} (last data in database)
             </div>
           )}
           <div className="returns-grid">
