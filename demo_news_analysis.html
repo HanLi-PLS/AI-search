@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI News Analysis Feature - Visual Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.2rem;
+        }
+
+        .demo-section {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .demo-section h2 {
+            color: #1e3c72;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .stocks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Stock Card Styles (from actual component) */
+        .stock-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stock-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stock-card.has-news {
+            border: 2px solid #ff6b35;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.2);
+        }
+
+        .stock-card.has-news:hover {
+            box-shadow: 0 8px 16px rgba(255, 107, 53, 0.3);
+        }
+
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .stock-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #1e3c72;
+            line-height: 1.3;
+        }
+
+        .ticker {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .big-mover-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-left: 0.5rem;
+            margin-top: 0.5rem;
+            animation: pulse 2s ease-in-out infinite;
+            box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.85;
+                transform: scale(1.05);
+            }
+        }
+
+        .stock-price-section {
+            margin: 1.5rem 0;
+        }
+
+        .current-price {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .currency {
+            font-size: 1rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .price {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e3c72;
+        }
+
+        .change-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .change-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            min-width: 60px;
+        }
+
+        .price-change {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            font-weight: 600;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            width: fit-content;
+        }
+
+        .price-change.positive {
+            background: rgba(40, 167, 69, 0.1);
+            color: #28a745;
+        }
+
+        .price-change.negative {
+            background: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+
+        .change-value {
+            font-size: 1.1rem;
+        }
+
+        .change-percent {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        /* News Analysis Section */
+        .news-analysis {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.05) 0%, rgba(247, 147, 30, 0.05) 100%);
+            border-left: 4px solid #ff6b35;
+            border-radius: 8px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .news-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            font-weight: 700;
+            color: #ff6b35;
+        }
+
+        .news-icon {
+            font-size: 1.2rem;
+        }
+
+        .news-title {
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .news-content {
+            margin: 0;
+            line-height: 1.6;
+            color: #333;
+            font-size: 0.95rem;
+            text-align: justify;
+        }
+
+        .feature-list {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .feature-list ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .highlight {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 AI-Powered News Analysis</h1>
+        <p class="subtitle">Automatic news analysis for stocks with significant price movements (≥10%)</p>
+
+        <!-- Feature Overview -->
+        <div class="demo-section">
+            <h2>📋 How It Works</h2>
+            <div class="feature-list">
+                <ul>
+                    <li><strong>Automatic Detection:</strong> Monitors all stocks for daily or intraday changes ≥ 10%</li>
+                    <li><strong>AI Analysis:</strong> Uses OpenAI o4-mini with web search to find and analyze recent news</li>
+                    <li><strong>Smart Caching:</strong> Analyzes each stock once per day to minimize API costs</li>
+                    <li><strong>Visual Indicators:</strong> Orange border, pulsing "Big Mover" badge, and news section</li>
+                    <li><strong>Real-time Updates:</strong> Automatically appears when stocks make significant moves</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Visual Comparison -->
+        <div class="demo-section">
+            <h2>📊 Visual Comparison</h2>
+            <div class="stocks-grid">
+                <!-- Normal Stock -->
+                <div class="stock-card">
+                    <div class="stock-header">
+                        <div>
+                            <h3>BeiGene</h3>
+                            <span class="ticker">1801.HK</span>
+                        </div>
+                    </div>
+                    <div class="stock-price-section">
+                        <div class="current-price">
+                            <span class="currency">HKD</span>
+                            <span class="price">150.00</span>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Daily:</span>
+                            <div class="price-change positive">
+                                <span class="change-value">+3.75</span>
+                                <span class="change-percent">(+2.5%)</span>
+                            </div>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Intraday:</span>
+                            <div class="price-change positive">
+                                <span class="change-value">+2.70</span>
+                                <span class="change-percent">(+1.8%)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p style="text-align: center; color: #888; font-style: italic; margin-top: 1rem;">
+                        ↑ Normal stock - no news analysis (changes &lt; 10%)
+                    </p>
+                </div>
+
+                <!-- Big Mover Stock -->
+                <div class="stock-card has-news">
+                    <div class="stock-header">
+                        <div>
+                            <h3>Visen Pharmaceuticals</h3>
+                            <span class="ticker">2561.HK</span>
+                            <span class="big-mover-badge" title="Significant price move (≥10%)">
+                                🔥 Big Mover
+                            </span>
+                        </div>
+                    </div>
+                    <div class="stock-price-section">
+                        <div class="current-price">
+                            <span class="currency">HKD</span>
+                            <span class="price">25.50</span>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Daily:</span>
+                            <div class="price-change positive">
+                                <span class="change-value">+3.38</span>
+                                <span class="change-percent">(+15.3%)</span>
+                            </div>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Intraday:</span>
+                            <div class="price-change positive">
+                                <span class="change-value">+2.68</span>
+                                <span class="change-percent">(+12.1%)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- News Analysis Section -->
+                    <div class="news-analysis">
+                        <div class="news-header">
+                            <span class="news-icon">📰</span>
+                            <span class="news-title">Market Analysis</span>
+                        </div>
+                        <p class="news-content">
+                            Visen Pharmaceuticals surged 15.3% following positive Phase II clinical trial results announced this morning. The company's lead candidate VIS-001 met primary endpoints with a strong safety profile. Market analysts have raised price targets by 20-30% following the announcement, citing strong commercialization potential.
+                        </p>
+                    </div>
+                    <p style="text-align: center; color: #ff6b35; font-weight: 600; margin-top: 1rem;">
+                        ↑ Big mover with AI news analysis (change ≥ 10%)
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Another Example - Negative Move -->
+        <div class="demo-section">
+            <h2>📉 Negative Move Example</h2>
+            <div class="stocks-grid">
+                <div class="stock-card has-news">
+                    <div class="stock-header">
+                        <div>
+                            <h3>Zenas Biopharma</h3>
+                            <span class="ticker">ZBIO</span>
+                            <span class="big-mover-badge" title="Significant price move (≥10%)">
+                                🔥 Big Mover
+                            </span>
+                        </div>
+                    </div>
+                    <div class="stock-price-section">
+                        <div class="current-price">
+                            <span class="currency">USD</span>
+                            <span class="price">22.45</span>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Daily:</span>
+                            <div class="price-change negative">
+                                <span class="change-value">-2.82</span>
+                                <span class="change-percent">(-11.2%)</span>
+                            </div>
+                        </div>
+                        <div class="change-row">
+                            <span class="change-label">Intraday:</span>
+                            <div class="price-change negative">
+                                <span class="change-value">-2.64</span>
+                                <span class="change-percent">(-10.5%)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- News Analysis Section -->
+                    <div class="news-analysis">
+                        <div class="news-header">
+                            <span class="news-icon">📰</span>
+                            <span class="news-title">Market Analysis</span>
+                        </div>
+                        <p class="news-content">
+                            Zenas Biopharma declined 11.2% after the FDA requested additional safety data for its lead psoriasis treatment candidate. The company announced a delay in the regulatory timeline, pushing expected approval to Q3 2025. Analysts noted this is a common regulatory review process and maintains positive long-term outlook.
+                        </p>
+                    </div>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 2rem; border-radius: 12px; display: flex; flex-direction: column; justify-content: center;">
+                    <h3 style="color: #1e3c72; margin-bottom: 1rem;">Detection Logic</h3>
+                    <div class="code-block">
+has_significant_move = (
+    abs(daily_change) >= 10% OR
+    abs(intraday_change) >= 10%
+)
+
+Examples:
+✓ Daily: +15.3% → BIG MOVER
+✓ Daily: -11.2% → BIG MOVER
+✗ Daily: +2.5%  → Normal
+                    </div>
+                    <p style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+                        The system monitors both positive and negative moves. Any absolute change of 10% or more triggers the AI analysis.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Implementation Details -->
+        <div class="demo-section">
+            <h2>🛠️ Implementation Details</h2>
+            <p style="margin-bottom: 1rem;">The feature is fully implemented across the stack:</p>
+
+            <h3 style="color: #1e3c72; margin-top: 1.5rem; margin-bottom: 0.5rem;">Backend Service</h3>
+            <div class="code-block">
+# backend/app/services/stock_news_analysis.py
+
+class StockNewsAnalysisService:
+    def get_news_analysis(self, ticker, name, stock_data):
+        # 1. Check if >= 10% move
+        if not self.has_significant_move(stock_data):
+            return None
+
+        # 2. Check cache (avoid duplicate API calls)
+        if ticker in self.cache:
+            return self.cache[ticker]
+
+        # 3. Use OpenAI o4-mini with web search
+        analysis = self._fetch_news_analysis(ticker, name, stock_data)
+
+        # 4. Cache result for the day
+        self.cache[ticker] = analysis
+        return analysis
+            </div>
+
+            <h3 style="color: #1e3c72; margin-top: 1.5rem; margin-bottom: 0.5rem;">API Integration</h3>
+            <div class="code-block">
+# backend/app/api/routes/stocks.py
+
+# Add news analysis for significant movers
+from backend.app.services.stock_news_analysis import StockNewsAnalysisService
+news_service = StockNewsAnalysisService()
+results = await asyncio.to_thread(news_service.process_stocks, results)
+            </div>
+
+            <h3 style="color: #1e3c72; margin-top: 1.5rem; margin-bottom: 0.5rem;">Frontend Display</h3>
+            <div class="code-block">
+{/* Big Mover Badge */}
+{stock.news_analysis && (
+  &lt;span className="big-mover-badge"&gt;
+    🔥 Big Mover
+  &lt;/span&gt;
+)}
+
+{/* News Analysis Section */}
+{stock.news_analysis && (
+  &lt;div className="news-analysis"&gt;
+    &lt;div className="news-header"&gt;
+      &lt;span className="news-icon"&gt;📰&lt;/span&gt;
+      &lt;span className="news-title"&gt;Market Analysis&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;p className="news-content"&gt;
+      {stock.news_analysis.analysis}
+    &lt;/p&gt;
+  &lt;/div&gt;
+)}
+            </div>
+        </div>
+
+        <!-- Feature Status -->
+        <div class="demo-section" style="background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(40, 167, 69, 0.05) 100%);">
+            <h2>✅ Feature Status: Production Ready</h2>
+            <div class="feature-list">
+                <ul>
+                    <li>Backend service: <span class="highlight">stock_news_analysis.py</span></li>
+                    <li>API integration: <span class="highlight">stocks.py (lines 878-885, 1448-1455)</span></li>
+                    <li>Frontend component: <span class="highlight">StockCard.jsx (lines 49-118)</span></li>
+                    <li>Styling: <span class="highlight">StockCard.css (lines 230-291)</span></li>
+                    <li>Documentation: <span class="highlight">AI_NEWS_ANALYSIS_FEATURE.md</span></li>
+                    <li>Test script: <span class="highlight">test_news_analysis.py</span></li>
+                </ul>
+            </div>
+            <p style="margin-top: 1rem; padding: 1rem; background: white; border-radius: 6px; border-left: 4px solid #28a745;">
+                <strong>💡 To see it live:</strong> Start the backend and frontend, then wait for a stock with ≥10% move. The feature activates automatically with no manual intervention required.
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; color: rgba(255, 255, 255, 0.9); margin-top: 2rem;">
+            <p>This demo shows the actual styling and behavior of the news analysis feature</p>
+            <p style="margin-top: 0.5rem; font-size: 0.9rem;">Branch: claude/evaluate-html-to-react-0115LeSytewibig5d1F1A76B</p>
+        </div>
+    </div>
+</body>
+</html>
