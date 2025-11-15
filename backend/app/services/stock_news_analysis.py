@@ -205,22 +205,22 @@ Provide a concise analysis (2-3 sentences) covering:
 Focus on factual information from credible sources. If no specific news is found, mention that and provide possible general reasons."""
 
         try:
-            # Use o4-mini for web search and analysis
-            logger.info(f"Fetching news analysis for {ticker} ({name}) using o4-mini")
+            # Use o4-mini with web search tool
+            logger.info(f"Fetching news analysis for {ticker} ({name}) using o4-mini with web search")
 
-            response = openai.chat.completions.create(
+            from openai import OpenAI
+            client = OpenAI(api_key=self.openai_api_key)
+
+            response = client.responses.create(
                 model=settings.ONLINE_SEARCH_MODEL,  # o4-mini
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                # o4-mini only supports default temperature (1.0), no custom values
-                max_completion_tokens=500  # o4-mini requires max_completion_tokens instead of max_tokens
+                tools=[{
+                    "type": "web_search",
+                    "search_context_size": "high"
+                }],
+                input=prompt
             )
 
-            analysis_text = response.choices[0].message.content.strip()
+            analysis_text = response.output_text.strip()
 
             result = {
                 "ticker": ticker,
