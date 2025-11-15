@@ -217,7 +217,7 @@ Focus on factual information from credible sources. If no specific news is found
                     }
                 ],
                 temperature=0.3,
-                max_tokens=500
+                max_completion_tokens=500  # o4-mini requires max_completion_tokens instead of max_tokens
             )
 
             analysis_text = response.choices[0].message.content.strip()
