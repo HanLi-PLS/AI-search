@@ -216,7 +216,7 @@ Focus on factual information from credible sources. If no specific news is found
                         "content": prompt
                     }
                 ],
-                temperature=0.3,
+                # o4-mini only supports default temperature (1.0), no custom values
                 max_completion_tokens=500  # o4-mini requires max_completion_tokens instead of max_tokens
             )
 
