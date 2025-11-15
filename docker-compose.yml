@@ -1,0 +1,55 @@
+services:
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ai-search-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+    networks:
+      - ai-search-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-search-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - AWS_REGION=us-west-2
+      - USE_AWS_SECRETS=true
+      - USE_S3_STORAGE=true
+      - AWS_S3_BUCKET=plfs-han-ai-search
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+      - VISION_MODEL=o4-mini
+      - ANSWER_MODEL=gpt-4.1
+      - ANSWER_TEMPERATURE=0
+      - ONLINE_SEARCH_MODEL=o4-mini
+      - MAX_CONCURRENT_VISION_CALLS=10
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+    networks:
+      - ai-search-network
+
+volumes:
+  qdrant_storage:
+    driver: local
+
+networks:
+  ai-search-network:
+    driver: bridge
