@@ -46,11 +46,16 @@ function StockCard({ stock }) {
   }
 
   return (
-    <div className="stock-card">
+    <div className={`stock-card ${stock.news_analysis ? 'has-news' : ''}`}>
       <div className="stock-header">
         <div>
           <h3>{stock.name}</h3>
           <span className="ticker">{stock.ticker}</span>
+          {stock.news_analysis && (
+            <span className="big-mover-badge" title="Significant price move (≥10%)">
+              🔥 Big Mover
+            </span>
+          )}
         </div>
         <button
           className="details-toggle"
@@ -100,6 +105,17 @@ function StockCard({ stock }) {
           </div>
         )}
       </div>
+
+      {/* News Analysis for Big Movers */}
+      {stock.news_analysis && (
+        <div className="news-analysis">
+          <div className="news-header">
+            <span className="news-icon">📰</span>
+            <span className="news-title">Market Analysis</span>
+          </div>
+          <p className="news-content">{stock.news_analysis.analysis}</p>
+        </div>
+      )}
 
       {showDetails && (
         <div className="stock-details">

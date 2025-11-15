@@ -831,7 +831,7 @@ async def get_all_prices(force_refresh: bool = False):
         force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
-        List of stock data for all companies
+        List of stock data for all companies (includes news_analysis for significant movers >= 10%)
     """
     companies = get_hkex_biotech_companies()
 
@@ -873,6 +873,16 @@ async def get_all_prices(force_refresh: bool = False):
     # Fetch all companies in parallel
     logger.info(f"Fetching prices for {len(companies)} companies in parallel")
     results = await asyncio.gather(*[fetch_company_data(company) for company in companies])
+
+    # Add news analysis for stocks with significant moves (>= 10%)
+    try:
+        from backend.app.services.stock_news_analysis import StockNewsAnalysisService
+        news_service = StockNewsAnalysisService()
+        results = await asyncio.to_thread(news_service.process_stocks, list(results))
+        logger.info(f"Processed {len(results)} stocks for news analysis")
+    except Exception as e:
+        logger.error(f"Error adding news analysis: {str(e)}")
+        # Continue without news analysis if it fails
 
     return list(results)
 
@@ -1426,13 +1436,23 @@ async def get_portfolio_companies(force_refresh: bool = False):
         force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
-        List of portfolio companies with current prices and performance
+        List of portfolio companies with current prices and performance (includes news_analysis for significant movers >= 10%)
     """
     from backend.app.services.portfolio import PortfolioService
 
     try:
         service = PortfolioService()
         companies = service.get_portfolio_companies(use_cache=(not force_refresh))
+
+        # Add news analysis for stocks with significant moves (>= 10%)
+        try:
+            from backend.app.services.stock_news_analysis import StockNewsAnalysisService
+            news_service = StockNewsAnalysisService()
+            companies = await asyncio.to_thread(news_service.process_stocks, companies)
+            logger.info(f"Processed {len(companies)} portfolio companies for news analysis")
+        except Exception as e:
+            logger.error(f"Error adding news analysis to portfolio companies: {str(e)}")
+            # Continue without news analysis if it fails
 
         return {
             "success": True,
