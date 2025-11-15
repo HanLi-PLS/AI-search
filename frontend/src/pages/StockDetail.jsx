@@ -214,8 +214,16 @@ function StockDetail() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tick={{ fontSize: 11 }}
+                tickFormatter={(dateStr) => {
+                  // Parse the ISO date string properly
+                  const date = new Date(dateStr);
+                  const month = date.toLocaleDateString('en-US', { month: 'short' });
+                  const day = date.getDate();
+                  return `${month} ${day}`;
+                }}
+                interval="preserveStartEnd"
+                minTickGap={30}
               />
               <YAxis
                 yAxisId="left"
@@ -231,11 +239,15 @@ function StockDetail() {
               />
               <Tooltip
                 formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
-                labelFormatter={(date) => new Date(date).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}
+                labelFormatter={(dateStr) => {
+                  const date = new Date(dateStr);
+                  return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    weekday: 'short'
+                  });
+                }}
               />
               <Legend />
 

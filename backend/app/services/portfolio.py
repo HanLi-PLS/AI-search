@@ -257,6 +257,20 @@ class PortfolioService:
                     if result['change_percent'] is None and result['current_price'] and result['previous_close']:
                         result['change_percent'] = (result['change'] / result['previous_close']) * 100
 
+                    # Calculate intraday change (close vs open) from DB if available
+                    # This ensures consistency with the main stock tracker
+                    try:
+                        from backend.app.api.routes.stocks import calculate_daily_change_from_db
+                        result = calculate_daily_change_from_db(company['ticker'], result)
+                    except Exception as e:
+                        logger.warning(f"Could not calculate DB-based changes for {company['ticker']}: {str(e)}")
+                        # Fallback: calculate intraday from current data if available
+                        if result.get('current_price') and result.get('open'):
+                            intraday_change = result['current_price'] - result['open']
+                            intraday_change_percent = (intraday_change / result['open'] * 100) if result['open'] != 0 else 0
+                            result['intraday_change'] = intraday_change
+                            result['intraday_change_percent'] = intraday_change_percent
+
                     results.append(result)
                 else:
                     # Add company with error state
