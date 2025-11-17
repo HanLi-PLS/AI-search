@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus } from '../services/api';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { parseMarkdownToHTML, formatFileSize, formatDate } from '../utils/markdown';
 import './AISearch.css';
 
 function AISearch() {
+  const navigate = useNavigate();
   const {
     conversations,
     currentConversationId,
@@ -339,6 +341,9 @@ function AISearch() {
 
       <main className="main-content">
         <header className="header">
+          <button className="back-home-button" onClick={() => navigate('/')}>
+            ← Back to Home
+          </button>
           <h1>🔍 AI Document Search</h1>
           <p className="subtitle">Upload documents and search with AI-powered semantic search</p>
         </header>

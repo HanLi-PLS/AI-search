@@ -16,7 +16,7 @@ function Home() {
       <div className="features-section">
         <div className="feature-card highlight">
           <h2>🔍 AI Document Search</h2>
-          <p>Search your biotech documents using advanced RAG and GPT-4</p>
+          <p>Search your documents using advanced RAG and AI models</p>
           <button
             className="tracker-button"
             onClick={() => navigate('/ai-search')}
