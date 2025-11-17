@@ -147,10 +147,10 @@ class IPODataService:
         """
         global _ipo_cache
 
-        # Default S3 key if not provided - fallback to CSV if HTML fails
+        # Default S3 key if not provided - prefer HTML report
         if s3_key is None:
-            # Try HTML first, fallback to CSV if it fails
-            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
+            # Use latest HTML report by default
+            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_report_20251116_222848.html"
 
         # Check cache if enabled
         if use_cache and _ipo_cache['data'] is not None and _ipo_cache['s3_key'] == s3_key:
