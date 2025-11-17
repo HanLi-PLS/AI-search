@@ -546,10 +546,16 @@
   padding: 2rem;
   max-height: 80vh;
   overflow: auto;
+  color: #333; /* Ensure dark text for readability */
 }
 
-/* Remove all color/style overrides to preserve original HTML styling */
-/* The HTML file has embedded <style> tags with green theme that should show through */
+/* Ensure table content is visible with dark text */
+.ipo-html-container td {
+  color: #333;
+}
+
+/* Preserve the original HTML's green theme for headers */
+/* All other styling comes from the embedded <style> in the HTML file */
 
 .ipo-table {
   width: 100%;
