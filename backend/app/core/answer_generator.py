@@ -23,7 +23,7 @@ class AnswerGenerator:
         else:
             logger.warning("AnswerGenerator: No API key provided!")
 
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, timeout=None)  # No timeout for long-running models like gpt-5-pro
         self.model = settings.ANSWER_MODEL  # Use gpt-4.1 for answer generation
         self.online_search_model = settings.ONLINE_SEARCH_MODEL  # Use o4-mini for online search
         self.temperature = settings.ANSWER_TEMPERATURE
@@ -138,8 +138,7 @@ Now classify the user's query."""
             response = self.client.responses.create(
                 model=search_model,
                 tools=[{
-                    "type": "web_search_preview",
-                    "search_context_size": "high",
+                    "type": "web_search",
                 }],
                 input=f"{prompt}"
             )
