@@ -527,9 +527,10 @@ section h2 {
 
 .params-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 12px;
     margin-top: 8px;
+    overflow-x: auto;
 }
 
 .param-item {
@@ -540,6 +541,8 @@ section h2 {
     border-radius: 6px;
     border: 1px solid #E0F2FE;
     font-size: 0.85rem;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .param-item strong {
