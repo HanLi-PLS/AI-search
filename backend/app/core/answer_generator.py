@@ -189,7 +189,7 @@ Now classify the user's query."""
             query: User's question
             search_results: List of search results with content and metadata
             search_mode: "files_only", "online_only", "both", or "sequential_analysis"
-            reasoning_mode: "non_reasoning" (gpt-4.1), "reasoning" (o4-mini), or "deep_research" (o3-deep-research)
+            reasoning_mode: "non_reasoning" (gpt-4.1), "reasoning" (o4-mini), "reasoning_gpt5" (gpt-5-pro), or "deep_research" (o3-deep-research)
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             conversation_history: Previous conversation turns for context
             max_context_length: Maximum characters to include in context
@@ -203,6 +203,8 @@ Now classify the user's query."""
         # Select model based on reasoning mode
         if reasoning_mode == "reasoning":
             search_model = "o4-mini"
+        elif reasoning_mode == "reasoning_gpt5":
+            search_model = "gpt-5-pro"
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:  # non_reasoning
