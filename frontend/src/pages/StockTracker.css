@@ -537,6 +537,7 @@
 }
 
 /* HTML Content Container for IPO Reports */
+/* Keep only layout/spacing rules, let HTML's embedded styles handle colors */
 .ipo-html-container {
   background: white;
   border-radius: 12px;
@@ -545,51 +546,10 @@
   padding: 2rem;
   max-height: 80vh;
   overflow: auto;
-  color: #1f2937;
 }
 
-.ipo-html-container table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1rem 0;
-}
-
-.ipo-html-container th,
-.ipo-html-container td {
-  padding: 0.75rem;
-  text-align: left;
-  border: 1px solid #e5e7eb;
-}
-
-.ipo-html-container th {
-  background: #f3f4f6;
-  font-weight: 600;
-  color: #374151;
-}
-
-.ipo-html-container a {
-  color: #3b82f6;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.ipo-html-container a:hover {
-  color: #2563eb;
-  text-decoration: underline;
-}
-
-.ipo-html-container h1,
-.ipo-html-container h2,
-.ipo-html-container h3 {
-  color: #1f2937;
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.ipo-html-container p {
-  margin-bottom: 1rem;
-  line-height: 1.6;
-}
+/* Remove all color/style overrides to preserve original HTML styling */
+/* The HTML file has embedded <style> tags with green theme that should show through */
 
 .ipo-table {
   width: 100%;
