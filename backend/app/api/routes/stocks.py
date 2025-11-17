@@ -1086,7 +1086,8 @@ async def get_upcoming_ipos(use_latest: bool = True):
         # Get the latest file or use default
         if use_latest:
             try:
-                s3_key = service.get_latest_ipo_file()
+                # Prefer CSV files over HTML for now until HTML loading issue is resolved
+                s3_key = service.get_latest_ipo_file(prefer_html=False)
             except Exception as e:
                 logger.warning(f"Could not find latest file, using default: {str(e)}")
                 s3_key = None
