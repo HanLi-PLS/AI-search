@@ -165,7 +165,7 @@
 
 /* IPO Section */
 .ipo-section {
-  max-width: 1400px;
+  max-width: 95%; /* Use most of the screen width for HTML reports */
   margin: 0 auto 2rem;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 12px;
@@ -537,16 +537,19 @@
 }
 
 /* HTML Content Container for IPO Reports */
-/* Keep only layout/spacing rules, let HTML's embedded styles handle colors */
+/* Maximize space usage for the HTML report */
 .ipo-html-container {
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-top: 1.5rem;
-  padding: 2rem;
-  max-height: 80vh;
+  padding: 1.5rem;
+  max-height: none; /* Remove height constraint to use full page */
+  min-height: 70vh; /* Ensure decent minimum height */
   overflow: auto;
   color: #333; /* Ensure dark text for readability */
+  width: 100%; /* Use full available width */
+  max-width: 100%; /* No width constraint */
 }
 
 /* Ensure table content is visible with dark text */
