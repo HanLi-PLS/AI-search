@@ -57,6 +57,9 @@ function StockTracker() {
           console.log(`[IPO Sorting] Table ${tableIndex} has ${headers.length} headers`);
 
           headers.forEach((header, columnIndex) => {
+            // Remove any existing onclick attributes from the original HTML
+            header.removeAttribute('onclick');
+
             // Make header sortable
             header.style.cursor = 'pointer';
             header.style.userSelect = 'none';
