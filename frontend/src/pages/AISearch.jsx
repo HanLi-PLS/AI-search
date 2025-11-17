@@ -257,7 +257,14 @@ function AISearch() {
           online_search_response: result.online_search_response || null,
           selected_mode: result.selected_mode || null,
           mode_reasoning: result.mode_reasoning || null,
-          results: result.results || []
+          results: result.results || [],
+          // Add search parameters for display
+          search_params: {
+            top_k: topK,
+            search_mode: searchMode,
+            reasoning_mode: reasoningMode,
+            priority_order: priorityOrder
+          }
         };
         const updated = [...conversationHistory, newTurn];
         setConversationHistory(updated);
@@ -506,6 +513,28 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                       <div className="collapse-hint clickable" onClick={() => toggleAnswer(index)}>
                         ▼ Click to collapse
                       </div>
+                      {turn.search_params && (
+                        <div className="search-params-box">
+                          <strong>Search Settings:</strong>
+                          <div className="params-row">
+                            <span className="param-item">📊 Results: <strong>{turn.search_params.top_k}</strong></span>
+                            <span className="param-item">🔍 Mode: <strong>{turn.search_params.search_mode === 'auto' ? 'Intelligent (Auto-select)' :
+                              turn.search_params.search_mode === 'files_only' ? 'Files Only' :
+                              turn.search_params.search_mode === 'online_only' ? 'Online Only' :
+                              turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
+                              turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
+                              turn.search_params.search_mode}</strong></span>
+                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Non-Reasoning (gpt-4.1)' :
+                              turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (o4-mini)' :
+                              turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
+                              turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
+                              turn.search_params.reasoning_mode}</strong></span>
+                            {turn.search_params.search_mode === 'both' && (
+                              <span className="param-item">📌 Priority: <strong>{turn.search_params.priority_order === 'online_first' ? 'Online First' : 'Files First'}</strong></span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {turn.selected_mode && turn.mode_reasoning && (
                         <div className="mode-selection-box">
                           <strong>Mode:</strong> <span className="mode-badge">{turn.selected_mode}</span>
