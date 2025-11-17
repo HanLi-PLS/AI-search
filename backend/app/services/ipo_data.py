@@ -147,10 +147,10 @@ class IPODataService:
         """
         global _ipo_cache
 
-        # Default S3 key if not provided - now prefer HTML over CSV
+        # Default S3 key if not provided - fallback to CSV if HTML fails
         if s3_key is None:
-            # Use latest HTML report
-            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_report_20251116_222848.html"
+            # Try HTML first, fallback to CSV if it fails
+            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
 
         # Check cache if enabled
         if use_cache and _ipo_cache['data'] is not None and _ipo_cache['s3_key'] == s3_key:
@@ -215,12 +215,13 @@ class IPODataService:
                 "data": []
             }
 
-    def get_latest_ipo_file(self, prefix: str = "public_company_tracker/hkex_ipo_tracker/") -> str:
+    def get_latest_ipo_file(self, prefix: str = "public_company_tracker/hkex_ipo_tracker/", prefer_html: bool = True) -> str:
         """
         Find the latest IPO tracker file in S3
 
         Args:
             prefix: S3 prefix to search in
+            prefer_html: If True, prefer HTML files over CSV/Excel files
 
         Returns:
             S3 key of the latest file
@@ -234,12 +235,30 @@ class IPODataService:
             if 'Contents' not in response or len(response['Contents']) == 0:
                 raise FileNotFoundError(f"No files found in s3://{self.bucket_name}/{prefix}")
 
-            # Sort by last modified date, get the most recent
-            files = sorted(response['Contents'], key=lambda x: x['LastModified'], reverse=True)
-            latest_file = files[0]['Key']
+            # Filter files based on preference
+            files = response['Contents']
 
-            logger.info(f"Found latest IPO tracker file: {latest_file}")
-            return latest_file
+            if prefer_html:
+                # First try to find HTML files
+                html_files = [f for f in files if f['Key'].lower().endswith('.html')]
+                if html_files:
+                    html_files = sorted(html_files, key=lambda x: x['LastModified'], reverse=True)
+                    latest_file = html_files[0]['Key']
+                    logger.info(f"Found latest HTML IPO tracker file: {latest_file}")
+                    return latest_file
+                else:
+                    logger.warning("No HTML files found, falling back to CSV/Excel")
+
+            # Fallback to CSV/Excel files
+            data_files = [f for f in files if f['Key'].lower().endswith(('.csv', '.xlsx', '.xls'))]
+            if data_files:
+                data_files = sorted(data_files, key=lambda x: x['LastModified'], reverse=True)
+                latest_file = data_files[0]['Key']
+                logger.info(f"Found latest data IPO tracker file: {latest_file}")
+                return latest_file
+
+            # If nothing found, return default
+            raise FileNotFoundError(f"No suitable files found in {prefix}")
 
         except Exception as e:
             logger.error(f"Error finding latest IPO file: {str(e)}")
