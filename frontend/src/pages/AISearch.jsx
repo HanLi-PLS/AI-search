@@ -421,7 +421,7 @@ function AISearch() {
             {searchMode !== 'files_only' && (
               <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
                   <option value="non_reasoning">Non-Reasoning (gpt-4.1)</option><option value="reasoning">Reasoning (o4-mini)</option>
-                  <option value="reasoning_gpt5">Reasoning (chatgpt-4o-latest)</option>
+                  <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
                   <option value="deep_research">Deep Research (o3-deep-research)</option>
                 </select></label>
             )}

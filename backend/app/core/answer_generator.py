@@ -204,7 +204,7 @@ Now classify the user's query."""
         if reasoning_mode == "reasoning":
             search_model = "o4-mini"
         elif reasoning_mode == "reasoning_gpt5":
-            search_model = "chatgpt-4o-latest"  # Use latest GPT-4o model
+            search_model = "gpt-5-pro"
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:  # non_reasoning
