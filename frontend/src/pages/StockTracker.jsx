@@ -36,118 +36,6 @@ function StockTracker() {
     fetchPortfolioCompanies();
   }, []);
 
-  // Add table sorting functionality to injected HTML content
-  useEffect(() => {
-    if (ipoHtmlContent && ipoFormat === 'html') {
-      console.log('[IPO Sorting] Attaching table sorting functionality');
-
-      // Use setTimeout to ensure DOM is fully rendered
-      const timeoutId = setTimeout(() => {
-        const tables = document.querySelectorAll('.ipo-html-container table');
-        console.log(`[IPO Sorting] Found ${tables.length} table(s)`);
-
-        tables.forEach((table, tableIndex) => {
-          const thead = table.querySelector('thead');
-          if (!thead) {
-            console.log(`[IPO Sorting] Table ${tableIndex} has no thead, skipping`);
-            return;
-          }
-
-          const headers = thead.querySelectorAll('th');
-          console.log(`[IPO Sorting] Table ${tableIndex} has ${headers.length} headers`);
-
-          headers.forEach((header, columnIndex) => {
-            // Remove any existing onclick attributes from the original HTML
-            header.removeAttribute('onclick');
-
-            // Make header sortable
-            header.style.cursor = 'pointer';
-            header.style.userSelect = 'none';
-            header.classList.add('sortable');
-
-            // Add sort indicator if not already present
-            if (!header.querySelector('.sort-indicator')) {
-              const indicator = document.createElement('span');
-              indicator.className = 'sort-indicator';
-              indicator.textContent = ' ↕';
-              indicator.style.opacity = '0.5';
-              header.appendChild(indicator);
-            }
-
-            // Add click event for sorting
-            header.onclick = function() {
-              console.log(`[IPO Sorting] Clicked header ${columnIndex} in table ${tableIndex}`);
-
-              const tbody = table.querySelector('tbody');
-              if (!tbody) {
-                console.log('[IPO Sorting] No tbody found');
-                return;
-              }
-
-              const rows = Array.from(tbody.querySelectorAll('tr'));
-              console.log(`[IPO Sorting] Found ${rows.length} rows to sort`);
-
-              // Determine sort direction
-              const currentDirection = header.getAttribute('data-sort-direction');
-              const isAscending = currentDirection !== 'asc';
-
-              // Clear all sort indicators in this table
-              headers.forEach(th => {
-                th.removeAttribute('data-sort-direction');
-                const ind = th.querySelector('.sort-indicator');
-                if (ind) {
-                  ind.textContent = ' ↕';
-                  ind.style.opacity = '0.5';
-                }
-              });
-
-              // Update current header's sort indicator
-              const indicator = header.querySelector('.sort-indicator');
-              if (indicator) {
-                indicator.textContent = isAscending ? ' ↑' : ' ↓';
-                indicator.style.opacity = '1';
-              }
-              header.setAttribute('data-sort-direction', isAscending ? 'asc' : 'desc');
-
-              // Sort rows
-              rows.sort((a, b) => {
-                const aCell = a.querySelectorAll('td')[columnIndex];
-                const bCell = b.querySelectorAll('td')[columnIndex];
-
-                if (!aCell || !bCell) return 0;
-
-                const aText = aCell.textContent.trim();
-                const bText = bCell.textContent.trim();
-
-                // Try to parse as numbers
-                const aNum = parseFloat(aText.replace(/[,%]/g, ''));
-                const bNum = parseFloat(bText.replace(/[,%]/g, ''));
-
-                if (!isNaN(aNum) && !isNaN(bNum)) {
-                  return isAscending ? aNum - bNum : bNum - aNum;
-                }
-
-                // Sort as strings
-                return isAscending
-                  ? aText.localeCompare(bText)
-                  : bText.localeCompare(aText);
-              });
-
-              // Re-append sorted rows
-              rows.forEach(row => tbody.appendChild(row));
-
-              console.log(`[IPO Sorting] Sorted column ${columnIndex} in ${isAscending ? 'ascending' : 'descending'} order`);
-            };
-          });
-
-          console.log(`[IPO Sorting] Successfully attached sorting to table ${tableIndex}`);
-        });
-      }, 100); // Small delay to ensure DOM is ready
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [ipoHtmlContent, ipoFormat]);
-
   const fetchStockData = async (forceRefresh = false) => {
     try {
       const hasCachedData = stockData.length > 0;
@@ -610,8 +498,121 @@ function StockTracker() {
 
             if (ipoFormat === 'html' && ipoHtmlContent) {
               console.log('[IPO RENDER] Showing HTML content');
+
+              // Create a ref callback to attach sorting after DOM is rendered
+              const attachSortingHandlers = (containerElement) => {
+                if (!containerElement) return;
+
+                console.log('[IPO Sorting] Container element ready, attaching handlers');
+
+                // Small delay to ensure innerHTML is processed
+                setTimeout(() => {
+                  const tables = containerElement.querySelectorAll('table');
+                  console.log(`[IPO Sorting] Found ${tables.length} table(s) in container`);
+
+                  tables.forEach((table, tableIndex) => {
+                    const thead = table.querySelector('thead');
+                    if (!thead) {
+                      console.log(`[IPO Sorting] Table ${tableIndex} has no thead, skipping`);
+                      return;
+                    }
+
+                    const headers = thead.querySelectorAll('th');
+                    console.log(`[IPO Sorting] Table ${tableIndex} has ${headers.length} headers`);
+
+                    headers.forEach((header, columnIndex) => {
+                      // Remove any existing onclick attributes
+                      header.removeAttribute('onclick');
+
+                      // Make header sortable
+                      header.style.cursor = 'pointer';
+                      header.style.userSelect = 'none';
+                      header.classList.add('sortable');
+
+                      // Add sort indicator if not already present
+                      if (!header.querySelector('.sort-indicator')) {
+                        const indicator = document.createElement('span');
+                        indicator.className = 'sort-indicator';
+                        indicator.textContent = ' ↕';
+                        indicator.style.opacity = '0.5';
+                        header.appendChild(indicator);
+                      }
+
+                      // Add click event for sorting
+                      header.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log(`[IPO Sorting] Clicked header ${columnIndex} in table ${tableIndex}`);
+
+                        const tbody = table.querySelector('tbody');
+                        if (!tbody) {
+                          console.log('[IPO Sorting] No tbody found');
+                          return;
+                        }
+
+                        const rows = Array.from(tbody.querySelectorAll('tr'));
+                        console.log(`[IPO Sorting] Found ${rows.length} rows to sort`);
+
+                        // Determine sort direction
+                        const currentDirection = header.getAttribute('data-sort-direction');
+                        const isAscending = currentDirection !== 'asc';
+
+                        // Clear all sort indicators in this table
+                        headers.forEach(th => {
+                          th.removeAttribute('data-sort-direction');
+                          const ind = th.querySelector('.sort-indicator');
+                          if (ind) {
+                            ind.textContent = ' ↕';
+                            ind.style.opacity = '0.5';
+                          }
+                        });
+
+                        // Update current header's sort indicator
+                        const indicator = header.querySelector('.sort-indicator');
+                        if (indicator) {
+                          indicator.textContent = isAscending ? ' ↑' : ' ↓';
+                          indicator.style.opacity = '1';
+                        }
+                        header.setAttribute('data-sort-direction', isAscending ? 'asc' : 'desc');
+
+                        // Sort rows
+                        rows.sort((a, b) => {
+                          const aCell = a.querySelectorAll('td')[columnIndex];
+                          const bCell = b.querySelectorAll('td')[columnIndex];
+
+                          if (!aCell || !bCell) return 0;
+
+                          const aText = aCell.textContent.trim();
+                          const bText = bCell.textContent.trim();
+
+                          // Try to parse as numbers
+                          const aNum = parseFloat(aText.replace(/[,%]/g, ''));
+                          const bNum = parseFloat(bText.replace(/[,%]/g, ''));
+
+                          if (!isNaN(aNum) && !isNaN(bNum)) {
+                            return isAscending ? aNum - bNum : bNum - aNum;
+                          }
+
+                          // Sort as strings
+                          return isAscending
+                            ? aText.localeCompare(bText)
+                            : bText.localeCompare(aText);
+                        });
+
+                        // Re-append sorted rows
+                        rows.forEach(row => tbody.appendChild(row));
+
+                        console.log(`[IPO Sorting] Sorted column ${columnIndex} in ${isAscending ? 'ascending' : 'descending'} order`);
+                      };
+                    });
+
+                    console.log(`[IPO Sorting] Successfully attached sorting to table ${tableIndex}`);
+                  });
+                }, 150);
+              };
+
               return (
-                <div className="ipo-html-container">
+                <div className="ipo-html-container" ref={attachSortingHandlers}>
                   <div dangerouslySetInnerHTML={{ __html: ipoHtmlContent }} />
                 </div>
               );
