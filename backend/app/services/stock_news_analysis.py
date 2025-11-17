@@ -150,17 +150,31 @@ class StockNewsAnalysisService:
         if not self.has_significant_move(stock_data):
             return None
 
+        # Get trade date from stock data (fallback to today if not available)
+        trade_date_str = stock_data.get('trade_date')
+        if trade_date_str:
+            # Handle both string and datetime formats
+            if isinstance(trade_date_str, str):
+                # Extract just the date part if it's ISO format with time
+                trade_date_str = trade_date_str.split('T')[0]
+        else:
+            trade_date_str = date.today().isoformat()
+            logger.warning(f"No trade_date found for {ticker}, using today: {trade_date_str}")
+
+        # Use ticker + trade_date as cache key to handle same ticker on different dates
+        cache_key = f"{ticker}_{trade_date_str}"
+
         # Check cache first
-        if ticker in self.cache:
-            logger.info(f"Using cached news analysis for {ticker}")
-            return self.cache[ticker]
+        if cache_key in self.cache:
+            logger.info(f"Using cached news analysis for {ticker} on {trade_date_str}")
+            return self.cache[cache_key]
 
         # Fetch news analysis using OpenAI o4-mini
         try:
-            analysis = self._fetch_news_analysis(ticker, name, stock_data)
+            analysis = self._fetch_news_analysis(ticker, name, stock_data, trade_date_str)
 
-            # Cache the result
-            self.cache[ticker] = analysis
+            # Cache the result with trade_date in key
+            self.cache[cache_key] = analysis
             self._save_cache()
 
             return analysis
@@ -168,7 +182,7 @@ class StockNewsAnalysisService:
             logger.error(f"Error fetching news analysis for {ticker}: {str(e)}")
             return None
 
-    def _fetch_news_analysis(self, ticker: str, name: str, stock_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _fetch_news_analysis(self, ticker: str, name: str, stock_data: Dict[str, Any], trade_date_str: str) -> Dict[str, Any]:
         """
         Fetch news analysis using OpenAI o4-mini with web search
 
@@ -176,6 +190,7 @@ class StockNewsAnalysisService:
             ticker: Stock ticker
             name: Company name
             stock_data: Stock data dictionary
+            trade_date_str: The actual date of the price movement (YYYY-MM-DD)
 
         Returns:
             Dictionary with analysis results
@@ -185,24 +200,37 @@ class StockNewsAnalysisService:
         current_price = stock_data.get('current_price', 0)
         currency = stock_data.get('currency', 'HKD')
 
-        # Construct prompt for o4-mini
-        prompt = f"""Search for the latest news and information about {name} (ticker: {ticker}) and analyze the reason for its significant price movement today.
+        # Parse trade date to create a search window
+        try:
+            from datetime import timedelta
+            trade_date = datetime.fromisoformat(trade_date_str).date()
+            # Search for news from 2 days before to the trade date
+            search_start = trade_date - timedelta(days=2)
+            search_end = trade_date
+
+            date_context = f"on {trade_date.strftime('%B %d, %Y')} (search news from {search_start.strftime('%B %d')} to {search_end.strftime('%B %d, %Y')})"
+        except:
+            # Fallback if date parsing fails
+            date_context = f"on {trade_date_str}"
+
+        # Construct prompt for o4-mini with specific date context
+        prompt = f"""Search for news and information about {name} (ticker: {ticker}) to analyze the reason for its significant price movement {date_context}.
 
 Stock Information:
 - Company: {name}
 - Ticker: {ticker}
-- Current Price: {currency} {current_price:.2f}
+- Price on {trade_date_str}: {currency} {current_price:.2f}
 - Daily Change: {daily_change:+.2f}%
 - Intraday Change: {intraday_change:+.2f}%
 
-Please search for recent news, press releases, regulatory filings, or other relevant information that might explain this significant price movement.
+Please search for news, press releases, regulatory filings, or other relevant information from around {date_context} that might explain this significant price movement.
 
 Provide a concise analysis (2-3 sentences) covering:
 1. What triggered this price movement (specific news, events, or announcements)
 2. Key details about the trigger (e.g., clinical trial results, regulatory approval, financial results)
 3. Market sentiment or analyst reactions if available
 
-Focus on factual information from credible sources. If no specific news is found, mention that and provide possible general reasons."""
+Focus on factual information from credible sources from the specified time period. If no specific news is found from that period, mention that and provide possible general reasons."""
 
         try:
             # Use o4-mini with web search tool
@@ -229,7 +257,7 @@ Focus on factual information from credible sources. If no specific news is found
                 "daily_change": daily_change,
                 "intraday_change": intraday_change,
                 "timestamp": datetime.now().isoformat(),
-                "date": self.today.isoformat()
+                "date": trade_date_str  # Use actual trade date, not today
             }
 
             logger.info(f"Successfully fetched news analysis for {ticker}")

@@ -105,6 +105,7 @@ def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> D
             stock_data['change_percent'] = change_percent
             stock_data['intraday_change'] = intraday_change
             stock_data['intraday_change_percent'] = intraday_change_percent
+            stock_data['trade_date'] = latest['trade_date']  # Include actual trade date
 
             logger.info(f"Updated {ticker} - Daily: {change_percent:.2f}%, Intraday: {intraday_change_percent:.2f}%")
         else:
