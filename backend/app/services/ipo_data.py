@@ -34,6 +34,30 @@ class IPODataService:
         self.s3_client = boto3.client('s3', region_name=region)
         logger.info(f"IPO Data Service initialized with bucket: {bucket_name}")
 
+    def read_html_from_s3(self, s3_key: str) -> str:
+        """
+        Read HTML file from S3 and return as string
+
+        Args:
+            s3_key: S3 object key (e.g., "public_company_tracker/hkex_ipo_tracker/hkex_ipo_report_20251116_222848.html")
+
+        Returns:
+            HTML content as string
+        """
+        try:
+            logger.info(f"Reading HTML from s3://{self.bucket_name}/{s3_key}")
+
+            # Download file from S3
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+            html_content = response['Body'].read().decode('utf-8')
+
+            logger.info(f"Successfully read HTML file ({len(html_content)} characters)")
+            return html_content
+
+        except Exception as e:
+            logger.error(f"Error reading HTML from S3: {str(e)}")
+            raise
+
     def read_ipo_tracker_from_s3(self, s3_key: str) -> pd.DataFrame:
         """
         Read CSV or Excel file from S3 and return as DataFrame
@@ -112,6 +136,7 @@ class IPODataService:
     def get_ipo_tracker_data(self, s3_key: str = None, use_cache: bool = True) -> Dict[str, Any]:
         """
         Get IPO tracker data from S3 with caching
+        Supports both HTML and CSV/Excel formats
 
         Args:
             s3_key: S3 object key (optional, uses default if not provided)
@@ -122,10 +147,10 @@ class IPODataService:
         """
         global _ipo_cache
 
-        # Default S3 key if not provided - prefer CSV over Excel
+        # Default S3 key if not provided - now prefer HTML over CSV
         if s3_key is None:
-            # Use latest uploaded CSV file
-            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_2025_v20251113.csv"
+            # Use latest HTML report
+            s3_key = "public_company_tracker/hkex_ipo_tracker/hkex_ipo_report_20251116_222848.html"
 
         # Check cache if enabled
         if use_cache and _ipo_cache['data'] is not None and _ipo_cache['s3_key'] == s3_key:
@@ -139,29 +164,43 @@ class IPODataService:
         logger.info(f"Cache miss or expired, fetching fresh data from S3")
 
         try:
-            # Read data from S3
-            df = self.read_ipo_tracker_from_s3(s3_key)
+            # Check if file is HTML or CSV/Excel
+            if s3_key.lower().endswith('.html'):
+                # Read HTML content directly
+                html_content = self.read_html_from_s3(s3_key)
 
-            # Process the data
-            records = self.process_ipo_data(df)
+                result = {
+                    "success": True,
+                    "format": "html",
+                    "html_content": html_content,
+                    "source": f"s3://{self.bucket_name}/{s3_key}",
+                    "last_updated": datetime.now().isoformat()
+                }
+            else:
+                # Read data from S3 (CSV/Excel)
+                df = self.read_ipo_tracker_from_s3(s3_key)
 
-            # Get column names for frontend reference
-            columns = df.columns.tolist()
+                # Process the data
+                records = self.process_ipo_data(df)
 
-            result = {
-                "success": True,
-                "count": len(records),
-                "columns": columns,
-                "data": records,
-                "source": f"s3://{self.bucket_name}/{s3_key}",
-                "last_updated": datetime.now().isoformat()
-            }
+                # Get column names for frontend reference
+                columns = df.columns.tolist()
+
+                result = {
+                    "success": True,
+                    "format": "table",
+                    "count": len(records),
+                    "columns": columns,
+                    "data": records,
+                    "source": f"s3://{self.bucket_name}/{s3_key}",
+                    "last_updated": datetime.now().isoformat()
+                }
 
             # Update cache
             _ipo_cache['data'] = result.copy()
             _ipo_cache['timestamp'] = datetime.now()
             _ipo_cache['s3_key'] = s3_key
-            logger.info(f"Cached {len(records)} IPO records")
+            logger.info(f"Cached IPO data from {s3_key}")
 
             return result
 
@@ -170,6 +209,7 @@ class IPODataService:
             return {
                 "success": False,
                 "error": str(e),
+                "format": "table",
                 "count": 0,
                 "columns": [],
                 "data": []

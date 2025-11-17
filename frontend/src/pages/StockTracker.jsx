@@ -17,6 +17,8 @@ function StockTracker() {
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
   const [ipoColumns, setIpoColumns] = useState([]);
   const [ipoMetadata, setIpoMetadata] = useState(null);
+  const [ipoHtmlContent, setIpoHtmlContent] = useState(null);
+  const [ipoFormat, setIpoFormat] = useState('table'); // 'table' or 'html'
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [historyStats, setHistoryStats] = useState(null);
@@ -66,21 +68,35 @@ function StockTracker() {
       const response = await stockAPI.getUpcomingIPOs();
       console.log('[IPO] Response:', response);
 
-      if (response.success && response.data) {
-        setUpcomingIPOs(response.data);
-        setIpoColumns(response.columns || []);
-        setIpoMetadata({
-          count: response.count,
-          source: response.source,
-          last_updated: response.last_updated
-        });
+      if (response.success) {
+        setIpoFormat(response.format || 'table');
+
+        if (response.format === 'html') {
+          // Handle HTML content
+          setIpoHtmlContent(response.html_content);
+          setIpoMetadata({
+            source: response.source,
+            last_updated: response.last_updated
+          });
+        } else {
+          // Handle table data (CSV/Excel)
+          setUpcomingIPOs(response.data || []);
+          setIpoColumns(response.columns || []);
+          setIpoMetadata({
+            count: response.count,
+            source: response.source,
+            last_updated: response.last_updated
+          });
+        }
       } else {
         console.error('[IPO] Failed to load IPO data:', response.error);
         setUpcomingIPOs([]);
+        setIpoHtmlContent(null);
       }
     } catch (err) {
       console.error('Error fetching upcoming IPOs:', err);
       setUpcomingIPOs([]);
+      setIpoHtmlContent(null);
     }
   };
 
@@ -443,9 +459,11 @@ function StockTracker() {
             <p>Public company tracker for HKEX listings</p>
             {ipoMetadata && (
               <div className="ipo-metadata">
-                <span className="metadata-item">
-                  📊 {ipoMetadata.count} companies tracked
-                </span>
+                {ipoMetadata.count && (
+                  <span className="metadata-item">
+                    📊 {ipoMetadata.count} companies tracked
+                  </span>
+                )}
                 {ipoMetadata.last_updated && (
                   <span className="metadata-item">
                     🕒 Updated: {new Date(ipoMetadata.last_updated).toLocaleString()}
@@ -455,7 +473,11 @@ function StockTracker() {
             )}
           </div>
 
-          {upcomingIPOs && upcomingIPOs.length > 0 ? (
+          {ipoFormat === 'html' && ipoHtmlContent ? (
+            <div className="ipo-html-container">
+              <div dangerouslySetInnerHTML={{ __html: ipoHtmlContent }} />
+            </div>
+          ) : ipoFormat === 'table' && upcomingIPOs && upcomingIPOs.length > 0 ? (
             <div className="ipo-table-container">
               <table className="ipo-table">
                 <thead>
