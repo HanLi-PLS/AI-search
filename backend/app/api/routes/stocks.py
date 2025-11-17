@@ -136,12 +136,14 @@ def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> D
     return stock_data
 
 
-async def add_news_analysis_to_stock(stock_data: Dict[str, Any]) -> Dict[str, Any]:
+async def add_news_analysis_to_stock(stock_data: Dict[str, Any], force_refresh: bool = False, general_news: bool = False) -> Dict[str, Any]:
     """
-    Add AI news analysis to a stock if it has significant price movement (>= 10%)
+    Add AI news analysis to a stock
 
     Args:
         stock_data: Stock data dictionary
+        force_refresh: If True, bypass cache and fetch new analysis
+        general_news: If True, search for general news regardless of price movement
 
     Returns:
         Updated stock_data with news_analysis field if applicable
@@ -150,11 +152,24 @@ async def add_news_analysis_to_stock(stock_data: Dict[str, Any]) -> Dict[str, An
         from backend.app.services.stock_news_analysis import StockNewsAnalysisService
         news_service = StockNewsAnalysisService()
 
-        # Process single stock (returns list with one item)
-        result = await asyncio.to_thread(news_service.process_stocks, [stock_data])
+        ticker = stock_data.get('ticker')
+        name = stock_data.get('name')
 
-        if result and len(result) > 0:
-            return result[0]
+        if not ticker or not name:
+            return stock_data
+
+        # Get news analysis with options
+        analysis = news_service.get_news_analysis(
+            ticker=ticker,
+            name=name,
+            stock_data=stock_data,
+            force_refresh=force_refresh,
+            general_news=general_news
+        )
+
+        if analysis:
+            stock_data['news_analysis'] = analysis
+
         return stock_data
 
     except Exception as e:
@@ -972,17 +987,20 @@ async def get_price(ticker: str):
 
 
 @router.get("/stocks/price/{ticker}/news-analysis")
-async def get_news_analysis(ticker: str):
+async def get_news_analysis(ticker: str, force_refresh: bool = False, general_news: bool = False):
     """
-    Get AI-powered news analysis for a specific stock with significant price movement
+    Get AI-powered news analysis for a specific stock
+
     This endpoint is called separately from the main price endpoint to allow
     the page to load quickly while the AI analysis is fetched in the background
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK", "ZBIO")
+        force_refresh: If True, bypass cache and fetch new analysis (default: False)
+        general_news: If True, search for general news in past week regardless of price move (default: False)
 
     Returns:
-        News analysis object if stock has >= 10% move, otherwise null
+        News analysis object
     """
     # First, check if it's a portfolio company
     from backend.app.services.portfolio import PortfolioService, PORTFOLIO_COMPANIES
@@ -1009,8 +1027,12 @@ async def get_news_analysis(ticker: str):
         # Calculate daily change from database (last 2 records)
         stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
-        # Get news analysis only
-        stock_data_with_analysis = await add_news_analysis_to_stock(stock_data)
+        # Get news analysis with force_refresh and general_news options
+        stock_data_with_analysis = await add_news_analysis_to_stock(
+            stock_data,
+            force_refresh=force_refresh,
+            general_news=general_news
+        )
 
         return {
             "news_analysis": stock_data_with_analysis.get("news_analysis")
@@ -1033,8 +1055,12 @@ async def get_news_analysis(ticker: str):
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
-    # Get news analysis only
-    stock_data_with_analysis = await add_news_analysis_to_stock(stock_data)
+    # Get news analysis with force_refresh and general_news options
+    stock_data_with_analysis = await add_news_analysis_to_stock(
+        stock_data,
+        force_refresh=force_refresh,
+        general_news=general_news
+    )
 
     return {
         "news_analysis": stock_data_with_analysis.get("news_analysis")

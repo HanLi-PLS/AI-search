@@ -134,18 +134,24 @@ class StockNewsAnalysisService:
 
         return daily_change >= 10 or intraday_change >= 10
 
-    def get_news_analysis(self, ticker: str, name: str, stock_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def get_news_analysis(self, ticker: str, name: str, stock_data: Dict[str, Any], force_refresh: bool = False, general_news: bool = False) -> Optional[Dict[str, Any]]:
         """
-        Get news analysis for a stock with significant price movement
+        Get news analysis for a stock
 
         Args:
             ticker: Stock ticker (e.g., "1801.HK")
             name: Company name
             stock_data: Stock data dictionary
+            force_refresh: If True, bypass cache and fetch fresh analysis
+            general_news: If True, search for general news regardless of price movement
 
         Returns:
-            Dictionary with news analysis or None if not a significant move
+            Dictionary with news analysis or None
         """
+        # If general_news is requested, use different logic
+        if general_news:
+            return self._fetch_general_news(ticker, name, stock_data)
+
         # Check if significant move
         if not self.has_significant_move(stock_data):
             return None
@@ -164,13 +170,16 @@ class StockNewsAnalysisService:
         # Use ticker + trade_date as cache key to handle same ticker on different dates
         cache_key = f"{ticker}_{trade_date_str}"
 
-        # Check cache first
-        if cache_key in self.cache:
+        # Check cache first (unless force_refresh is True)
+        if not force_refresh and cache_key in self.cache:
             logger.info(f"Using cached news analysis for {ticker} on {trade_date_str}")
             return self.cache[cache_key]
 
         # Fetch news analysis using OpenAI o4-mini
         try:
+            if force_refresh:
+                logger.info(f"Force refreshing news analysis for {ticker} (bypassing cache)")
+
             analysis = self._fetch_news_analysis(ticker, name, stock_data, trade_date_str)
 
             # Cache the result with trade_date in key
@@ -266,6 +275,74 @@ Focus on factual information from credible sources from the specified time perio
         except Exception as e:
             logger.error(f"Error calling OpenAI API for {ticker}: {str(e)}")
             raise
+
+    def _fetch_general_news(self, ticker: str, name: str, stock_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Fetch general news for a stock in the past week (not related to price movement)
+
+        Args:
+            ticker: Stock ticker
+            name: Company name
+            stock_data: Stock data dictionary
+
+        Returns:
+            Dictionary with news summary or None
+        """
+        from datetime import timedelta
+
+        # Get current date
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+
+        # Construct prompt for general news search
+        prompt = f"""Search for the latest news and updates about {name} (ticker: {ticker}) from the past week ({week_ago.strftime('%B %d')} to {today.strftime('%B %d, %Y')}).
+
+Company: {name}
+Ticker: {ticker}
+
+Please search for:
+- Recent press releases or announcements
+- Regulatory filings or updates
+- Clinical trial news or research developments
+- Business developments or partnerships
+- Any other significant company updates
+
+Provide a brief summary (2-3 sentences) of the most relevant news from the past week. If no significant news is found, please state that there are no major updates for this period."""
+
+        try:
+            logger.info(f"Fetching general news for {ticker} ({name}) using o4-mini with web search")
+
+            from openai import OpenAI
+            client = OpenAI(api_key=self.openai_api_key)
+
+            response = client.responses.create(
+                model=settings.ONLINE_SEARCH_MODEL,  # o4-mini
+                tools=[{
+                    "type": "web_search",
+                    "search_context_size": "high"
+                }],
+                input=prompt
+            )
+
+            analysis_text = response.output_text.strip()
+
+            result = {
+                "ticker": ticker,
+                "name": name,
+                "analysis": analysis_text,
+                "daily_change": stock_data.get('change_percent', 0),
+                "intraday_change": stock_data.get('intraday_change_percent', 0),
+                "timestamp": datetime.now().isoformat(),
+                "date": today.isoformat(),
+                "type": "general_news"  # Mark as general news
+            }
+
+            logger.info(f"Successfully fetched general news for {ticker}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error calling OpenAI API for general news on {ticker}: {str(e)}")
+            return None
 
     def process_stocks(self, stocks: list) -> list:
         """

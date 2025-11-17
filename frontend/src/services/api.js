@@ -111,8 +111,13 @@ export const stockAPI = {
   },
 
   // Get AI news analysis for a specific stock (async loading)
-  getNewsAnalysis: async (ticker) => {
-    const response = await api.get(`/api/stocks/price/${ticker}/news-analysis`);
+  getNewsAnalysis: async (ticker, forceRefresh = false, generalNews = false) => {
+    const response = await api.get(`/api/stocks/price/${ticker}/news-analysis`, {
+      params: {
+        force_refresh: forceRefresh,
+        general_news: generalNews
+      }
+    });
     return response.data;
   },
 };

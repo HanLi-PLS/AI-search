@@ -75,21 +75,26 @@ function StockDetail() {
     }
   };
 
-  const fetchNewsAnalysis = async () => {
+  const fetchNewsAnalysis = async (forceRefresh = false, generalNews = false) => {
     try {
       setNewsLoading(true);
-      setNewsAnalysis(null);
+      if (forceRefresh || generalNews) {
+        // Don't clear existing analysis when force refreshing, just show loading
+      } else {
+        setNewsAnalysis(null);
+      }
 
-      console.log(`[StockDetail] Fetching news analysis for ${ticker}`);
+      console.log(`[StockDetail] Fetching news analysis for ${ticker}`, { forceRefresh, generalNews });
 
       // Fetch news analysis from separate endpoint
-      const response = await stockAPI.getNewsAnalysis(ticker);
+      const response = await stockAPI.getNewsAnalysis(ticker, forceRefresh, generalNews);
 
       if (response.news_analysis) {
         setNewsAnalysis(response.news_analysis);
         console.log('[StockDetail] News analysis loaded:', response.news_analysis);
       } else {
         console.log('[StockDetail] No news analysis available for this stock');
+        setNewsAnalysis(null);
       }
     } catch (err) {
       console.warn('[StockDetail] Could not fetch news analysis:', err);
@@ -97,6 +102,16 @@ function StockDetail() {
     } finally {
       setNewsLoading(false);
     }
+  };
+
+  // Handler for refreshing analysis (force bypass cache)
+  const handleRefreshAnalysis = () => {
+    fetchNewsAnalysis(true, false);
+  };
+
+  // Handler for checking general news (for non-big movers)
+  const handleCheckGeneralNews = () => {
+    fetchNewsAnalysis(false, true);
   };
 
   const formatPrice = (price) => {
@@ -220,38 +235,52 @@ function StockDetail() {
         )}
       </div>
 
-      {/* AI News Analysis Section - Only for big movers (>= 10%) */}
-      {(newsLoading || newsAnalysis) && (
-        <div className="news-analysis-section">
-          <div className="news-header-detail" onClick={() => !newsLoading && setNewsExpanded(!newsExpanded)}>
-            <div className="news-title-row">
-              <span className="news-icon">📰</span>
-              <h2>AI Market Analysis</h2>
-              {newsAnalysis && <span className="big-mover-badge-detail">🔥 Big Mover</span>}
-            </div>
-            {!newsLoading && (
-              <button className="expand-button" aria-label={newsExpanded ? "Collapse" : "Expand"}>
-                {newsExpanded ? '−' : '+'}
-              </button>
+      {/* AI News Analysis Section */}
+      <div className="news-analysis-section">
+        <div className="news-header-detail" onClick={() => !newsLoading && newsAnalysis && setNewsExpanded(!newsExpanded)}>
+          <div className="news-title-row">
+            <span className="news-icon">📰</span>
+            <h2>AI Market Analysis</h2>
+            {newsAnalysis && newsAnalysis.type !== 'general_news' && (
+              <span className="big-mover-badge-detail">🔥 Big Mover</span>
             )}
           </div>
-          {newsLoading ? (
-            <div className="news-loading">
-              <div className="spinner"></div>
-              <p>Analyzing market data and news...</p>
-            </div>
-          ) : newsExpanded && newsAnalysis ? (
-            <div className="news-content-detail">
-              <p>{newsAnalysis.analysis}</p>
-              <div className="news-meta">
-                <span className="news-timestamp">
-                  Updated: {new Date(newsAnalysis.timestamp).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          ) : null}
+          {!newsLoading && newsAnalysis && (
+            <button className="expand-button" aria-label={newsExpanded ? "Collapse" : "Expand"}>
+              {newsExpanded ? '−' : '+'}
+            </button>
+          )}
         </div>
-      )}
+        {newsLoading ? (
+          <div className="news-loading">
+            <div className="spinner"></div>
+            <p>Analyzing market data and news...</p>
+          </div>
+        ) : newsAnalysis ? (
+          <>
+            {newsExpanded && (
+              <div className="news-content-detail">
+                <p>{newsAnalysis.analysis}</p>
+                <div className="news-meta">
+                  <span className="news-timestamp">
+                    Updated: {new Date(newsAnalysis.timestamp).toLocaleString()}
+                  </span>
+                  <button className="refresh-analysis-button" onClick={handleRefreshAnalysis}>
+                    🔄 Refresh Analysis
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="news-no-analysis">
+            <p>No AI analysis available yet. Click below to check for latest news.</p>
+            <button className="check-news-button" onClick={handleCheckGeneralNews}>
+              📰 Check Latest News (Past Week)
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Returns Section */}
       {returnsData && returnsData.returns && (
