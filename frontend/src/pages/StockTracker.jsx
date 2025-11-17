@@ -36,6 +36,99 @@ function StockTracker() {
     fetchPortfolioCompanies();
   }, []);
 
+  // Add table sorting functionality to injected HTML content
+  useEffect(() => {
+    if (ipoHtmlContent && ipoFormat === 'html') {
+      console.log('[IPO Sorting] Attaching table sorting functionality');
+
+      // Add sorting functionality to all tables in the HTML content
+      const tables = document.querySelectorAll('.ipo-html-container table');
+
+      tables.forEach((table) => {
+        const headers = table.querySelectorAll('th');
+
+        headers.forEach((header, columnIndex) => {
+          // Make header sortable
+          header.style.cursor = 'pointer';
+          header.style.userSelect = 'none';
+          header.classList.add('sortable');
+
+          // Add sort indicator
+          if (!header.querySelector('.sort-indicator')) {
+            const indicator = document.createElement('span');
+            indicator.className = 'sort-indicator';
+            indicator.textContent = ' ↕';
+            indicator.style.opacity = '0.5';
+            header.appendChild(indicator);
+          }
+
+          // Remove existing click listeners to avoid duplicates
+          const newHeader = header.cloneNode(true);
+          header.parentNode.replaceChild(newHeader, header);
+
+          // Add click event for sorting
+          newHeader.addEventListener('click', () => {
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            // Determine sort direction
+            const currentDirection = newHeader.getAttribute('data-sort-direction');
+            const isAscending = currentDirection !== 'asc';
+
+            // Clear all sort indicators in this table
+            table.querySelectorAll('th').forEach(th => {
+              th.removeAttribute('data-sort-direction');
+              const ind = th.querySelector('.sort-indicator');
+              if (ind) {
+                ind.textContent = ' ↕';
+                ind.style.opacity = '0.5';
+              }
+            });
+
+            // Update current header's sort indicator
+            const indicator = newHeader.querySelector('.sort-indicator');
+            if (indicator) {
+              indicator.textContent = isAscending ? ' ↑' : ' ↓';
+              indicator.style.opacity = '1';
+            }
+            newHeader.setAttribute('data-sort-direction', isAscending ? 'asc' : 'desc');
+
+            // Sort rows
+            rows.sort((a, b) => {
+              const aCell = a.querySelectorAll('td')[columnIndex];
+              const bCell = b.querySelectorAll('td')[columnIndex];
+
+              if (!aCell || !bCell) return 0;
+
+              const aText = aCell.textContent.trim();
+              const bText = bCell.textContent.trim();
+
+              // Try to parse as numbers
+              const aNum = parseFloat(aText.replace(/[,%]/g, ''));
+              const bNum = parseFloat(bText.replace(/[,%]/g, ''));
+
+              if (!isNaN(aNum) && !isNaN(bNum)) {
+                return isAscending ? aNum - bNum : bNum - aNum;
+              }
+
+              // Sort as strings
+              return isAscending
+                ? aText.localeCompare(bText)
+                : bText.localeCompare(aText);
+            });
+
+            // Re-append sorted rows
+            rows.forEach(row => tbody.appendChild(row));
+
+            console.log(`[IPO Sorting] Sorted column ${columnIndex} in ${isAscending ? 'ascending' : 'descending'} order`);
+          });
+        });
+      });
+
+      console.log(`[IPO Sorting] Added sorting to ${tables.length} table(s)`);
+    }
+  }, [ipoHtmlContent, ipoFormat]);
+
   const fetchStockData = async (forceRefresh = false) => {
     try {
       const hasCachedData = stockData.length > 0;

@@ -557,6 +557,23 @@
   color: #333;
 }
 
+/* Table sorting enhancements */
+.ipo-html-container th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.ipo-html-container th.sortable:hover {
+  background-color: #45a049 !important;
+}
+
+.ipo-html-container .sort-indicator {
+  margin-left: 4px;
+  font-size: 0.9em;
+}
+
 /* Preserve the original HTML's green theme for headers */
 /* All other styling comes from the embedded <style> in the HTML file */
 
