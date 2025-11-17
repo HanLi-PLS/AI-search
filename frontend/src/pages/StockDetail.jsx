@@ -18,16 +18,33 @@ function StockDetail() {
   const [newsAnalysis, setNewsAnalysis] = useState(null);
   const [newsLoading, setNewsLoading] = useState(true);
 
+  // Reset news state when ticker changes (but not when timeRange changes)
+  useEffect(() => {
+    setNewsAnalysis(null);
+    setNewsLoading(true);
+  }, [ticker]);
+
   useEffect(() => {
     fetchStockDetails();
   }, [ticker, timeRange]);
 
-  // Fetch news analysis separately after initial load
+  // Only auto-fetch news analysis for big movers (>=10% change)
+  // For others, user must click "Check Latest News" button
   useEffect(() => {
-    if (ticker) {
-      fetchNewsAnalysis();
+    if (stockData && ticker) {
+      const dailyChange = Math.abs(stockData.change_percent || 0);
+      const intradayChange = Math.abs(stockData.intraday_change_percent || 0);
+      const isBigMover = dailyChange >= 10 || intradayChange >= 10;
+
+      if (isBigMover) {
+        console.log(`[StockDetail] Big mover detected (${Math.max(dailyChange, intradayChange).toFixed(2)}%), auto-fetching news analysis`);
+        fetchNewsAnalysis();
+      } else {
+        console.log(`[StockDetail] Not a big mover (${Math.max(dailyChange, intradayChange).toFixed(2)}%), skipping auto news fetch`);
+        setNewsLoading(false); // Stop loading spinner
+      }
     }
-  }, [ticker]);
+  }, [stockData?.ticker]); // Only trigger when we have new stock data
 
   const fetchStockDetails = async () => {
     try {
