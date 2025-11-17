@@ -123,12 +123,91 @@ function StockDetail() {
 
   // Handler for refreshing analysis (force bypass cache)
   const handleRefreshAnalysis = () => {
-    fetchNewsAnalysis(true, false);
+    if (newsAnalysis && newsAnalysis.type === 'general_news') {
+      // For general news, fetch new general news
+      fetchNewsAnalysis(false, true);
+    } else {
+      // For big mover analysis, force refresh with same prompt
+      fetchNewsAnalysis(true, false);
+    }
   };
 
   // Handler for checking general news (for non-big movers)
   const handleCheckGeneralNews = () => {
     fetchNewsAnalysis(false, true);
+  };
+
+  // Helper function to render analysis text with clickable links
+  const renderAnalysisWithLinks = (text) => {
+    if (!text) return null;
+
+    // URL regex pattern that matches http://, https://, and www. URLs
+    const urlPattern = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/g;
+
+    // Split text by URLs
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlPattern.exec(text)) !== null) {
+      // Add text before URL
+      if (match.index > lastIndex) {
+        parts.push({
+          type: 'text',
+          content: text.substring(lastIndex, match.index)
+        });
+      }
+
+      // Add URL
+      let url = match[0];
+      // Ensure URL has protocol
+      if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+
+      parts.push({
+        type: 'link',
+        content: match[0],
+        url: url
+      });
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push({
+        type: 'text',
+        content: text.substring(lastIndex)
+      });
+    }
+
+    // If no URLs found, return plain text
+    if (parts.length === 0) {
+      return <p>{text}</p>;
+    }
+
+    // Render parts with links
+    return (
+      <p>
+        {parts.map((part, index) => {
+          if (part.type === 'link') {
+            return (
+              <a
+                key={index}
+                href={part.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="analysis-link"
+              >
+                {part.content}
+              </a>
+            );
+          }
+          return <span key={index}>{part.content}</span>;
+        })}
+      </p>
+    );
   };
 
   const formatPrice = (price) => {
@@ -277,7 +356,7 @@ function StockDetail() {
           <>
             {newsExpanded && (
               <div className="news-content-detail">
-                <p>{newsAnalysis.analysis}</p>
+                {renderAnalysisWithLinks(newsAnalysis.analysis)}
                 <div className="news-meta">
                   <span className="news-timestamp">
                     Updated: {new Date(newsAnalysis.timestamp).toLocaleString()}
@@ -286,6 +365,14 @@ function StockDetail() {
                     🔄 Refresh Analysis
                   </button>
                 </div>
+              </div>
+            )}
+            {/* Always show "Check Latest News" button below the analysis if it's general news */}
+            {!newsExpanded && newsAnalysis.type === 'general_news' && (
+              <div className="news-collapsed-action">
+                <button className="check-news-button-small" onClick={handleCheckGeneralNews}>
+                  🔄 Refresh Latest News
+                </button>
               </div>
             )}
           </>

@@ -428,6 +428,25 @@
   text-align: justify;
 }
 
+/* Clickable links in analysis text */
+.analysis-link {
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 1px solid #3b82f6;
+  transition: all 0.2s ease;
+  word-break: break-all;
+}
+
+.analysis-link:hover {
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+  background-color: #eff6ff;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 4px;
+}
+
 .news-meta {
   padding-top: 20px;
   border-top: 1px solid #e5e7eb;
@@ -498,6 +517,37 @@
 }
 
 .check-news-button:active {
+  transform: translateY(0);
+}
+
+/* Collapsed action container */
+.news-collapsed-action {
+  padding: 15px 30px;
+  text-align: center;
+  background: linear-gradient(to bottom, #fff9f5 0%, #ffffff 100%);
+  border-top: 1px solid #e5e7eb;
+}
+
+.check-news-button-small {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+}
+
+.check-news-button-small:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(79, 70, 229, 0.3);
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+}
+
+.check-news-button-small:active {
   transform: translateY(0);
 }
 
