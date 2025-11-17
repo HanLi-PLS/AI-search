@@ -1,17 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { stockAPI } from '../services/api';
 import StockCard from '../components/StockCard';
 import './StockTracker.css';
 
 function StockTracker() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('hkex'); // 'hkex', 'portfolio', 'ipo'
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name', 'price', 'change'
+  // Initialize sortBy from URL params, default to 'name'
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'name');
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
   const [ipoColumns, setIpoColumns] = useState([]);
   const [ipoMetadata, setIpoMetadata] = useState(null);
@@ -138,6 +140,12 @@ function StockTracker() {
       setPortfolioLoading(false);
       setPortfolioRefreshing(false);
     }
+  };
+
+  // Handle sort change and persist to URL
+  const handleSortChange = (newSortValue) => {
+    setSortBy(newSortValue);
+    setSearchParams({ sort: newSortValue });
   };
 
   // Helper function to render cell values with clickable links
@@ -294,7 +302,7 @@ function StockTracker() {
               <label>Sort by:</label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => handleSortChange(e.target.value)}
                 className="sort-select"
               >
                 <option value="name">Company Name</option>

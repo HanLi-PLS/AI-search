@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import './StockCard.css';
 
 function StockCard({ stock }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [showDetails, setShowDetails] = useState(false);
 
   const formatNumber = (num) => {
@@ -158,7 +159,13 @@ function StockCard({ stock }) {
         </span>
         <button
           className="view-details-button"
-          onClick={() => navigate(`/stock-tracker/${stock.ticker}`)}
+          onClick={() => {
+            // Preserve current sort parameter when navigating to detail page
+            const sortParam = searchParams.get('sort');
+            navigate(`/stock-tracker/${stock.ticker}`, {
+              state: { returnSort: sortParam }
+            });
+          }}
         >
           View Full Details →
         </button>

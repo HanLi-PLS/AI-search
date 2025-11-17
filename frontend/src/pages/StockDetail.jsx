@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, Label } from 'recharts';
 import { stockAPI } from '../services/api';
 import './StockDetail.css';
@@ -7,6 +7,7 @@ import './StockDetail.css';
 function StockDetail() {
   const { ticker } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [stockData, setStockData] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [returnsData, setReturnsData] = useState(null);
@@ -114,6 +115,16 @@ function StockDetail() {
     return value >= 0 ? 'positive' : 'negative';
   };
 
+  // Handle back navigation with preserved sort parameter
+  const handleBackToTracker = () => {
+    const returnSort = location.state?.returnSort;
+    if (returnSort) {
+      navigate(`/stock-tracker?sort=${returnSort}`);
+    } else {
+      navigate('/stock-tracker');
+    }
+  };
+
   if (loading) {
     return (
       <div className="stock-detail-container">
@@ -130,7 +141,7 @@ function StockDetail() {
       <div className="stock-detail-container">
         <div className="error-container">
           <p className="error-message">{error || 'Stock not found'}</p>
-          <button onClick={() => navigate('/stock-tracker')} className="back-button">
+          <button onClick={handleBackToTracker} className="back-button">
             ← Back to Stock Tracker
           </button>
         </div>
@@ -141,7 +152,7 @@ function StockDetail() {
   return (
     <div className="stock-detail-container">
       <header className="detail-header">
-        <button className="back-button" onClick={() => navigate('/stock-tracker')}>
+        <button className="back-button" onClick={handleBackToTracker}>
           ← Back to Stock Tracker
         </button>
       </header>
