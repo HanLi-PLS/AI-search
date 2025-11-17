@@ -23,7 +23,7 @@ class AnswerGenerator:
         else:
             logger.warning("AnswerGenerator: No API key provided!")
 
-        self.client = OpenAI(api_key=api_key, timeout=None)  # No timeout for long-running models like gpt-5-pro
+        self.client = OpenAI(api_key=api_key)
         self.model = settings.ANSWER_MODEL  # Use gpt-4.1 for answer generation
         self.online_search_model = settings.ONLINE_SEARCH_MODEL  # Use o4-mini for online search
         self.temperature = settings.ANSWER_TEMPERATURE
@@ -123,7 +123,7 @@ Now classify the user's query."""
 
     def answer_online_search(self, prompt: str, model: Optional[str] = None) -> str:
         """
-        Perform online search using OpenAI's web_search_preview tool
+        Perform online search using OpenAI's web_search tool
 
         Args:
             prompt: Search query/prompt
