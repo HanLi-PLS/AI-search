@@ -191,7 +191,17 @@ function StockTracker() {
         if (response.format === 'html') {
           // Handle HTML content
           console.log('[IPO] HTML content length:', response.html_content?.length);
-          setIpoHtmlContent(response.html_content);
+
+          // Strip out onclick attributes from the HTML to prevent conflicts
+          // The original HTML has onclick="sortTable(...)" which references a function that doesn't exist
+          let cleanedHtml = response.html_content;
+          if (cleanedHtml) {
+            cleanedHtml = cleanedHtml.replace(/\s+onclick="[^"]*"/gi, '');
+            cleanedHtml = cleanedHtml.replace(/\s+onclick='[^']*'/gi, '');
+            console.log('[IPO] Removed onclick attributes from HTML');
+          }
+
+          setIpoHtmlContent(cleanedHtml);
           setIpoMetadata({
             source: response.source,
             last_updated: response.last_updated
