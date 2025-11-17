@@ -592,6 +592,17 @@ function StockTracker() {
                           const aText = aCell.textContent.trim();
                           const bText = bCell.textContent.trim();
 
+                          // Try to parse as dates first
+                          // Check if it looks like a date (contains -, /, or common date patterns)
+                          const datePattern = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}|^\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{1,2},?\s+\d{4}/;
+                          if (datePattern.test(aText) && datePattern.test(bText)) {
+                            const aDate = new Date(aText);
+                            const bDate = new Date(bText);
+                            if (!isNaN(aDate.getTime()) && !isNaN(bDate.getTime())) {
+                              return isAscending ? aDate - bDate : bDate - aDate;
+                            }
+                          }
+
                           // Try to parse as numbers
                           const aNum = parseFloat(aText.replace(/[,%]/g, ''));
                           const bNum = parseFloat(bText.replace(/[,%]/g, ''));
