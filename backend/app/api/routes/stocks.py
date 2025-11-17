@@ -135,6 +135,32 @@ def calculate_daily_change_from_db(ticker: str, stock_data: Dict[str, Any]) -> D
     return stock_data
 
 
+async def add_news_analysis_to_stock(stock_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Add AI news analysis to a stock if it has significant price movement (>= 10%)
+
+    Args:
+        stock_data: Stock data dictionary
+
+    Returns:
+        Updated stock_data with news_analysis field if applicable
+    """
+    try:
+        from backend.app.services.stock_news_analysis import StockNewsAnalysisService
+        news_service = StockNewsAnalysisService()
+
+        # Process single stock (returns list with one item)
+        result = await asyncio.to_thread(news_service.process_stocks, [stock_data])
+
+        if result and len(result) > 0:
+            return result[0]
+        return stock_data
+
+    except Exception as e:
+        logger.error(f"Error adding news analysis to {stock_data.get('ticker', 'unknown')}: {str(e)}")
+        return stock_data
+
+
 # No demo/fallback data - return None if real sources fail
 
 # HKEX 18A Biotech Companies - Fallback list if web scraping fails
@@ -874,16 +900,8 @@ async def get_all_prices(force_refresh: bool = False):
     logger.info(f"Fetching prices for {len(companies)} companies in parallel")
     results = await asyncio.gather(*[fetch_company_data(company) for company in companies])
 
-    # Add news analysis for stocks with significant moves (>= 10%)
-    try:
-        from backend.app.services.stock_news_analysis import StockNewsAnalysisService
-        news_service = StockNewsAnalysisService()
-        results = await asyncio.to_thread(news_service.process_stocks, list(results))
-        logger.info(f"Processed {len(results)} stocks for news analysis")
-    except Exception as e:
-        logger.error(f"Error adding news analysis: {str(e)}")
-        # Continue without news analysis if it fails
-
+    # Note: News analysis removed from landing page for performance
+    # It's now only fetched on individual stock detail pages
     return list(results)
 
 
@@ -924,6 +942,9 @@ async def get_price(ticker: str):
         # Calculate daily change from database (last 2 records)
         stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
+        # Add news analysis for big movers (>= 10%)
+        stock_data = await add_news_analysis_to_stock(stock_data)
+
         return stock_data
 
     # If not portfolio company, check HKEX biotech companies
@@ -942,6 +963,9 @@ async def get_price(ticker: str):
 
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
+    # Add news analysis for big movers (>= 10%)
+    stock_data = await add_news_analysis_to_stock(stock_data)
 
     return stock_data
 
@@ -1444,15 +1468,8 @@ async def get_portfolio_companies(force_refresh: bool = False):
         service = PortfolioService()
         companies = service.get_portfolio_companies(use_cache=(not force_refresh))
 
-        # Add news analysis for stocks with significant moves (>= 10%)
-        try:
-            from backend.app.services.stock_news_analysis import StockNewsAnalysisService
-            news_service = StockNewsAnalysisService()
-            companies = await asyncio.to_thread(news_service.process_stocks, companies)
-            logger.info(f"Processed {len(companies)} portfolio companies for news analysis")
-        except Exception as e:
-            logger.error(f"Error adding news analysis to portfolio companies: {str(e)}")
-            # Continue without news analysis if it fails
+        # Note: News analysis removed from portfolio page for performance
+        # It's now only fetched on individual stock detail pages
 
         return {
             "success": True,

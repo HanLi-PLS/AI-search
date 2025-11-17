@@ -13,6 +13,7 @@ function StockDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('1M'); // 1W, 1M, 3M, 6M, 1Y
+  const [newsExpanded, setNewsExpanded] = useState(true); // Expanded by default
 
   useEffect(() => {
     fetchStockDetails();
@@ -174,6 +175,32 @@ function StockDetail() {
           </div>
         )}
       </div>
+
+      {/* AI News Analysis Section - Only for big movers (>= 10%) */}
+      {stockData.news_analysis && (
+        <div className="news-analysis-section">
+          <div className="news-header-detail" onClick={() => setNewsExpanded(!newsExpanded)}>
+            <div className="news-title-row">
+              <span className="news-icon">📰</span>
+              <h2>AI Market Analysis</h2>
+              <span className="big-mover-badge-detail">🔥 Big Mover</span>
+            </div>
+            <button className="expand-button" aria-label={newsExpanded ? "Collapse" : "Expand"}>
+              {newsExpanded ? '−' : '+'}
+            </button>
+          </div>
+          {newsExpanded && (
+            <div className="news-content-detail">
+              <p>{stockData.news_analysis.analysis}</p>
+              <div className="news-meta">
+                <span className="news-timestamp">
+                  Updated: {new Date(stockData.news_analysis.timestamp).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Returns Section */}
       {returnsData && returnsData.returns && (
