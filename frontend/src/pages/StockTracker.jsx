@@ -65,21 +65,29 @@ function StockTracker() {
 
   const fetchUpcomingIPOs = async () => {
     try {
+      console.log('[IPO] Fetching IPO data...');
       const response = await stockAPI.getUpcomingIPOs();
-      console.log('[IPO] Response:', response);
+      console.log('[IPO] Response received:', response);
+      console.log('[IPO] Response format:', response.format);
+      console.log('[IPO] Response success:', response.success);
 
       if (response.success) {
-        setIpoFormat(response.format || 'table');
+        const format = response.format || 'table';
+        console.log('[IPO] Setting format to:', format);
+        setIpoFormat(format);
 
         if (response.format === 'html') {
           // Handle HTML content
+          console.log('[IPO] HTML content length:', response.html_content?.length);
           setIpoHtmlContent(response.html_content);
           setIpoMetadata({
             source: response.source,
             last_updated: response.last_updated
           });
+          console.log('[IPO] HTML content set successfully');
         } else {
           // Handle table data (CSV/Excel)
+          console.log('[IPO] Table data rows:', response.data?.length);
           setUpcomingIPOs(response.data || []);
           setIpoColumns(response.columns || []);
           setIpoMetadata({
@@ -87,6 +95,7 @@ function StockTracker() {
             source: response.source,
             last_updated: response.last_updated
           });
+          console.log('[IPO] Table data set successfully');
         }
       } else {
         console.error('[IPO] Failed to load IPO data:', response.error);
@@ -95,6 +104,7 @@ function StockTracker() {
       }
     } catch (err) {
       console.error('Error fetching upcoming IPOs:', err);
+      console.error('Error details:', err.message, err.stack);
       setUpcomingIPOs([]);
       setIpoHtmlContent(null);
     }
@@ -473,39 +483,52 @@ function StockTracker() {
             )}
           </div>
 
-          {ipoFormat === 'html' && ipoHtmlContent ? (
-            <div className="ipo-html-container">
-              <div dangerouslySetInnerHTML={{ __html: ipoHtmlContent }} />
-            </div>
-          ) : ipoFormat === 'table' && upcomingIPOs && upcomingIPOs.length > 0 ? (
-            <div className="ipo-table-container">
-              <table className="ipo-table">
-                <thead>
-                  <tr>
-                    {ipoColumns.map((col, index) => (
-                      <th key={index}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {upcomingIPOs.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {ipoColumns.map((col, colIndex) => (
-                        <td key={colIndex}>
-                          {renderCellValue(row[col], col)}
-                        </td>
+          {(() => {
+            console.log('[IPO RENDER] Format:', ipoFormat, 'HTML Content exists:', !!ipoHtmlContent, 'Table rows:', upcomingIPOs?.length);
+
+            if (ipoFormat === 'html' && ipoHtmlContent) {
+              console.log('[IPO RENDER] Showing HTML content');
+              return (
+                <div className="ipo-html-container">
+                  <div dangerouslySetInnerHTML={{ __html: ipoHtmlContent }} />
+                </div>
+              );
+            } else if (ipoFormat === 'table' && upcomingIPOs && upcomingIPOs.length > 0) {
+              console.log('[IPO RENDER] Showing table');
+              return (
+                <div className="ipo-table-container">
+                  <table className="ipo-table">
+                    <thead>
+                      <tr>
+                        {ipoColumns.map((col, index) => (
+                          <th key={index}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {upcomingIPOs.map((row, rowIndex) => (
+                        <tr key={rowIndex}>
+                          {ipoColumns.map((col, colIndex) => (
+                            <td key={colIndex}>
+                              {renderCellValue(row[col], col)}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="no-ipos-message">
-              <p>Loading IPO data...</p>
-              <p className="sub-message">Please wait</p>
-            </div>
-          )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            } else {
+              console.log('[IPO RENDER] Showing loading state');
+              return (
+                <div className="no-ipos-message">
+                  <p>Loading IPO data...</p>
+                  <p className="sub-message">Please wait</p>
+                </div>
+              );
+            }
+          })()}
         </>
       )}
 
