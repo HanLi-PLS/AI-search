@@ -14,10 +14,19 @@ function StockDetail() {
   const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('1M'); // 1W, 1M, 3M, 6M, 1Y
   const [newsExpanded, setNewsExpanded] = useState(true); // Expanded by default
+  const [newsAnalysis, setNewsAnalysis] = useState(null);
+  const [newsLoading, setNewsLoading] = useState(true);
 
   useEffect(() => {
     fetchStockDetails();
   }, [ticker, timeRange]);
+
+  // Fetch news analysis separately after initial load
+  useEffect(() => {
+    if (ticker) {
+      fetchNewsAnalysis();
+    }
+  }, [ticker]);
 
   const fetchStockDetails = async () => {
     try {
@@ -62,6 +71,30 @@ function StockDetail() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNewsAnalysis = async () => {
+    try {
+      setNewsLoading(true);
+      setNewsAnalysis(null);
+
+      console.log(`[StockDetail] Fetching news analysis for ${ticker}`);
+
+      // Fetch news analysis from separate endpoint
+      const response = await stockAPI.getNewsAnalysis(ticker);
+
+      if (response.news_analysis) {
+        setNewsAnalysis(response.news_analysis);
+        console.log('[StockDetail] News analysis loaded:', response.news_analysis);
+      } else {
+        console.log('[StockDetail] No news analysis available for this stock');
+      }
+    } catch (err) {
+      console.warn('[StockDetail] Could not fetch news analysis:', err);
+      // Don't show error to user - news analysis is optional
+    } finally {
+      setNewsLoading(false);
     }
   };
 
@@ -177,28 +210,35 @@ function StockDetail() {
       </div>
 
       {/* AI News Analysis Section - Only for big movers (>= 10%) */}
-      {stockData.news_analysis && (
+      {(newsLoading || newsAnalysis) && (
         <div className="news-analysis-section">
-          <div className="news-header-detail" onClick={() => setNewsExpanded(!newsExpanded)}>
+          <div className="news-header-detail" onClick={() => !newsLoading && setNewsExpanded(!newsExpanded)}>
             <div className="news-title-row">
               <span className="news-icon">📰</span>
               <h2>AI Market Analysis</h2>
-              <span className="big-mover-badge-detail">🔥 Big Mover</span>
+              {newsAnalysis && <span className="big-mover-badge-detail">🔥 Big Mover</span>}
             </div>
-            <button className="expand-button" aria-label={newsExpanded ? "Collapse" : "Expand"}>
-              {newsExpanded ? '−' : '+'}
-            </button>
+            {!newsLoading && (
+              <button className="expand-button" aria-label={newsExpanded ? "Collapse" : "Expand"}>
+                {newsExpanded ? '−' : '+'}
+              </button>
+            )}
           </div>
-          {newsExpanded && (
+          {newsLoading ? (
+            <div className="news-loading">
+              <div className="spinner"></div>
+              <p>Analyzing market data and news...</p>
+            </div>
+          ) : newsExpanded && newsAnalysis ? (
             <div className="news-content-detail">
-              <p>{stockData.news_analysis.analysis}</p>
+              <p>{newsAnalysis.analysis}</p>
               <div className="news-meta">
                 <span className="news-timestamp">
-                  Updated: {new Date(stockData.news_analysis.timestamp).toLocaleString()}
+                  Updated: {new Date(newsAnalysis.timestamp).toLocaleString()}
                 </span>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 

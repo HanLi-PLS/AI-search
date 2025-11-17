@@ -109,6 +109,12 @@ export const stockAPI = {
     const response = await api.get(`/api/stocks/${ticker}/returns`);
     return response.data;
   },
+
+  // Get AI news analysis for a specific stock (async loading)
+  getNewsAnalysis: async (ticker) => {
+    const response = await api.get(`/api/stocks/price/${ticker}/news-analysis`);
+    return response.data;
+  },
 };
 
 // AI Search API functions (matching HTML version API)

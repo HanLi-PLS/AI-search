@@ -943,8 +943,8 @@ async def get_price(ticker: str):
         # Calculate daily change from database (last 2 records)
         stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
-        # Add news analysis for big movers (>= 10%)
-        stock_data = await add_news_analysis_to_stock(stock_data)
+        # Note: News analysis is now fetched separately via /stocks/price/{ticker}/news-analysis
+        # This allows the page to load quickly while analysis loads in background
 
         return stock_data
 
@@ -965,10 +965,80 @@ async def get_price(ticker: str):
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
-    # Add news analysis for big movers (>= 10%)
-    stock_data = await add_news_analysis_to_stock(stock_data)
+    # Note: News analysis is now fetched separately via /stocks/price/{ticker}/news-analysis
+    # This allows the page to load quickly while analysis loads in background
 
     return stock_data
+
+
+@router.get("/stocks/price/{ticker}/news-analysis")
+async def get_news_analysis(ticker: str):
+    """
+    Get AI-powered news analysis for a specific stock with significant price movement
+    This endpoint is called separately from the main price endpoint to allow
+    the page to load quickly while the AI analysis is fetched in the background
+
+    Args:
+        ticker: Stock ticker symbol (e.g., "1801.HK", "ZBIO")
+
+    Returns:
+        News analysis object if stock has >= 10% move, otherwise null
+    """
+    # First, check if it's a portfolio company
+    from backend.app.services.portfolio import PortfolioService, PORTFOLIO_COMPANIES
+
+    portfolio_company = next((c for c in PORTFOLIO_COMPANIES if c["ticker"] == ticker), None)
+
+    if portfolio_company:
+        # It's a portfolio company, fetch data accordingly
+        portfolio_service = PortfolioService()
+
+        if portfolio_company['market'] == 'HKEX':
+            stock_data = portfolio_service.get_hk_stock_data(ticker, portfolio_company['ts_code'])
+        elif portfolio_company['market'] == 'NASDAQ':
+            stock_data = portfolio_service.get_us_stock_data(ticker)
+        else:
+            return {"news_analysis": None}
+
+        if not stock_data:
+            return {"news_analysis": None}
+
+        # Add name for the analysis
+        stock_data["name"] = portfolio_company["name"]
+
+        # Calculate daily change from database (last 2 records)
+        stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
+        # Get news analysis only
+        stock_data_with_analysis = await add_news_analysis_to_stock(stock_data)
+
+        return {
+            "news_analysis": stock_data_with_analysis.get("news_analysis")
+        }
+
+    # If not portfolio company, check HKEX biotech companies
+    companies = get_hkex_biotech_companies()
+    company = next((c for c in companies if c["ticker"] == ticker), None)
+
+    if not company:
+        return {"news_analysis": None}
+
+    stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
+
+    if not stock_data:
+        return {"news_analysis": None}
+
+    stock_data["name"] = company["name"]
+
+    # Calculate daily change from database (last 2 records)
+    stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
+    # Get news analysis only
+    stock_data_with_analysis = await add_news_analysis_to_stock(stock_data)
+
+    return {
+        "news_analysis": stock_data_with_analysis.get("news_analysis")
+    }
 
 
 @router.get("/stocks/upcoming-ipos")
