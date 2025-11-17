@@ -87,6 +87,13 @@ function StockTracker() {
             cleanedHtml = cleanedHtml.replace(/\s+onclick="[^"]*"/gi, '');
             cleanedHtml = cleanedHtml.replace(/\s+onclick='[^']*'/gi, '');
             console.log('[IPO] Removed onclick attributes from HTML');
+
+            // Remove CSS rules that add arrow indicators via ::after pseudo-elements
+            // These create duplicate arrows since we add our own
+            cleanedHtml = cleanedHtml.replace(/th\.sortable::after\s*\{[^}]*\}/gi, '');
+            cleanedHtml = cleanedHtml.replace(/th\.sort-asc::after\s*\{[^}]*\}/gi, '');
+            cleanedHtml = cleanedHtml.replace(/th\.sort-desc::after\s*\{[^}]*\}/gi, '');
+            console.log('[IPO] Removed duplicate arrow CSS rules from HTML');
           }
 
           setIpoHtmlContent(cleanedHtml);
