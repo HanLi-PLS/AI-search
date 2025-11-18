@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'ai-search-backend',
       script: 'python3',
-      args: '-m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 900',
+      args: '-m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 7200',
       instances: 1,
       autorestart: true,
       watch: false,

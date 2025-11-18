@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 900000, // 15 minutes timeout for long-running requests like sequential analysis with gpt-5-pro
+  timeout: 7200000, // 2 hours timeout for long-running requests like deep research mode
 });
 
 export const stockAPI = {
