@@ -84,12 +84,12 @@ REASONING: The query asks for current market trends which requires up-to-date on
 
 Now classify the user's query."""
 
-            response = self.client.responses.create(
-                model="gpt-5-nano",  # Use fast, efficient model for classification
-                input=classification_prompt
+            response = self.client.chat.completions.create(
+                model="gpt-4.1-mini",  # Use fast, efficient model for classification
+                messages=[{"role": "user", "content": classification_prompt}]
             )
 
-            classification_text = response.output_text
+            classification_text = response.choices[0].message.content
             logger.info(f"Classification response: {classification_text[:200]}...")
 
             # Parse the response to extract mode and reasoning
@@ -271,12 +271,12 @@ If this is a follow-up question referring to previous conversation, use the cont
 """
 
             try:
-                response = self.client.responses.create(
+                response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=prompt
+                    messages=[{"role": "user", "content": prompt}]
                 )
-                return response.output_text, None, None
+                return response.choices[0].message.content, None, None
             except Exception as e:
                 logger.error(f"Error generating answer: {str(e)}")
                 return f"I found {len(search_results)} relevant document(s), but encountered an error generating a comprehensive answer: {str(e)}", None, None
@@ -328,15 +328,16 @@ Be concise and factual. Only include information explicitly stated in the docume
 **Format your response as structured data** (e.g., bullet points or short paragraphs) that can be used for online comparison."""
 
             try:
-                extraction_response = self.client.responses.create(
+                logger.info("Sequential Step 1: Extracting info from files using gpt-4.1...")
+                extraction_response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=extraction_prompt
+                    messages=[{"role": "user", "content": extraction_prompt}]
                 )
-                extracted_info = extraction_response.output_text
-                logger.info(f"Extracted info from files: {extracted_info[:100]}...")
+                extracted_info = extraction_response.choices[0].message.content
+                logger.info(f"Sequential Step 1 complete. Extracted info: {extracted_info[:100]}...")
             except Exception as e:
-                logger.error(f"Error extracting info from files: {str(e)}")
+                logger.error(f"Sequential Step 1 Error - extracting info from files: {str(e)}")
                 return f"Error extracting information from files: {str(e)}", None, None
 
             # Step 2: Use extracted info to formulate enhanced online search query
@@ -350,10 +351,11 @@ Be concise and factual. Only include information explicitly stated in the docume
 Search online for competitor data, industry benchmarks, or comparative information that relates to the extracted data above."""
 
             try:
+                logger.info(f"Sequential Step 2: Performing online search with {search_model}...")
                 online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
-                logger.info("Online search completed in sequential mode")
+                logger.info(f"Sequential Step 2 complete. Online search response: {online_search_response[:100] if online_search_response else 'None'}...")
             except Exception as e:
-                logger.error(f"Error in online search: {str(e)}")
+                logger.error(f"Sequential Step 2 Error - online search: {str(e)}")
                 online_search_response = f"Error performing online search: {str(e)}"
 
             # Step 3: Combine extracted info and online results into final answer
@@ -381,14 +383,17 @@ Do not include reference filenames in the answer.
 If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about."""
 
             try:
-                final_response = self.client.responses.create(
+                logger.info("Sequential Step 3: Generating final combined answer using gpt-4.1...")
+                final_response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=final_prompt
+                    messages=[{"role": "user", "content": final_prompt}]
                 )
-                return final_response.output_text, online_search_response, extracted_info
+                final_answer = final_response.choices[0].message.content
+                logger.info(f"Sequential Step 3 complete. Final answer generated.")
+                return final_answer, online_search_response, extracted_info
             except Exception as e:
-                logger.error(f"Error generating final answer: {str(e)}")
+                logger.error(f"Sequential Step 3 Error - generating final answer: {str(e)}")
                 return f"Error generating final answer: {str(e)}", online_search_response, extracted_info
 
         # Handle both mode with priority ordering
@@ -468,12 +473,12 @@ If this is a follow-up question referring to previous conversation, use the cont
 """
 
             try:
-                response = self.client.responses.create(
+                response = self.client.chat.completions.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=prompt
+                    messages=[{"role": "user", "content": prompt}]
                 )
-                return response.output_text, online_search_response, None
+                return response.choices[0].message.content, online_search_response, None
             except Exception as e:
                 logger.error(f"Error generating answer: {str(e)}")
                 return f"Error generating answer: {str(e)}", online_search_response, None
