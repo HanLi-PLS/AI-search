@@ -283,7 +283,10 @@ If this is a follow-up question referring to previous conversation, use the cont
 
         # Handle sequential_analysis mode - extract from files first, then search online
         if search_mode == "sequential_analysis":
-            logger.info(f"Using sequential_analysis mode for query: {query[:50]}...")
+            import time
+            seq_start_time = time.time()
+            logger.info(f"[SEQUENTIAL] Starting sequential_analysis mode for query: {query[:50]}...")
+            logger.info(f"[SEQUENTIAL] Using search_model: {search_model}, base model: {self.model}")
 
             if not search_results:
                 return "I couldn't find any relevant information in your files to extract.", None, None
@@ -328,15 +331,18 @@ Be concise and factual. Only include information explicitly stated in the docume
 **Format your response as structured data** (e.g., bullet points or short paragraphs) that can be used for online comparison."""
 
             try:
+                step1_start = time.time()
+                logger.info(f"[SEQUENTIAL] Step 1: Extracting info from files using {self.model}...")
                 extraction_response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
                     input=extraction_prompt
                 )
                 extracted_info = extraction_response.output_text
-                logger.info(f"Extracted info from files: {extracted_info[:100]}...")
+                step1_duration = time.time() - step1_start
+                logger.info(f"[SEQUENTIAL] Step 1 complete in {step1_duration:.1f}s. Extracted {len(extracted_info)} chars")
             except Exception as e:
-                logger.error(f"Error extracting info from files: {str(e)}")
+                logger.error(f"[SEQUENTIAL] Step 1 FAILED: {str(e)}")
                 return f"Error extracting information from files: {str(e)}", None, None
 
             # Step 2: Use extracted info to formulate enhanced online search query
@@ -350,10 +356,13 @@ Be concise and factual. Only include information explicitly stated in the docume
 Search online for competitor data, industry benchmarks, or comparative information that relates to the extracted data above."""
 
             try:
+                step2_start = time.time()
+                logger.info(f"[SEQUENTIAL] Step 2: Performing online search with {search_model}...")
                 online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
-                logger.info("Online search completed in sequential mode")
+                step2_duration = time.time() - step2_start
+                logger.info(f"[SEQUENTIAL] Step 2 complete in {step2_duration:.1f}s. Response: {len(online_search_response) if online_search_response else 0} chars")
             except Exception as e:
-                logger.error(f"Error in online search: {str(e)}")
+                logger.error(f"[SEQUENTIAL] Step 2 FAILED: {str(e)}")
                 online_search_response = f"Error performing online search: {str(e)}"
 
             # Step 3: Combine extracted info and online results into final answer
@@ -381,14 +390,20 @@ Do not include reference filenames in the answer.
 If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about."""
 
             try:
+                step3_start = time.time()
+                logger.info(f"[SEQUENTIAL] Step 3: Generating final answer using {self.model}...")
                 final_response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
                     input=final_prompt
                 )
+                step3_duration = time.time() - step3_start
+                total_duration = time.time() - seq_start_time
+                logger.info(f"[SEQUENTIAL] Step 3 complete in {step3_duration:.1f}s")
+                logger.info(f"[SEQUENTIAL] Total sequential_analysis completed in {total_duration:.1f}s")
                 return final_response.output_text, online_search_response, extracted_info
             except Exception as e:
-                logger.error(f"Error generating final answer: {str(e)}")
+                logger.error(f"[SEQUENTIAL] Step 3 FAILED: {str(e)}")
                 return f"Error generating final answer: {str(e)}", online_search_response, extracted_info
 
         # Handle both mode with priority ordering
