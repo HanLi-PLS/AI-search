@@ -1,10 +1,8 @@
 import axios from 'axios';
 
-// Use window.location.hostname to connect to the same server serving the frontend
-const API_BASE_URL = `http://${window.location.hostname}:8000`;
-
+// Use relative URLs - Nginx proxies /api requests to backend
+// This works with both HTTP and HTTPS
 const api = axios.create({
-  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -202,7 +200,7 @@ export const uploadFile = async (file, conversationId = null) => {
   }
 
   try {
-    const response = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
+    const response = await api.post('/api/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
