@@ -88,7 +88,10 @@ class StockDataService:
             end_dt = datetime.strptime(end_date, '%Y%m%d')
 
             start_timestamp = int(start_dt.timestamp())
-            end_timestamp = int(end_dt.timestamp())
+            # Add 1 day to end_timestamp to include the end date (Finnhub uses timestamp at midnight,
+            # so to include Nov 18's data, we need timestamp of Nov 19 00:00:00)
+            end_dt_inclusive = end_dt + timedelta(days=1)
+            end_timestamp = int(end_dt_inclusive.timestamp())
 
             # Fetch candle data (daily OHLCV)
             logger.info(f"Fetching Finnhub candles for {ticker} from {start_date} to {end_date}")
@@ -179,8 +182,11 @@ class StockDataService:
             start_dt = datetime.strptime(start_date, '%Y%m%d')
             end_dt = datetime.strptime(end_date, '%Y%m%d')
 
+            # yfinance's end parameter is EXCLUSIVE, so add 1 day to include the end date
+            end_dt_inclusive = end_dt + timedelta(days=1)
+
             start_str = start_dt.strftime('%Y-%m-%d')
-            end_str = end_dt.strftime('%Y-%m-%d')
+            end_str = end_dt_inclusive.strftime('%Y-%m-%d')
 
             logger.info(f"Fetching yfinance data for {ticker} from {start_str} to {end_str}")
 
@@ -286,9 +292,9 @@ class StockDataService:
 
             # Fetch data from appropriate source
             if is_us_stock:
-                # Use Finnhub for US stocks (Tushare requires special permission)
-                logger.info(f"Fetching US stock data from Finnhub for {ticker} ({ts_code})")
-                return self._fetch_us_stock_from_finnhub(ticker, start_date, end_date, db)
+                # Use yfinance as primary for US stocks (more reliable for smaller NASDAQ stocks like ZBIO)
+                logger.info(f"Fetching US stock data from yfinance for {ticker} ({ts_code})")
+                return self._fetch_us_stock_from_yfinance(ticker, start_date, end_date, db)
             else:
                 logger.info(f"Fetching HK stock data for {ticker} ({ts_code})")
                 df = pro.hk_daily(
