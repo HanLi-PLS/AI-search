@@ -26,6 +26,7 @@ function StockTracker() {
   const [portfolioCompanies, setPortfolioCompanies] = useState([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
+  const [isUpdatingPortfolioHistory, setIsUpdatingPortfolioHistory] = useState(false);
 
   useEffect(() => {
     // Fetch data on initial load
@@ -182,6 +183,36 @@ function StockTracker() {
     } finally {
       setPortfolioLoading(false);
       setPortfolioRefreshing(false);
+    }
+  };
+
+  const handleUpdatePortfolioHistory = async () => {
+    try {
+      setIsUpdatingPortfolioHistory(true);
+
+      // Update history for each portfolio company
+      const tickers = portfolioCompanies.map(c => c.ticker);
+      let totalRecords = 0;
+
+      for (const ticker of tickers) {
+        try {
+          const result = await stockAPI.updateStockHistory(ticker);
+          totalRecords += result.new_records || 0;
+          console.log(`Updated ${ticker}: ${result.new_records || 0} new records`);
+        } catch (err) {
+          console.error(`Error updating history for ${ticker}:`, err);
+        }
+      }
+
+      // Refresh stats after update
+      await fetchHistoryStats();
+
+      alert(`Successfully updated portfolio history with ${totalRecords} new records!`);
+    } catch (err) {
+      console.error('Error updating portfolio historical data:', err);
+      alert('Failed to update portfolio historical data. Please try again.');
+    } finally {
+      setIsUpdatingPortfolioHistory(false);
     }
   };
 
@@ -444,6 +475,15 @@ function StockTracker() {
                 disabled={portfolioRefreshing}
               >
                 {portfolioRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+              </button>
+
+              <button
+                onClick={handleUpdatePortfolioHistory}
+                className="refresh-button"
+                disabled={isUpdatingPortfolioHistory || portfolioCompanies.length === 0}
+                title="Update historical data for portfolio companies"
+              >
+                {isUpdatingPortfolioHistory ? '📊 Updating History...' : '📊 Update History'}
               </button>
             </div>
 
