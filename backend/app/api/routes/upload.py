@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Thread pool for parallel file processing
+# Use max 4 workers to avoid overwhelming the system
+_thread_pool = ThreadPoolExecutor(max_workers=4)
+
 
 def get_s3_key(file_id: str, filename: str) -> str:
     """Generate S3 key for uploaded file - uses folder per upload to preserve original filename"""
@@ -70,14 +74,14 @@ def should_skip_file(filename: str) -> bool:
     return filename.endswith('.DS_Store') or filename.startswith('__MACOSX/') or filename.endswith('/')
 
 
-async def process_single_file(
+def _process_single_file_sync(
     file_path: Path,
     filename: str,
     file_id: str,
     conversation_id: str
 ) -> dict:
     """
-    Process a single file and add to vector store
+    Synchronous file processing function (runs in thread pool)
 
     Args:
         file_path: Path to file
@@ -115,7 +119,7 @@ async def process_single_file(
 
         upload_date = datetime.now()
 
-        # Process document
+        # Process document (CPU-bound operation)
         processor = DocumentProcessor()
         documents = processor.process_file(file_path, filename)
 
@@ -130,7 +134,7 @@ async def process_single_file(
                 'error_type': 'no_content'
             }
 
-        # Add to vector store
+        # Add to vector store (I/O-bound operation)
         vector_store = get_vector_store()
         chunks_created = vector_store.add_documents(
             documents=documents,
@@ -199,6 +203,36 @@ async def process_single_file(
             'error': error_msg,
             'error_type': error_type
         }
+
+
+async def process_single_file(
+    file_path: Path,
+    filename: str,
+    file_id: str,
+    conversation_id: str
+) -> dict:
+    """
+    Process a single file and add to vector store (async wrapper for thread pool)
+
+    Args:
+        file_path: Path to file
+        filename: Original filename
+        file_id: Unique file ID
+        conversation_id: Conversation ID
+
+    Returns:
+        Processing result dictionary
+    """
+    # Run the synchronous processing in thread pool for true parallelism
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        _thread_pool,
+        _process_single_file_sync,
+        file_path,
+        filename,
+        file_id,
+        conversation_id
+    )
 
 
 async def extract_and_process_zip(
