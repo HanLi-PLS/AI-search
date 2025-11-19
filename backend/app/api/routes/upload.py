@@ -521,31 +521,36 @@ async def upload_file(
         file_id = str(uuid.uuid4())
 
         # Save file temporarily
-        temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{file.filename}"
+        # Sanitize filename for temp storage - replace path separators with underscores
+        safe_filename = file.filename.replace('/', '_').replace('\\', '_')
+        temp_file_path = settings.UPLOAD_DIR / f"{file_id}_{safe_filename}"
         async with aiofiles.open(temp_file_path, 'wb') as f:
             await f.write(content)
 
-        logger.info(f"File uploaded: {file.filename} ({file_size} bytes), job_id: {job_id}")
+        # Use relative_path for display name if provided, otherwise just the filename
+        display_name = relative_path if relative_path else file.filename
+
+        logger.info(f"File uploaded: {display_name} ({file_size} bytes), job_id: {job_id}")
 
         # Create job tracker entry
         job_tracker = get_job_tracker()
-        job_tracker.create_job(job_id, file.filename, conversation_id)
+        job_tracker.create_job(job_id, display_name, conversation_id)
 
         # Add background task
         background_tasks.add_task(
             process_file_background,
             temp_file_path,
-            file.filename,
+            display_name,  # Use display name (with folder path) for metadata
             file_ext,
             conversation_id,
             job_id,
-            relative_path
+            None  # relative_path already included in display_name
         )
 
         return UploadResponse(
             success=True,
             message="File upload successful. Processing in background.",
-            file_name=file.filename,
+            file_name=display_name,
             file_id=file_id,
             job_id=job_id,
             status="processing"
