@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Thread pool for parallel file processing
-# Use max 4 workers to avoid overwhelming the system
-_thread_pool = ThreadPoolExecutor(max_workers=4)
+# Use more workers to handle multiple concurrent users
+# Each user's uploads will share these workers
+_thread_pool = ThreadPoolExecutor(max_workers=16)
 
 
 def get_s3_key(file_id: str, filename: str) -> str:
