@@ -407,7 +407,7 @@ function AISearch() {
                   onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
                   style={{
                     padding: '10px 20px',
-                    backgroundColor: 'var(--dark-grey)',
+                    backgroundColor: '#4a5568',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
