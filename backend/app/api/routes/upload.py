@@ -337,7 +337,8 @@ async def process_file_background(
     filename: str,
     file_ext: str,
     conversation_id: str,
-    job_id: str
+    job_id: str,
+    relative_path: str = None
 ):
     """
     Background task to process uploaded file
@@ -348,6 +349,7 @@ async def process_file_background(
         file_ext: File extension
         conversation_id: Conversation ID
         job_id: Job tracking ID
+        relative_path: Relative path from folder upload (e.g., 'folder/subfolder/file.txt')
     """
     job_tracker = get_job_tracker()
     job_tracker.update_job_status(job_id, JobStatus.PROCESSING)
@@ -388,7 +390,9 @@ async def process_file_background(
 
         else:
             # Handle single file
-            logger.info(f"[Job {job_id}] Processing single file: {filename}")
+            # Use relative_path as display name if provided (from folder upload)
+            display_name = relative_path if relative_path else filename
+            logger.info(f"[Job {job_id}] Processing single file: {display_name}")
             job = job_tracker.get_job(job_id)
             if job:
                 job.total_files = 1
@@ -406,7 +410,7 @@ async def process_file_background(
             chunks_created = vector_store.add_documents(
                 documents=documents,
                 file_id=file_id,
-                file_name=filename,
+                file_name=display_name,  # Use relative path for folder structure
                 file_size=file_size,
                 upload_date=upload_date,
                 conversation_id=conversation_id
@@ -414,7 +418,7 @@ async def process_file_background(
 
             result = {
                 'success': True,
-                'filename': filename,
+                'filename': display_name,
                 'file_id': file_id,
                 'chunks_created': chunks_created
             }
@@ -442,7 +446,8 @@ async def process_file_background(
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    conversation_id: str = Form(None)
+    conversation_id: str = Form(None),
+    relative_path: str = Form(None)
 ):
     """
     Upload and process a document (or zip file containing multiple documents)
@@ -452,6 +457,7 @@ async def upload_file(
         background_tasks: FastAPI background tasks
         file: Uploaded file
         conversation_id: Optional conversation ID to associate file with
+        relative_path: Optional relative path from folder upload (e.g., 'folder/subfolder/file.txt')
 
     Returns:
         Upload response with job_id for tracking
@@ -498,7 +504,8 @@ async def upload_file(
             file.filename,
             file_ext,
             conversation_id,
-            job_id
+            job_id,
+            relative_path
         )
 
         return UploadResponse(

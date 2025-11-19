@@ -31,6 +31,7 @@ function AISearch() {
   const [dragOver, setDragOver] = useState(false);
 
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const searchResultsRef = useRef(null);
   const pollingTimersRef = useRef(new Map()); // Track active polling timers
 
@@ -188,38 +189,42 @@ function AISearch() {
     poll();
   }, [loadDocuments]);
 
-  const handleFileSelect = useCallback(async (files) => {
+  const handleFileSelect = useCallback(async (files, isFolder = false) => {
     const fileArray = Array.from(files);
     setUploading(true);
 
     for (const file of fileArray) {
+      // Get relative path for folder uploads
+      const relativePath = isFolder && file.webkitRelativePath ? file.webkitRelativePath : null;
+      const displayName = relativePath || file.name;
+
       const fileId = `upload-${Date.now()}-${Math.random()}`;
       setUploadProgress(prev => ({
         ...prev,
-        [fileId]: { name: file.name, status: 'uploading', message: 'Uploading...' }
+        [fileId]: { name: displayName, status: 'uploading', message: 'Uploading...' }
       }));
 
       try {
-        const result = await uploadFile(file, currentConversationId);
+        const result = await uploadFile(file, currentConversationId, relativePath);
         if (result.success && result.job_id) {
           // File uploaded successfully, now processing in background
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: {
-              name: file.name,
+              name: displayName,
               status: 'processing',
               message: 'File uploaded. Processing in background...'
             }
           }));
           // Start polling for job status
-          pollJobStatus(result.job_id, fileId, file.name);
+          pollJobStatus(result.job_id, fileId, displayName);
         } else {
           throw new Error(result.message || 'Upload failed');
         }
       } catch (error) {
         setUploadProgress(prev => ({
           ...prev,
-          [fileId]: { name: file.name, status: 'error', message: error.message }
+          [fileId]: { name: displayName, status: 'error', message: error.message }
         }));
       }
     }
@@ -352,20 +357,55 @@ function AISearch() {
           <h2>Upload Documents</h2>
           <div
             className={`upload-area ${dragOver ? 'drag-over' : ''}`}
-            onClick={() => fileInputRef.current?.click()}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
             <div className="upload-content">
               <div className="upload-icon">☁️</div>
-              <p className="upload-text">Drag & drop files here or click to browse</p>
+              <p className="upload-text">Drag & drop files here</p>
               <p className="upload-subtext">Supported: PDF, DOCX, TXT, MD, CSV, XLSX, PPTX, HTML, JSON</p>
-              <p className="upload-subtext" style={{ color: 'var(--pantone-1505u)', fontWeight: '600', marginTop: '5px' }}>
-                💡 Tip: Upload ZIP files for bulk processing with parallel embedding generation
+              <div className="upload-buttons" style={{ display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'var(--pantone-1505u)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  📄 Select Files
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'var(--dark-grey)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  📁 Select Folder
+                </button>
+              </div>
+              <p className="upload-subtext" style={{ color: 'var(--pantone-1505u)', fontWeight: '600', marginTop: '10px' }}>
+                💡 Tip: Upload folders or ZIP files for bulk processing
               </p>
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.txt,.md,.docx,.doc,.xlsx,.xls,.csv,.pptx,.ppt,.html,.htm,.json,.eml,.zip"
-                onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} />
+                onChange={(e) => handleFileSelect(e.target.files, false)} style={{ display: 'none' }} />
+              <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple
+                onChange={(e) => handleFileSelect(e.target.files, true)} style={{ display: 'none' }} />
             </div>
           </div>
 

@@ -192,11 +192,14 @@ export const stockAPI = {
 };
 
 // AI Search API functions (matching HTML version API)
-export const uploadFile = async (file, conversationId = null) => {
+export const uploadFile = async (file, conversationId = null, relativePath = null) => {
   const formData = new FormData();
   formData.append('file', file);
   if (conversationId) {
     formData.append('conversation_id', conversationId);
+  }
+  if (relativePath) {
+    formData.append('relative_path', relativePath);
   }
 
   try {
