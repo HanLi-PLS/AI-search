@@ -55,35 +55,67 @@ class DataRefreshScheduler:
         logger.info("Data refresh scheduler stopped")
 
     def refresh_all_stock_data(self):
-        """Refresh all stock data (HKEX 18A + Portfolio)"""
+        """Refresh all stock data (HKEX 18A + Portfolio) including historical data"""
         try:
             logger.info("Starting scheduled data refresh...")
 
-            # Refresh HKEX 18A companies
+            # Refresh HKEX 18A companies current prices
             try:
                 response = requests.get(
                     f"{self.base_url}/api/stocks/prices?force_refresh=true",
                     timeout=300  # 5 minutes timeout
                 )
                 if response.status_code == 200:
-                    logger.info("✓ HKEX 18A companies refreshed successfully")
+                    logger.info("✓ HKEX 18A companies prices refreshed successfully")
                 else:
                     logger.error(f"✗ HKEX 18A refresh failed: {response.status_code}")
             except Exception as e:
                 logger.error(f"✗ Error refreshing HKEX 18A: {str(e)}")
 
-            # Refresh Portfolio companies
+            # Refresh Portfolio companies current prices
             try:
                 response = requests.get(
                     f"{self.base_url}/api/stocks/portfolio?force_refresh=true",
                     timeout=60
                 )
                 if response.status_code == 200:
-                    logger.info("✓ Portfolio companies refreshed successfully")
+                    logger.info("✓ Portfolio companies prices refreshed successfully")
                 else:
                     logger.error(f"✗ Portfolio refresh failed: {response.status_code}")
             except Exception as e:
                 logger.error(f"✗ Error refreshing Portfolio: {str(e)}")
+
+            # Update historical data for HKEX 18A companies
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/stocks/bulk-update-history",
+                    timeout=600  # 10 minutes timeout
+                )
+                if response.status_code == 200:
+                    logger.info("✓ HKEX 18A historical data updated successfully")
+                else:
+                    logger.error(f"✗ HKEX 18A historical update failed: {response.status_code}")
+            except Exception as e:
+                logger.error(f"✗ Error updating HKEX 18A historical data: {str(e)}")
+
+            # Update historical data for Portfolio companies
+            try:
+                from backend.app.services.portfolio import PORTFOLIO_COMPANIES
+                for company in PORTFOLIO_COMPANIES:
+                    ticker = company['ticker']
+                    try:
+                        response = requests.post(
+                            f"{self.base_url}/api/stocks/{ticker}/update-history",
+                            timeout=120  # 2 minutes per stock
+                        )
+                        if response.status_code == 200:
+                            logger.info(f"✓ {ticker} historical data updated")
+                        else:
+                            logger.error(f"✗ {ticker} historical update failed: {response.status_code}")
+                    except Exception as e:
+                        logger.error(f"✗ Error updating {ticker} historical data: {str(e)}")
+            except Exception as e:
+                logger.error(f"✗ Error updating Portfolio historical data: {str(e)}")
 
             logger.info(f"Scheduled data refresh completed at {datetime.now()}")
 
