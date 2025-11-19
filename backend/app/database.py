@@ -65,6 +65,7 @@ def init_db():
     Initialize database - create all tables
     """
     from backend.app.models.stock import StockDaily  # Import models
+    from backend.app.models.user import User  # Import User model
     ensure_db_directory()
     engine_instance = get_engine()
     Base.metadata.create_all(bind=engine_instance)

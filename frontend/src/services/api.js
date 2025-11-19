@@ -11,6 +11,76 @@ const api = axios.create({
   timeout: 7200000, // 2 hours timeout for long-running requests like deep research mode
 });
 
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Auth API
+export const authAPI = {
+  register: async (email, password, name) => {
+    const response = await api.post('/api/auth/register', { email, password, name });
+    return response.data;
+  },
+
+  login: async (email, password, rememberMe = false) => {
+    const response = await api.post('/api/auth/login', {
+      email,
+      password,
+      remember_me: rememberMe
+    });
+    return response.data;
+  },
+
+  getMe: async () => {
+    const response = await api.get('/api/auth/me');
+    return response.data;
+  },
+
+  forgotPassword: async (email) => {
+    const response = await api.post('/api/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token, newPassword) => {
+    const response = await api.post('/api/auth/reset-password', {
+      token,
+      new_password: newPassword
+    });
+    return response.data;
+  },
+
+  // Admin functions
+  getUsers: async () => {
+    const response = await api.get('/api/auth/users');
+    return response.data;
+  },
+
+  approveUser: async (userId) => {
+    const response = await api.post(`/api/auth/users/${userId}/approve`);
+    return response.data;
+  },
+
+  revokeUser: async (userId) => {
+    const response = await api.post(`/api/auth/users/${userId}/revoke`);
+    return response.data;
+  },
+
+  deleteUser: async (userId) => {
+    const response = await api.delete(`/api/auth/users/${userId}`);
+    return response.data;
+  },
+
+  toggleAdmin: async (userId) => {
+    const response = await api.post(`/api/auth/users/${userId}/toggle-admin`);
+    return response.data;
+  },
+};
+
 export const stockAPI = {
   // Get all biotech companies
   getCompanies: async () => {

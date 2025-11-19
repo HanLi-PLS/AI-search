@@ -1,11 +1,30 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import './Home.css';
 
 function Home() {
   const navigate = useNavigate();
+  const { user, logout, isAdmin } = useAuth();
 
   return (
     <div className="home-container">
+      <div className="user-header">
+        <div className="user-info">
+          Welcome, {user?.name || 'User'}
+          {isAdmin && <span className="admin-badge">Admin</span>}
+        </div>
+        <div className="user-actions">
+          {isAdmin && (
+            <button className="admin-link" onClick={() => navigate('/admin/users')}>
+              Manage Users
+            </button>
+          )}
+          <button className="logout-btn" onClick={logout}>
+            Logout
+          </button>
+        </div>
+      </div>
+
       <div className="hero-section">
         <h1>AI Search Platform</h1>
         <p className="subtitle">
