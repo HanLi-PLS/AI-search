@@ -193,40 +193,60 @@ function AISearch() {
     const fileArray = Array.from(files);
     setUploading(true);
 
-    for (const file of fileArray) {
-      // Get relative path for folder uploads
+    // Prepare all file info first
+    const fileInfos = fileArray.map(file => {
       const relativePath = isFolder && file.webkitRelativePath ? file.webkitRelativePath : null;
       const displayName = relativePath || file.name;
+      const fileId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return { file, relativePath, displayName, fileId };
+    });
 
-      const fileId = `upload-${Date.now()}-${Math.random()}`;
-      setUploadProgress(prev => ({
-        ...prev,
-        [fileId]: { name: displayName, status: 'uploading', message: 'Uploading...' }
-      }));
+    // Set initial upload status for all files
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      fileInfos.forEach(({ displayName, fileId }) => {
+        newProgress[fileId] = { name: displayName, status: 'uploading', message: 'Queued...' };
+      });
+      return newProgress;
+    });
 
-      try {
-        const result = await uploadFile(file, currentConversationId, relativePath);
-        if (result.success && result.job_id) {
-          // File uploaded successfully, now processing in background
-          setUploadProgress(prev => ({
-            ...prev,
-            [fileId]: {
-              name: displayName,
-              status: 'processing',
-              message: 'File uploaded. Processing in background...'
-            }
-          }));
-          // Start polling for job status
-          pollJobStatus(result.job_id, fileId, displayName);
-        } else {
-          throw new Error(result.message || 'Upload failed');
-        }
-      } catch (error) {
+    // Upload files in parallel batches (5 concurrent uploads)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < fileInfos.length; i += BATCH_SIZE) {
+      const batch = fileInfos.slice(i, i + BATCH_SIZE);
+
+      // Process batch in parallel
+      await Promise.all(batch.map(async ({ file, relativePath, displayName, fileId }) => {
+        // Update status to uploading
         setUploadProgress(prev => ({
           ...prev,
-          [fileId]: { name: displayName, status: 'error', message: error.message }
+          [fileId]: { name: displayName, status: 'uploading', message: 'Uploading...' }
         }));
-      }
+
+        try {
+          const result = await uploadFile(file, currentConversationId, relativePath);
+          if (result.success && result.job_id) {
+            // File uploaded successfully, now processing in background
+            setUploadProgress(prev => ({
+              ...prev,
+              [fileId]: {
+                name: displayName,
+                status: 'processing',
+                message: 'File uploaded. Processing in background...'
+              }
+            }));
+            // Start polling for job status
+            pollJobStatus(result.job_id, fileId, displayName);
+          } else {
+            throw new Error(result.message || 'Upload failed');
+          }
+        } catch (error) {
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: { name: displayName, status: 'error', message: error.message }
+          }));
+        }
+      }));
     }
     setUploading(false);
   }, [currentConversationId, pollJobStatus]);
