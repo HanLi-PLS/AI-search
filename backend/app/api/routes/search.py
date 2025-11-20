@@ -28,12 +28,13 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.post("/search", response_model=SearchResponse)
 @limiter.limit(settings.RATE_LIMIT_SEARCH)
-async def search_documents(request_obj: Request, request: SearchRequest):
+async def search_documents(request: Request, search_request: SearchRequest):
     """
     Search documents using semantic similarity and/or online search, then generate answer
 
     Args:
-        request: Search request with query, search_mode, and filters
+        request: FastAPI Request object (required for rate limiting)
+        search_request: Search request with query, search_mode, and filters
 
     Returns:
         Search results with GPT-generated answer
@@ -47,11 +48,11 @@ async def search_documents(request_obj: Request, request: SearchRequest):
         mode_reasoning = None
 
         # Handle auto mode - classify the query first
-        actual_search_mode = request.search_mode
-        if request.search_mode == "auto":
-            logger.info(f"Auto mode detected, classifying query: {request.query[:50]}...")
+        actual_search_mode = search_request.search_mode
+        if search_request.search_mode == "auto":
+            logger.info(f"Auto mode detected, classifying query: {search_request.query[:50]}...")
             answer_generator = get_answer_generator()
-            selected_mode, mode_reasoning = answer_generator.classify_query(request.query)
+            selected_mode, mode_reasoning = answer_generator.classify_query(search_request.query)
             actual_search_mode = selected_mode
             logger.info(f"Auto mode selected: {selected_mode}")
             logger.info(f"Reasoning: {mode_reasoning}")
@@ -62,12 +63,12 @@ async def search_documents(request_obj: Request, request: SearchRequest):
 
             # Perform search with conversation filtering
             results = vector_store.search(
-                query=request.query,
-                top_k=request.top_k,
-                file_types=request.file_types,
-                date_from=request.date_from,
-                date_to=request.date_to,
-                conversation_id=request.conversation_id
+                query=search_request.query,
+                top_k=search_request.top_k,
+                file_types=search_request.file_types,
+                date_from=search_request.date_from,
+                date_to=search_request.date_to,
+                conversation_id=search_request.conversation_id
             )
 
             # Format results
@@ -90,18 +91,18 @@ async def search_documents(request_obj: Request, request: SearchRequest):
 
             # Convert conversation history to dict format if provided
             conversation_history_dict = None
-            if request.conversation_history:
-                conversation_history_dict = [turn.dict() for turn in request.conversation_history]
+            if search_request.conversation_history:
+                conversation_history_dict = [turn.dict() for turn in search_request.conversation_history]
 
             answer, online_search_response, extracted_info = answer_generator.generate_answer(
-                query=request.query,
+                query=search_request.query,
                 search_results=results,
                 search_mode=actual_search_mode,
-                reasoning_mode=request.reasoning_mode,
-                priority_order=request.priority_order,
+                reasoning_mode=search_request.reasoning_mode,
+                priority_order=search_request.priority_order,
                 conversation_history=conversation_history_dict
             )
-            logger.info(f"Generated answer for query: {request.query[:50]}... using mode: {actual_search_mode}")
+            logger.info(f"Generated answer for query: {search_request.query[:50]}... using mode: {actual_search_mode}")
         except Exception as e:
             logger.error(f"Error generating answer: {str(e)}")
             # Continue without answer if generation fails
@@ -111,7 +112,7 @@ async def search_documents(request_obj: Request, request: SearchRequest):
 
         return SearchResponse(
             success=True,
-            query=request.query,
+            query=search_request.query,
             answer=answer,
             online_search_response=online_search_response,
             extracted_info=extracted_info,
