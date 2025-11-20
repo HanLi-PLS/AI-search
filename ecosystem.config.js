@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'ai-search-backend',
-      script: 'python3',
-      args: '-m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 7200',
+      script: './start_backend.sh',
+      interpreter: 'bash',
       instances: 1,
       autorestart: true,
       watch: false,
@@ -33,8 +33,8 @@ module.exports = {
     },
     {
       name: 'ai-search-worker',
-      script: 'python3',
-      args: '-m backend.app.workers.job_worker',
+      script: './start_worker.sh',
+      interpreter: 'bash',
       instances: 1,
       autorestart: true,
       watch: false,
