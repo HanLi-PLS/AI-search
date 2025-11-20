@@ -4,8 +4,8 @@ module.exports = {
       name: 'ai-search-backend',
       script: './start_backend.sh',
       interpreter: 'bash',
-      instances: 6,  // Run 6 instances for load balancing
-      exec_mode: 'cluster',  // Use PM2 cluster mode for load balancing
+      instances: 1,  // Single instance with uvicorn workers
+      exec_mode: 'fork',  // Use fork mode for bash scripts
       autorestart: true,
       watch: false,
       max_memory_restart: '6G',
