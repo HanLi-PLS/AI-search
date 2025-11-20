@@ -4,7 +4,8 @@ module.exports = {
       name: 'ai-search-backend',
       script: './start_backend.sh',
       interpreter: 'bash',
-      instances: 1,
+      instances: 6,  // Run 6 instances for load balancing
+      exec_mode: 'cluster',  // Use PM2 cluster mode for load balancing
       autorestart: true,
       watch: false,
       max_memory_restart: '6G',
@@ -29,21 +30,6 @@ module.exports = {
       },
       error_file: '../logs/frontend-error.log',
       out_file: '../logs/frontend-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    },
-    {
-      name: 'ai-search-worker',
-      script: './start_worker.sh',
-      interpreter: 'bash',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '1G',
-      env: {
-        NODE_ENV: 'production',
-      },
-      error_file: './logs/worker-error.log',
-      out_file: './logs/worker-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     }
   ]

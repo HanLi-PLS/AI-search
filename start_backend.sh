@@ -4,12 +4,9 @@
 # Activate virtual environment
 source venv/bin/activate
 
-# Start uvicorn with multiple workers for better concurrency
-# Workers = (2 * CPU cores) + 1 is a good starting point
-# Each worker can handle 100+ concurrent async requests
-# With 6 workers, the system can handle 100-150+ concurrent users
+# Start single uvicorn worker (PM2 cluster mode handles multiple instances)
+# PM2 will spawn 6 instances of this script for load balancing
 python3 -m uvicorn backend.app.main:app \
   --host 0.0.0.0 \
   --port 8000 \
-  --workers 6 \
   --timeout-keep-alive 7200
