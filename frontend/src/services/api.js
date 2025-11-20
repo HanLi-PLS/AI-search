@@ -192,7 +192,7 @@ export const stockAPI = {
 };
 
 // AI Search API functions (matching HTML version API)
-export const uploadFile = async (file, conversationId = null, relativePath = null) => {
+export const uploadFile = async (file, conversationId = null, relativePath = null, abortSignal = null) => {
   const formData = new FormData();
   formData.append('file', file);
   if (conversationId) {
@@ -207,9 +207,13 @@ export const uploadFile = async (file, conversationId = null, relativePath = nul
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      signal: abortSignal, // Support abort during upload
     });
     return response.data;
   } catch (error) {
+    if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+      throw new Error('Upload cancelled by user');
+    }
     throw new Error(error.response?.data?.detail || 'Upload failed');
   }
 };

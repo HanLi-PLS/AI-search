@@ -34,6 +34,7 @@ function AISearch() {
   const folderInputRef = useRef(null);
   const searchResultsRef = useRef(null);
   const pollingTimersRef = useRef(new Map()); // Track active polling timers
+  const abortControllersRef = useRef(new Map()); // Track abort controllers for uploads
 
   useEffect(() => {
     const history = getCurrentHistory();
@@ -47,7 +48,7 @@ function AISearch() {
     }
   }, [currentConversationId]);
 
-  // Cleanup polling timers on unmount
+  // Cleanup polling timers and abort controllers on unmount
   useEffect(() => {
     return () => {
       // Clear all active polling timers
@@ -55,6 +56,12 @@ function AISearch() {
         clearTimeout(timerId);
       });
       pollingTimersRef.current.clear();
+
+      // Abort all ongoing uploads
+      abortControllersRef.current.forEach((controller) => {
+        controller.abort();
+      });
+      abortControllersRef.current.clear();
     };
   }, []);
 
@@ -78,13 +85,25 @@ function AISearch() {
 
   const handleCancelJob = useCallback(async (jobId, fileId) => {
     try {
-      await cancelJob(jobId);
+      // If there's an ongoing upload, abort it
+      const abortController = abortControllersRef.current.get(fileId);
+      if (abortController) {
+        abortController.abort();
+        abortControllersRef.current.delete(fileId);
+      }
+
+      // If there's a job ID, cancel the job on the server
+      if (jobId) {
+        await cancelJob(jobId);
+      }
+
       // Stop polling
       const timerId = pollingTimersRef.current.get(fileId);
       if (timerId) {
         clearTimeout(timerId);
         pollingTimersRef.current.delete(fileId);
       }
+
       // Update UI
       setUploadProgress(prev => ({
         ...prev,
@@ -283,14 +302,22 @@ function AISearch() {
 
       // Process batch in parallel
       await Promise.all(batch.map(async ({ file, relativePath, displayName, fileId }) => {
+        // Create abort controller for this upload
+        const abortController = new AbortController();
+        abortControllersRef.current.set(fileId, abortController);
+
         // Update status to uploading
         setUploadProgress(prev => ({
           ...prev,
-          [fileId]: { name: displayName, status: 'uploading', message: 'Uploading...' }
+          [fileId]: { name: displayName, status: 'uploading', message: 'Uploading...', canCancel: true }
         }));
 
         try {
-          const result = await uploadFile(file, currentConversationId, relativePath);
+          const result = await uploadFile(file, currentConversationId, relativePath, abortController.signal);
+
+          // Remove abort controller after successful upload
+          abortControllersRef.current.delete(fileId);
+
           if (result.success && result.job_id) {
             // File uploaded successfully, now processing in background
             setUploadProgress(prev => ({
@@ -299,7 +326,8 @@ function AISearch() {
                 name: displayName,
                 status: 'processing',
                 message: 'File uploaded. Processing in background...',
-                jobId: result.job_id
+                jobId: result.job_id,
+                canCancel: true
               }
             }));
             // Start polling for job status
@@ -308,6 +336,9 @@ function AISearch() {
             throw new Error(result.message || 'Upload failed');
           }
         } catch (error) {
+          // Clean up abort controller
+          abortControllersRef.current.delete(fileId);
+
           setUploadProgress(prev => ({
             ...prev,
             [fileId]: { name: displayName, status: 'error', message: error.message }
@@ -510,7 +541,7 @@ function AISearch() {
                     {progress.status === 'complete' && '✅'}
                     {progress.status === 'warning' && '⚠️'}
                     {progress.status === 'error' && '❌'}
-                    {(progress.status === 'uploading' || progress.status === 'processing') && progress.jobId && (
+                    {(progress.status === 'uploading' || progress.status === 'processing') && progress.canCancel && (
                       <button
                         className="cancel-upload-button"
                         onClick={() => handleCancelJob(progress.jobId, id)}
