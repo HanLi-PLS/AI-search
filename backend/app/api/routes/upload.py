@@ -63,7 +63,7 @@ def decode_zip_filename(file_info: zipfile.ZipInfo) -> str:
 
 def should_skip_file(filename: str) -> bool:
     """
-    Check if file should be skipped during extraction
+    Check if file should be skipped during extraction or upload
 
     Args:
         filename: File path to check
@@ -71,8 +71,26 @@ def should_skip_file(filename: str) -> bool:
     Returns:
         True if file should be skipped
     """
-    # Skip .DS_Store files and __MACOSX folder
-    return filename.endswith('.DS_Store') or filename.startswith('__MACOSX/') or filename.endswith('/')
+    # Get just the filename without path
+    base_filename = Path(filename).name
+
+    # Skip directories
+    if filename.endswith('/'):
+        return True
+
+    # Skip system/hidden files
+    if base_filename.startswith('.'):  # Hidden files (.DS_Store, .git, etc.)
+        return True
+
+    # Skip Microsoft Office temporary files
+    if base_filename.startswith('~$'):  # Excel/Word temporary files
+        return True
+
+    # Skip __MACOSX folder (macOS zip metadata)
+    if '__MACOSX' in filename:
+        return True
+
+    return False
 
 
 def _process_single_file_sync(
@@ -556,6 +574,13 @@ async def upload_file(
         Upload response with job_id for tracking
     """
     try:
+        # Skip temporary/system files
+        if should_skip_file(file.filename):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot upload system or temporary files: {file.filename}"
+            )
+
         # Validate file extension
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in settings.SUPPORTED_EXTENSIONS:

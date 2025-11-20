@@ -226,17 +226,46 @@ function AISearch() {
     poll();
   }, [loadDocuments]);
 
+  const shouldSkipFile = (fileName) => {
+    // Skip hidden files (starting with .)
+    if (fileName.startsWith('.')) return true;
+
+    // Skip Microsoft Office temporary files (starting with ~$)
+    if (fileName.startsWith('~$')) return true;
+
+    // Skip macOS metadata files
+    if (fileName === '.DS_Store' || fileName.includes('__MACOSX')) return true;
+
+    return false;
+  };
+
   const handleFileSelect = useCallback(async (files, isFolder = false) => {
     const fileArray = Array.from(files);
     setUploading(true);
 
-    // Prepare all file info first
-    const fileInfos = fileArray.map(file => {
-      const relativePath = isFolder && file.webkitRelativePath ? file.webkitRelativePath : null;
-      const displayName = relativePath || file.name;
-      const fileId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      return { file, relativePath, displayName, fileId };
-    });
+    // Prepare all file info first, filtering out system/temporary files
+    const fileInfos = fileArray
+      .filter(file => {
+        const fileName = file.name;
+        if (shouldSkipFile(fileName)) {
+          console.log(`Skipping system/temporary file: ${fileName}`);
+          return false;
+        }
+        return true;
+      })
+      .map(file => {
+        const relativePath = isFolder && file.webkitRelativePath ? file.webkitRelativePath : null;
+        const displayName = relativePath || file.name;
+        const fileId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        return { file, relativePath, displayName, fileId };
+      });
+
+    // If all files were filtered out, don't proceed
+    if (fileInfos.length === 0) {
+      setUploading(false);
+      console.log('All files were filtered out (system/temporary files)');
+      return;
+    }
 
     // Set initial upload status for all files
     setUploadProgress(prev => {
