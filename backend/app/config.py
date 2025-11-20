@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
     API_RELOAD: bool = os.getenv("API_RELOAD", "true").lower() == "true"
 
+    # CORS Configuration
+    # In production, set CORS_ORIGINS to your specific domain(s)
+    # Example: CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+    CORS_ALLOW_CREDENTIALS: bool = os.getenv("CORS_ALLOW_CREDENTIALS", "true").lower() == "true"
+
     # Project Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
@@ -76,10 +82,22 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "100"))
     MAX_CONCURRENT_VISION_CALLS: int = int(os.getenv("MAX_CONCURRENT_VISION_CALLS", "10"))  # Max concurrent o4-mini API calls
 
-    # Authentication (future use)
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-in-production")
+    # Authentication
+    # CRITICAL: Set SECRET_KEY environment variable in production!
+    # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+    # Security
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")  # development, staging, production
+
+    # Rate Limiting
+    # Format: "requests per time_period" (e.g., "10/minute", "100/hour", "1000/day")
+    RATE_LIMIT_DEFAULT: str = os.getenv("RATE_LIMIT_DEFAULT", "60/minute")  # General API endpoints
+    RATE_LIMIT_SEARCH: str = os.getenv("RATE_LIMIT_SEARCH", "20/minute")  # AI search endpoints
+    RATE_LIMIT_UPLOAD: str = os.getenv("RATE_LIMIT_UPLOAD", "10/minute")  # File upload endpoints
+    RATE_LIMIT_AUTH: str = os.getenv("RATE_LIMIT_AUTH", "5/minute")  # Login/register endpoints
 
     # Supported file extensions
     SUPPORTED_EXTENSIONS: set = {
@@ -97,6 +115,28 @@ class Settings(BaseSettings):
         # Create directories if they don't exist
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Validate critical security settings in production
+        if self.ENVIRONMENT == "production":
+            if not self.SECRET_KEY or self.SECRET_KEY == "change-this-in-production":
+                raise ValueError(
+                    "SECRET_KEY must be set in production! "
+                    "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
+            if "*" in self.CORS_ORIGINS:
+                raise ValueError(
+                    "CORS_ORIGINS cannot contain '*' in production! "
+                    "Set specific allowed origins in CORS_ORIGINS environment variable."
+                )
+
+        # Generate SECRET_KEY for development if not set
+        if not self.SECRET_KEY:
+            import secrets
+            self.SECRET_KEY = secrets.token_urlsafe(32)
+            logger.warning(
+                "SECRET_KEY not set. Generated temporary key for development. "
+                "Set SECRET_KEY environment variable for production!"
+            )
 
         # Load API keys from AWS Secrets Manager if configured
         # Always load from Secrets Manager when USE_AWS_SECRETS=true, regardless of .env value

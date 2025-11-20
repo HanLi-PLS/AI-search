@@ -11,6 +11,9 @@ from jose import jwt, JWTError
 import secrets
 import logging
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from backend.app.database import get_db
 from backend.app.models.user import User
 from backend.app.config import settings
@@ -18,6 +21,9 @@ from backend.app.config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+# Initialize limiter for auth endpoints (stricter limits)
+limiter = Limiter(key_func=get_remote_address)
 
 # JWT Configuration
 SECRET_KEY = settings.SECRET_KEY
@@ -162,7 +168,8 @@ def get_optional_user(
 
 # Routes
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def register(request: Request, user_data: UserRegister, db: Session = Depends(get_db)):
     """Register a new user (requires admin approval)"""
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -201,7 +208,8 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(settings.RATE_LIMIT_AUTH)
+async def login(request: Request, user_data: UserLogin, db: Session = Depends(get_db)):
     """Login and get access token"""
     # Find user
     user = db.query(User).filter(User.email == user_data.email).first()

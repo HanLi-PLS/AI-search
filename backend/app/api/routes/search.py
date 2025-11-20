@@ -1,9 +1,12 @@
 """
 Search API endpoints
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 import time
 from typing import List
+
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from backend.app.models.schemas import (
     SearchRequest, SearchResponse, SearchResult,
@@ -12,15 +15,20 @@ from backend.app.models.schemas import (
 )
 from backend.app.core.vector_store import get_vector_store
 from backend.app.core.answer_generator import get_answer_generator
+from backend.app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Initialize limiter for this module
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/search", response_model=SearchResponse)
-async def search_documents(request: SearchRequest):
+@limiter.limit(settings.RATE_LIMIT_SEARCH)
+async def search_documents(request_obj: Request, request: SearchRequest):
     """
     Search documents using semantic similarity and/or online search, then generate answer
 

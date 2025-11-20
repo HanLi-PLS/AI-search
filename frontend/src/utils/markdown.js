@@ -1,6 +1,9 @@
+import DOMPurify from 'isomorphic-dompurify';
+
 /**
- * Parse markdown to HTML
+ * Parse markdown to HTML with XSS protection
  * Supports: bold, italic, headers, links, lists, code blocks, tables
+ * All output is sanitized with DOMPurify to prevent XSS attacks
  */
 export const parseMarkdownToHTML = (text) => {
   if (!text) return '';
@@ -54,7 +57,19 @@ export const parseMarkdownToHTML = (text) => {
     return para;
   }).join('\n\n');
 
-  return html;
+  // Sanitize HTML to prevent XSS attacks
+  // DOMPurify removes any malicious code while preserving safe HTML
+  const sanitizedHTML = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'ul', 'ol', 'li', 'a', 'code', 'pre', 'table', 'thead', 'tbody',
+      'tr', 'th', 'td', 'blockquote', 'hr'
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+    ALLOW_DATA_ATTR: false,
+  });
+
+  return sanitizedHTML;
 };
 
 const parseMarkdownLists = (text) => {

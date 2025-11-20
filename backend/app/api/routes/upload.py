@@ -1,7 +1,7 @@
 """
 File upload API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from typing import List
 import uuid
 import time
@@ -14,6 +14,9 @@ import io
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from backend.app.models.schemas import UploadResponse, ErrorResponse, JobStatusResponse
 from backend.app.core.document_processor import DocumentProcessor
 from backend.app.core.vector_store import get_vector_store
@@ -25,6 +28,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Initialize limiter for this module
+limiter = Limiter(key_func=get_remote_address)
 
 # Thread pool for parallel file processing
 # Use more workers to handle multiple concurrent users
@@ -554,7 +560,9 @@ async def process_file_background(
 
 
 @router.post("/upload", response_model=UploadResponse)
+@limiter.limit(settings.RATE_LIMIT_UPLOAD)
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     conversation_id: str = Form(None),
     relative_path: str = Form(None)
