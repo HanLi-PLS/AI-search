@@ -13,7 +13,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from backend.app.core.job_tracker import get_job_tracker, JobStatus
-from backend.app.api.routes.upload import process_file_background
+from backend.app.core.file_processor import process_file_background
 
 # Configure logging
 logging.basicConfig(
