@@ -496,39 +496,29 @@ async def process_file_background(
                 return
 
             file_id = str(uuid.uuid4())
-            upload_date = datetime.now()
-            file_size = len(content)
 
-            # Process document
-            processor = DocumentProcessor()
-            documents = processor.process_file(file_path, filename)
-
-            # Check for cancellation after processing
-            if job_tracker.is_job_cancelled(job_id):
-                logger.info(f"[Job {job_id}] Job cancelled after document processing, skipping vector store")
-                return
-
-            # Add to vector store
-            vector_store = get_vector_store()
-            chunks_created = vector_store.add_documents(
-                documents=documents,
+            # Process file using thread pool to avoid blocking event loop
+            # This allows multiple users to upload/search simultaneously
+            result = await process_single_file(
+                file_path=file_path,
+                filename=display_name,
                 file_id=file_id,
-                file_name=display_name,  # Use relative path for folder structure
-                file_size=file_size,
-                upload_date=upload_date,
                 conversation_id=conversation_id
             )
 
-            result = {
-                'success': True,
-                'filename': display_name,
-                'file_id': file_id,
-                'chunks_created': chunks_created
-            }
+            # Check for cancellation after processing
+            if job_tracker.is_job_cancelled(job_id):
+                logger.info(f"[Job {job_id}] Job cancelled after document processing")
+                return
 
             job_tracker.add_file_result(job_id, result)
-            job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
-            logger.info(f"[Job {job_id}] File processed: {chunks_created} chunks created")
+
+            if result.get('success'):
+                job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
+                logger.info(f"[Job {job_id}] File processed: {result.get('chunks_created', 0)} chunks created")
+            else:
+                job_tracker.update_job_status(job_id, JobStatus.FAILED, result.get('error', 'Unknown error'))
+                logger.error(f"[Job {job_id}] File processing failed: {result.get('error', 'Unknown error')}")
 
     except Exception as e:
         error_msg = str(e)
