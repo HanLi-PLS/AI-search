@@ -370,36 +370,22 @@ async def extract_and_process_zip(
                 logger.info(f"[Job {job_id}] Zip processing cancelled after extraction")
                 return results
 
-            # Process files in batches to allow cancellation checks
-            BATCH_SIZE = 5
-            for i in range(0, len(temp_files), BATCH_SIZE):
-                # Check for cancellation before each batch
-                if job_tracker and job_tracker.is_job_cancelled(job_id):
-                    logger.info(f"[Job {job_id}] Zip processing cancelled during batch processing")
-                    # Add cancelled status for remaining files
-                    for j in range(i, len(temp_files)):
-                        results.append({
-                            'success': False,
-                            'filename': temp_files[j][1],
-                            'error': 'Processing cancelled by user',
-                            'error_type': 'cancelled'
-                        })
-                    break
+            # Process ALL files in parallel for maximum speed (like original fast implementation)
+            logger.info(f"[Job {job_id}] Processing {len(temp_files)} files in parallel...")
+            tasks = [
+                process_single_file(
+                    file_path=file_path,
+                    filename=filename,
+                    file_id=str(uuid.uuid4()),
+                    conversation_id=conversation_id
+                )
+                for file_path, filename in temp_files
+            ]
 
-                # Process current batch
-                batch = temp_files[i:i + BATCH_SIZE]
-                tasks = [
-                    process_single_file(
-                        file_path=file_path,
-                        filename=filename,
-                        file_id=str(uuid.uuid4()),
-                        conversation_id=conversation_id
-                    )
-                    for file_path, filename in batch
-                ]
-
-                processing_results = await asyncio.gather(*tasks)
-                results.extend(processing_results)
+            # Process all files concurrently (asyncio.gather for max speed)
+            processing_results = await asyncio.gather(*tasks)
+            results.extend(processing_results)
+            logger.info(f"[Job {job_id}] Completed processing {len(temp_files)} files in parallel")
 
     finally:
         # Clean up temporary files
@@ -569,7 +555,7 @@ async def upload_file(
 ):
     """
     Upload and process a document (or zip file containing multiple documents)
-    Processing happens via dedicated worker - returns immediately with job_id
+    Processing happens in background using asyncio - fast parallel processing
 
     Args:
         file: Uploaded file
@@ -623,11 +609,23 @@ async def upload_file(
         logger.info(f"File uploaded: {display_name} ({file_size} bytes), job_id: {job_id}")
 
         # Create job tracker entry (status: PENDING)
-        # The dedicated worker will pick up pending jobs and process them
         job_tracker = get_job_tracker()
         job_tracker.create_job(job_id, display_name, conversation_id)
 
-        logger.info(f"Job {job_id} created with status PENDING - worker will process it")
+        # Process file directly in background (fast parallel processing with asyncio)
+        # This is MUCH faster than queuing for a worker
+        asyncio.create_task(
+            process_file_background(
+                temp_file_path,
+                file.filename,
+                file_ext,
+                conversation_id,
+                job_id,
+                relative_path
+            )
+        )
+
+        logger.info(f"Job {job_id} started with async background processing")
 
         return UploadResponse(
             success=True,
