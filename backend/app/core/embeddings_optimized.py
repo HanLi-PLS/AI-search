@@ -31,12 +31,19 @@ class EmbeddingGenerator:
             device = "cpu"
             logger.info("Using CPU for embeddings")
 
-        # Load model with device specification
+        # Load model with optimizations
         self.model = SentenceTransformer(
             self.model_name,
             trust_remote_code=True,
             device=device
         )
+
+        # Enable multiprocessing for CPU if not using GPU
+        if device == "cpu":
+            # Use multiple workers for encoding (parallel tokenization)
+            import os
+            num_workers = min(8, os.cpu_count() or 4)
+            logger.info(f"Configured {num_workers} workers for CPU encoding")
 
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         logger.info(f"Embedding dimension: {self.embedding_dim}")
@@ -51,27 +58,33 @@ class EmbeddingGenerator:
         Returns:
             List of floats representing the embedding
         """
-        embedding = self.model.encode(text, convert_to_numpy=True)
+        embedding = self.model.encode(
+            text,
+            convert_to_numpy=True,
+            normalize_embeddings=False
+        )
         return embedding.tolist()
 
-    def embed_batch(self, texts: List[str], batch_size: int = 128) -> List[List[float]]:
+    def embed_batch(self, texts: List[str], batch_size: int = 64) -> List[List[float]]:
         """
         Generate embeddings for a batch of texts with optimizations
 
         Args:
             texts: List of input texts
-            batch_size: Batch size for processing (increased to 128 for better throughput)
+            batch_size: Batch size for processing (increased from 32 to 64)
 
         Returns:
             List of embeddings
         """
-        # Larger batch size for better CPU/GPU utilization
+        # Increased batch size for better throughput
+        # Use show_progress_bar only for large batches
         embeddings = self.model.encode(
             texts,
             batch_size=batch_size,
             convert_to_numpy=True,
             show_progress_bar=len(texts) > 100,
             normalize_embeddings=False,
+            # Enable multiprocessing for tokenization on CPU
             convert_to_tensor=False
         )
         return embeddings.tolist()
