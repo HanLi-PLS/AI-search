@@ -102,6 +102,9 @@ update_env "CORS_ORIGINS" "$CORS_ORIGINS"
 update_env "CORS_ALLOW_CREDENTIALS" "true"
 update_env "ENVIRONMENT" "$ENVIRONMENT"
 
+# Set JWT token expiration (24 hours to prevent logout during long uploads)
+update_env "ACCESS_TOKEN_EXPIRE_MINUTES" "1440"
+
 # Add rate limiting settings if they don't exist
 if ! grep -q "^RATE_LIMIT_DEFAULT=" .env; then
     echo "" >> .env
@@ -120,6 +123,7 @@ echo "=========================================="
 echo "SECRET_KEY: [Generated - ${#SECRET_KEY} characters]"
 echo "CORS_ORIGINS: $CORS_ORIGINS"
 echo "ENVIRONMENT: $ENVIRONMENT"
+echo "ACCESS_TOKEN_EXPIRE_MINUTES: 1440 (24 hours)"
 echo "RATE_LIMIT_DEFAULT: 60/minute"
 echo "RATE_LIMIT_SEARCH: 20/minute"
 echo "RATE_LIMIT_UPLOAD: 10/minute"
