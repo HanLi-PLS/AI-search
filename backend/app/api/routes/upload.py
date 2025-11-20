@@ -239,7 +239,8 @@ async def process_single_file(
 async def extract_and_process_zip(
     zip_content: bytes,
     zip_filename: str,
-    conversation_id: str
+    conversation_id: str,
+    job_id: str = None
 ) -> List[dict]:
     """
     Extract zip file and process all files in parallel
@@ -248,14 +249,21 @@ async def extract_and_process_zip(
         zip_content: Zip file content as bytes
         zip_filename: Original zip filename
         conversation_id: Conversation ID
+        job_id: Optional job ID for cancellation checks
 
     Returns:
         List of processing results
     """
     results = []
     temp_files = []
+    job_tracker = get_job_tracker() if job_id else None
 
     try:
+        # Check if cancelled before starting
+        if job_tracker and job_tracker.is_job_cancelled(job_id):
+            logger.info(f"[Job {job_id}] Zip extraction cancelled before starting")
+            return []
+
         # Extract zip file
         buffer = io.BytesIO(zip_content)
 
@@ -333,20 +341,41 @@ async def extract_and_process_zip(
 
             logger.info(f"Extracted {len(temp_files)} files from {zip_filename}")
 
-            # Process all files in parallel
-            tasks = [
-                process_single_file(
-                    file_path=file_path,
-                    filename=filename,
-                    file_id=str(uuid.uuid4()),
-                    conversation_id=conversation_id
-                )
-                for file_path, filename in temp_files
-            ]
+            # Check if cancelled after extraction
+            if job_tracker and job_tracker.is_job_cancelled(job_id):
+                logger.info(f"[Job {job_id}] Zip processing cancelled after extraction")
+                return results
 
-            # Append processing results to the existing results (which may contain skipped files)
-            processing_results = await asyncio.gather(*tasks)
-            results.extend(processing_results)
+            # Process files in batches to allow cancellation checks
+            BATCH_SIZE = 5
+            for i in range(0, len(temp_files), BATCH_SIZE):
+                # Check for cancellation before each batch
+                if job_tracker and job_tracker.is_job_cancelled(job_id):
+                    logger.info(f"[Job {job_id}] Zip processing cancelled during batch processing")
+                    # Add cancelled status for remaining files
+                    for j in range(i, len(temp_files)):
+                        results.append({
+                            'success': False,
+                            'filename': temp_files[j][1],
+                            'error': 'Processing cancelled by user',
+                            'error_type': 'cancelled'
+                        })
+                    break
+
+                # Process current batch
+                batch = temp_files[i:i + BATCH_SIZE]
+                tasks = [
+                    process_single_file(
+                        file_path=file_path,
+                        filename=filename,
+                        file_id=str(uuid.uuid4()),
+                        conversation_id=conversation_id
+                    )
+                    for file_path, filename in batch
+                ]
+
+                processing_results = await asyncio.gather(*tasks)
+                results.extend(processing_results)
 
     finally:
         # Clean up temporary files
@@ -387,12 +416,29 @@ async def process_file_background(
         relative_path: Relative path from folder upload (e.g., 'folder/subfolder/file.txt')
     """
     job_tracker = get_job_tracker()
+
+    # Check if cancelled before starting
+    if job_tracker.is_job_cancelled(job_id):
+        logger.info(f"[Job {job_id}] Job cancelled before processing started")
+        # Clean up temp file
+        try:
+            if file_path.exists():
+                os.remove(file_path)
+        except Exception as e:
+            logger.error(f"Error cleaning up cancelled job file: {str(e)}")
+        return
+
     job_tracker.update_job_status(job_id, JobStatus.PROCESSING)
 
     try:
         # Read file content
         with open(file_path, 'rb') as f:
             content = f.read()
+
+        # Check for cancellation after reading file
+        if job_tracker.is_job_cancelled(job_id):
+            logger.info(f"[Job {job_id}] Job cancelled after reading file")
+            return
 
         # Handle zip files
         if file_ext == '.zip':
@@ -408,8 +454,8 @@ async def process_file_background(
                 )
             job_tracker.update_total_files(job_id, valid_files)
 
-            # Process zip
-            results = await extract_and_process_zip(content, filename, conversation_id)
+            # Process zip with cancellation support
+            results = await extract_and_process_zip(content, filename, conversation_id, job_id)
 
             # Update job with results
             for result in results:
@@ -417,9 +463,15 @@ async def process_file_background(
 
             successful = sum(1 for r in results if r.get('success'))
             failed = sum(1 for r in results if not r.get('success'))
+            cancelled = sum(1 for r in results if r.get('error_type') == 'cancelled')
 
-            logger.info(f"[Job {job_id}] Zip processed: {successful} successful, {failed} failed")
-            job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
+            # Check final status
+            if job_tracker.is_job_cancelled(job_id):
+                logger.info(f"[Job {job_id}] Zip processing cancelled: {successful} successful, {failed} failed, {cancelled} cancelled")
+                # Status already set to CANCELLED by cancel_job
+            else:
+                logger.info(f"[Job {job_id}] Zip processed: {successful} successful, {failed} failed")
+                job_tracker.update_job_status(job_id, JobStatus.COMPLETED)
 
         else:
             # Handle single file
@@ -428,6 +480,11 @@ async def process_file_background(
             logger.info(f"[Job {job_id}] Processing single file: {display_name}")
             job_tracker.update_total_files(job_id, 1)
 
+            # Check for cancellation before processing
+            if job_tracker.is_job_cancelled(job_id):
+                logger.info(f"[Job {job_id}] Job cancelled before document processing")
+                return
+
             file_id = str(uuid.uuid4())
             upload_date = datetime.now()
             file_size = len(content)
@@ -435,6 +492,11 @@ async def process_file_background(
             # Process document
             processor = DocumentProcessor()
             documents = processor.process_file(file_path, filename)
+
+            # Check for cancellation after processing
+            if job_tracker.is_job_cancelled(job_id):
+                logger.info(f"[Job {job_id}] Job cancelled after document processing, skipping vector store")
+                return
 
             # Add to vector store
             vector_store = get_vector_store()
@@ -629,3 +691,26 @@ async def list_jobs(conversation_id: str = None):
     job_tracker = get_job_tracker()
     jobs = job_tracker.get_all_jobs(conversation_id)
     return [JobStatusResponse(**job) for job in jobs]
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """
+    Cancel a running or pending job
+
+    Args:
+        job_id: Job identifier
+
+    Returns:
+        Success response
+    """
+    job_tracker = get_job_tracker()
+    success = job_tracker.cancel_job(job_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot cancel job. Job may not exist or is already completed/failed/cancelled."
+        )
+
+    return {"success": True, "message": f"Job {job_id} has been cancelled"}

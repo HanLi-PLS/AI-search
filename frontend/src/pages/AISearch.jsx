@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus } from '../services/api';
+import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus, cancelJob } from '../services/api';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { parseMarkdownToHTML, formatFileSize, formatDate } from '../utils/markdown';
 import './AISearch.css';
@@ -76,6 +76,29 @@ function AISearch() {
     }
   };
 
+  const handleCancelJob = useCallback(async (jobId, fileId) => {
+    try {
+      await cancelJob(jobId);
+      // Stop polling
+      const timerId = pollingTimersRef.current.get(fileId);
+      if (timerId) {
+        clearTimeout(timerId);
+        pollingTimersRef.current.delete(fileId);
+      }
+      // Update UI
+      setUploadProgress(prev => ({
+        ...prev,
+        [fileId]: {
+          ...prev[fileId],
+          status: 'error',
+          message: 'Cancelled by user'
+        }
+      }));
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+    }
+  }, []);
+
   const pollJobStatus = useCallback(async (jobId, fileId, fileName) => {
     const maxAttempts = 300; // Poll for up to 5 minutes (300 * 1s = 300s)
     let attempts = 0;
@@ -94,7 +117,8 @@ function AISearch() {
             [fileId]: {
               name: fileName,
               status: 'processing',
-              message: progress
+              message: progress,
+              jobId: jobId
             }
           }));
 
@@ -150,7 +174,8 @@ function AISearch() {
             [fileId]: {
               name: fileName,
               status: displayStatus,
-              message
+              message,
+              jobId: jobId
             }
           }));
           loadDocuments();
@@ -169,7 +194,19 @@ function AISearch() {
             [fileId]: {
               name: fileName,
               status: 'error',
-              message: status.error_message || 'Processing failed'
+              message: status.error_message || 'Processing failed',
+              jobId: jobId
+            }
+          }));
+        } else if (status.status === 'cancelled') {
+          pollingTimersRef.current.delete(fileId);
+          setUploadProgress(prev => ({
+            ...prev,
+            [fileId]: {
+              name: fileName,
+              status: 'error',
+              message: 'Cancelled by user',
+              jobId: jobId
             }
           }));
         }
@@ -232,7 +269,8 @@ function AISearch() {
               [fileId]: {
                 name: displayName,
                 status: 'processing',
-                message: 'File uploaded. Processing in background...'
+                message: 'File uploaded. Processing in background...',
+                jobId: result.job_id
               }
             }));
             // Start polling for job status
@@ -443,6 +481,15 @@ function AISearch() {
                     {progress.status === 'complete' && '✅'}
                     {progress.status === 'warning' && '⚠️'}
                     {progress.status === 'error' && '❌'}
+                    {(progress.status === 'uploading' || progress.status === 'processing') && progress.jobId && (
+                      <button
+                        className="cancel-upload-button"
+                        onClick={() => handleCancelJob(progress.jobId, id)}
+                        title="Cancel upload"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

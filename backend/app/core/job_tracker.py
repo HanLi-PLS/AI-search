@@ -20,6 +20,7 @@ class JobStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class JobInfo:
@@ -233,6 +234,57 @@ class JobTracker:
                     WHERE job_id = ?
                 """, (total_files, datetime.now().isoformat(), job_id))
                 conn.commit()
+
+    def cancel_job(self, job_id: str) -> bool:
+        """
+        Cancel a job
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            True if job was cancelled, False if job not found or already completed
+        """
+        with self.lock:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                # Check current status
+                row = conn.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+                if not row:
+                    logger.warning(f"Cannot cancel job {job_id}: not found")
+                    return False
+
+                current_status = JobStatus(row[0])
+
+                # Only allow cancelling pending or processing jobs
+                if current_status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+                    logger.warning(f"Cannot cancel job {job_id}: already in status {current_status.value}")
+                    return False
+
+                # Update to cancelled status
+                conn.execute("""
+                    UPDATE jobs
+                    SET status = ?, updated_at = ?, error_message = ?
+                    WHERE job_id = ?
+                """, (JobStatus.CANCELLED.value, datetime.now().isoformat(), "Cancelled by user", job_id))
+                conn.commit()
+                logger.info(f"Job {job_id} cancelled by user")
+                return True
+
+    def is_job_cancelled(self, job_id: str) -> bool:
+        """
+        Check if a job has been cancelled
+
+        Args:
+            job_id: Job identifier
+
+        Returns:
+            True if job is cancelled, False otherwise
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            row = conn.execute("SELECT status FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if row:
+                return JobStatus(row[0]) == JobStatus.CANCELLED
+            return False
 
     def add_file_result(self, job_id: str, result: Dict):
         """

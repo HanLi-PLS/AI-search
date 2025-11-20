@@ -270,4 +270,13 @@ export const listJobs = async (conversationId = null) => {
   }
 };
 
+export const cancelJob = async (jobId) => {
+  try {
+    const response = await api.post(`/api/jobs/${jobId}/cancel`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to cancel job');
+  }
+};
+
 export default api;

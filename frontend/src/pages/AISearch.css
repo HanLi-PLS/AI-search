@@ -241,6 +241,35 @@ section h2 {
 .upload-result-icon {
     width: 24px;
     height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cancel-upload-button {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+    margin-left: 8px;
+}
+
+.cancel-upload-button:hover {
+    background: #DC2626;
+    transform: scale(1.1);
+}
+
+.cancel-upload-button:active {
+    transform: scale(0.95);
 }
 
 .success-icon {
