@@ -1,7 +1,7 @@
 """
 File upload API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import List
 import uuid
 import time
@@ -555,17 +555,15 @@ async def process_file_background(
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     conversation_id: str = Form(None),
     relative_path: str = Form(None)
 ):
     """
     Upload and process a document (or zip file containing multiple documents)
-    Processing happens in the background - returns immediately with job_id
+    Processing happens via dedicated worker - returns immediately with job_id
 
     Args:
-        background_tasks: FastAPI background tasks
         file: Uploaded file
         conversation_id: Optional conversation ID to associate file with
         relative_path: Optional relative path from folder upload (e.g., 'folder/subfolder/file.txt')
@@ -616,20 +614,12 @@ async def upload_file(
 
         logger.info(f"File uploaded: {display_name} ({file_size} bytes), job_id: {job_id}")
 
-        # Create job tracker entry
+        # Create job tracker entry (status: PENDING)
+        # The dedicated worker will pick up pending jobs and process them
         job_tracker = get_job_tracker()
         job_tracker.create_job(job_id, display_name, conversation_id)
 
-        # Add background task
-        background_tasks.add_task(
-            process_file_background,
-            temp_file_path,
-            display_name,  # Use display name (with folder path) for metadata
-            file_ext,
-            conversation_id,
-            job_id,
-            None  # relative_path already included in display_name
-        )
+        logger.info(f"Job {job_id} created with status PENDING - worker will process it")
 
         return UploadResponse(
             success=True,
