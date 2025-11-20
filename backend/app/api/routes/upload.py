@@ -397,18 +397,16 @@ async def process_file_background(
         # Handle zip files
         if file_ext == '.zip':
             logger.info(f"[Job {job_id}] Processing zip file: {filename}")
-            job = job_tracker.get_job(job_id)
-            if job:
-                # Extract and count files first
-                buffer = io.BytesIO(content)
-                with zipfile.ZipFile(buffer, 'r') as zip_ref:
-                    valid_files = sum(
-                        1 for file_info in zip_ref.infolist()
-                        if not should_skip_file(decode_zip_filename(file_info))
-                        and not file_info.is_dir()
-                        and Path(decode_zip_filename(file_info)).suffix.lower() in settings.SUPPORTED_EXTENSIONS
-                    )
-                job.total_files = valid_files
+            # Extract and count files first
+            buffer = io.BytesIO(content)
+            with zipfile.ZipFile(buffer, 'r') as zip_ref:
+                valid_files = sum(
+                    1 for file_info in zip_ref.infolist()
+                    if not should_skip_file(decode_zip_filename(file_info))
+                    and not file_info.is_dir()
+                    and Path(decode_zip_filename(file_info)).suffix.lower() in settings.SUPPORTED_EXTENSIONS
+                )
+            job_tracker.update_total_files(job_id, valid_files)
 
             # Process zip
             results = await extract_and_process_zip(content, filename, conversation_id)
@@ -428,9 +426,7 @@ async def process_file_background(
             # Use relative_path as display name if provided (from folder upload)
             display_name = relative_path if relative_path else filename
             logger.info(f"[Job {job_id}] Processing single file: {display_name}")
-            job = job_tracker.get_job(job_id)
-            if job:
-                job.total_files = 1
+            job_tracker.update_total_files(job_id, 1)
 
             file_id = str(uuid.uuid4())
             upload_date = datetime.now()
