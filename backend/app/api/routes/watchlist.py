@@ -49,6 +49,113 @@ async def test_capiq_connection(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Connection test failed: {str(e)}")
 
 
+@router.get("/test-query")
+async def test_query_capiq(current_user: User = Depends(get_current_user)):
+    """
+    Test querying CapIQ views to explore data structure
+
+    Queries sample data from key CapIQ views to understand what's available
+    """
+    try:
+        capiq = get_capiq_service()
+
+        if not capiq.available:
+            return {
+                "success": False,
+                "message": "CapIQ not available"
+            }
+
+        cursor = capiq.conn.cursor()
+        results = {}
+
+        # Test 1: Sample companies
+        try:
+            cursor.execute("""
+                SELECT TOP 5
+                    companyid,
+                    companyname,
+                    countryhqid,
+                    simpleindustryid
+                FROM CIQCOMPANY
+                WHERE companyname IS NOT NULL
+                LIMIT 5
+            """)
+            companies = cursor.fetchall()
+            results["sample_companies"] = [
+                {
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "countryhqid": row[2],
+                    "simpleindustryid": row[3]
+                }
+                for row in companies
+            ]
+        except Exception as e:
+            results["sample_companies_error"] = str(e)
+
+        # Test 2: Sample securities (stocks)
+        try:
+            cursor.execute("""
+                SELECT TOP 5
+                    securityid,
+                    companyid,
+                    securityname,
+                    exchangeid
+                FROM CIQSECURITY
+                WHERE securityname IS NOT NULL
+                LIMIT 5
+            """)
+            securities = cursor.fetchall()
+            results["sample_securities"] = [
+                {
+                    "securityid": row[0],
+                    "companyid": row[1],
+                    "securityname": row[2],
+                    "exchangeid": row[3]
+                }
+                for row in securities
+            ]
+        except Exception as e:
+            results["sample_securities_error"] = str(e)
+
+        # Test 3: Sample trading items (tickers)
+        try:
+            cursor.execute("""
+                SELECT TOP 5
+                    tradingitemid,
+                    securityid,
+                    tickersymbol,
+                    exchangeid
+                FROM CIQTRADINGITEM
+                WHERE tickersymbol IS NOT NULL
+                LIMIT 5
+            """)
+            trading_items = cursor.fetchall()
+            results["sample_trading_items"] = [
+                {
+                    "tradingitemid": row[0],
+                    "securityid": row[1],
+                    "tickersymbol": row[2],
+                    "exchangeid": row[3]
+                }
+                for row in trading_items
+            ]
+        except Exception as e:
+            results["sample_trading_items_error"] = str(e)
+
+        cursor.close()
+
+        return {
+            "success": True,
+            "message": "Test queries executed",
+            "results": results
+        }
+
+    except Exception as e:
+        logger.error(f"Test query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Test query failed: {str(e)}")
+
+
 @router.get("/search")
 async def search_companies(
     query: str,
