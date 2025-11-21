@@ -70,7 +70,7 @@ function Home() {
           </ul>
           <button
             className="tracker-button"
-            onClick={() => navigate('/watchlist')}
+            onClick={() => navigate('/stock-tracker?tab=watchlist')}
           >
             CapIQ Watchlist
           </button>

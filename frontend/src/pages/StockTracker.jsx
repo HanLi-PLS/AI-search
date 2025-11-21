@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { stockAPI } from '../services/api';
+import { stockAPI, watchlistAPI } from '../services/api';
 import StockCard from '../components/StockCard';
 import './StockTracker.css';
 
 function StockTracker() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('hkex'); // 'hkex', 'portfolio', 'ipo'
+
+  // Initialize activeTab from URL params
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'hkex'); // 'hkex', 'portfolio', 'ipo', 'watchlist'
+
   const [stockData, setStockData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,6 +31,19 @@ function StockTracker() {
   const [portfolioRefreshing, setPortfolioRefreshing] = useState(false);
   const [isUpdatingPortfolioHistory, setIsUpdatingPortfolioHistory] = useState(false);
 
+  // Watchlist state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMarket, setSearchMarket] = useState('US');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+  const [watchlist, setWatchlist] = useState([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [watchlistError, setWatchlistError] = useState(null);
+  const [watchlistRefreshing, setWatchlistRefreshing] = useState(false);
+  const [addingTicker, setAddingTicker] = useState(null);
+  const [removingTicker, setRemovingTicker] = useState(null);
+
   useEffect(() => {
     // Fetch data on initial load
     // Data is cached on server for 12 hours, so this won't cause excessive API calls
@@ -35,6 +51,11 @@ function StockTracker() {
     fetchUpcomingIPOs();
     fetchHistoryStats();
     fetchPortfolioCompanies();
+
+    // Fetch watchlist if on watchlist tab
+    if (activeTab === 'watchlist') {
+      fetchWatchlist();
+    }
   }, []);
 
   const fetchStockData = async (forceRefresh = false) => {
@@ -216,10 +237,146 @@ function StockTracker() {
     }
   };
 
+  // Watchlist functions
+  const fetchWatchlist = async () => {
+    try {
+      const hasData = watchlist.length > 0;
+
+      if (!hasData) {
+        setWatchlistLoading(true);
+      } else {
+        setWatchlistRefreshing(true);
+      }
+
+      setWatchlistError(null);
+
+      const response = await watchlistAPI.getWatchlist();
+
+      if (response.success) {
+        setWatchlist(response.companies || []);
+      } else {
+        setWatchlistError('Failed to load watchlist');
+      }
+    } catch (err) {
+      console.error('Error fetching watchlist:', err);
+      setWatchlistError('Failed to load watchlist. Please try again.');
+    } finally {
+      setWatchlistLoading(false);
+      setWatchlistRefreshing(false);
+    }
+  };
+
+  const handleWatchlistSearch = async (e) => {
+    e.preventDefault();
+
+    if (!searchQuery.trim()) {
+      setSearchError('Please enter a company name or ticker');
+      return;
+    }
+
+    try {
+      setSearching(true);
+      setSearchError(null);
+      setSearchResults([]);
+
+      const response = await watchlistAPI.searchCompanies(
+        searchQuery,
+        searchMarket,
+        10
+      );
+
+      if (response.success) {
+        setSearchResults(response.companies || []);
+        if (response.companies.length === 0) {
+          setSearchError(`No companies found for "${searchQuery}" in ${searchMarket} market`);
+        }
+      } else {
+        setSearchError('Search failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchError('Search failed. Please check your connection.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddToWatchlist = async (company) => {
+    try {
+      setAddingTicker(company.ticker);
+
+      const response = await watchlistAPI.addToWatchlist(
+        company.ticker,
+        searchMarket
+      );
+
+      if (response.success) {
+        await fetchWatchlist();
+        setSearchResults(prev =>
+          prev.filter(c => c.ticker !== company.ticker)
+        );
+        alert(`Added ${company.companyname} to watchlist!`);
+      } else {
+        alert(response.message || 'Failed to add to watchlist');
+      }
+    } catch (err) {
+      console.error('Error adding to watchlist:', err);
+      alert(err.response?.data?.detail || 'Failed to add to watchlist');
+    } finally {
+      setAddingTicker(null);
+    }
+  };
+
+  const handleRemoveFromWatchlist = async (company) => {
+    if (!confirm(`Remove ${company.company_name} from watchlist?`)) {
+      return;
+    }
+
+    try {
+      setRemovingTicker(company.ticker);
+
+      const response = await watchlistAPI.removeFromWatchlist(
+        company.ticker,
+        company.market
+      );
+
+      if (response.success) {
+        setWatchlist(prev =>
+          prev.filter(c =>
+            !(c.ticker === company.ticker && c.market === company.market)
+          )
+        );
+        alert(`Removed ${company.company_name} from watchlist`);
+      } else {
+        alert('Failed to remove from watchlist');
+      }
+    } catch (err) {
+      console.error('Error removing from watchlist:', err);
+      alert('Failed to remove from watchlist');
+    } finally {
+      setRemovingTicker(null);
+    }
+  };
+
+  // Handle tab change and persist to URL
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+
+    // Fetch watchlist when switching to watchlist tab
+    if (tab === 'watchlist' && watchlist.length === 0) {
+      fetchWatchlist();
+    }
+  };
+
   // Handle sort change and persist to URL
   const handleSortChange = (newSortValue) => {
     setSortBy(newSortValue);
-    setSearchParams({ sort: newSortValue });
+    const params = { sort: newSortValue };
+    if (searchParams.get('tab')) {
+      params.tab = searchParams.get('tab');
+    }
+    setSearchParams(params);
   };
 
   // Helper function to render cell values with clickable links
@@ -326,6 +483,31 @@ function StockTracker() {
     return filtered;
   }, [stockData, searchTerm, sortBy]);
 
+  // Watchlist helper functions
+  const formatNumber = (value, decimals = 2) => {
+    if (value === null || value === undefined) return '-';
+    return Number(value).toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  };
+
+  const formatLargeNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(2)}T`;  // Trillions
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(2)}B`;  // Billions
+    }
+    return formatNumber(value, 2);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString();
+  };
+
   return (
     <div className="stock-tracker-container">
       <header className="tracker-header">
@@ -340,21 +522,27 @@ function StockTracker() {
       <div className="tab-navigation">
         <button
           className={`tab-button ${activeTab === 'hkex' ? 'active' : ''}`}
-          onClick={() => setActiveTab('hkex')}
+          onClick={() => handleTabChange('hkex')}
         >
           📊 HKEX 18A Biotech
         </button>
         <button
           className={`tab-button ${activeTab === 'portfolio' ? 'active' : ''}`}
-          onClick={() => setActiveTab('portfolio')}
+          onClick={() => handleTabChange('portfolio')}
         >
           💼 Portfolio Companies
         </button>
         <button
           className={`tab-button ${activeTab === 'ipo' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ipo')}
+          onClick={() => handleTabChange('ipo')}
         >
           🚀 IPO Listings
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'watchlist' ? 'active' : ''}`}
+          onClick={() => handleTabChange('watchlist')}
+        >
+          💰 CapIQ Watchlist
         </button>
       </div>
 
@@ -713,10 +901,215 @@ function StockTracker() {
         </>
       )}
 
+      {/* CapIQ Watchlist Tab */}
+      {activeTab === 'watchlist' && (
+        <>
+          <div className="watchlist-tab-container">
+            {/* Search Section */}
+            <div className="watchlist-search-section">
+              <h2>🔍 Search Companies</h2>
+              <form onSubmit={handleWatchlistSearch} className="watchlist-search-form">
+                <div className="watchlist-search-input-group">
+                  <input
+                    type="text"
+                    placeholder="Enter company name or ticker (e.g., Apple, AAPL, Tencent, 700)"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="watchlist-search-input"
+                  />
+                  <select
+                    value={searchMarket}
+                    onChange={(e) => setSearchMarket(e.target.value)}
+                    className="watchlist-market-select"
+                  >
+                    <option value="US">🇺🇸 US Market</option>
+                    <option value="HK">🇭🇰 HK Market</option>
+                  </select>
+                  <button
+                    type="submit"
+                    className="watchlist-search-button"
+                    disabled={searching}
+                  >
+                    {searching ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </form>
+
+              {searchError && (
+                <div className="watchlist-search-error">{searchError}</div>
+              )}
+
+              {searchResults.length > 0 && (
+                <div className="watchlist-search-results">
+                  <h3>Search Results ({searchResults.length})</h3>
+                  <div className="watchlist-results-grid">
+                    {searchResults.map((company) => (
+                      <div key={`${company.companyid}-${company.exchange_symbol}`} className="watchlist-result-card">
+                        <div className="watchlist-result-header">
+                          <h4>{company.companyname}</h4>
+                          <span className="watchlist-result-ticker">{company.ticker}</span>
+                        </div>
+                        <div className="watchlist-result-details">
+                          <div className="watchlist-result-info">
+                            <span className="watchlist-info-label">Exchange:</span>
+                            <span className="watchlist-info-value">{company.exchange_name}</span>
+                          </div>
+                          {company.industry && (
+                            <div className="watchlist-result-info">
+                              <span className="watchlist-info-label">Industry:</span>
+                              <span className="watchlist-info-value">{company.industry}</span>
+                            </div>
+                          )}
+                          {company.webpage && (
+                            <div className="watchlist-result-info">
+                              <span className="watchlist-info-label">Website:</span>
+                              <a
+                                href={`https://${company.webpage}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="watchlist-info-link"
+                              >
+                                {company.webpage}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleAddToWatchlist(company)}
+                          className="watchlist-add-button"
+                          disabled={addingTicker === company.ticker}
+                        >
+                          {addingTicker === company.ticker ? 'Adding...' : '+ Add to Watchlist'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Watchlist Display Section */}
+            <div className="watchlist-display-section">
+              <div className="watchlist-section-header">
+                <h2>💼 My Watchlist ({watchlist.length})</h2>
+                <button
+                  onClick={fetchWatchlist}
+                  className="watchlist-refresh-button"
+                  disabled={watchlistRefreshing}
+                >
+                  {watchlistRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+                </button>
+              </div>
+
+              {watchlistLoading && watchlist.length === 0 && (
+                <div className="loading-container">
+                  <div className="spinner"></div>
+                  <p>Loading watchlist...</p>
+                </div>
+              )}
+
+              {watchlistError && (
+                <div className="error-container">
+                  <p className="error-message">{watchlistError}</p>
+                  <button onClick={fetchWatchlist} className="retry-button">
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!watchlistLoading && !watchlistError && watchlist.length === 0 && (
+                <div className="watchlist-empty-watchlist">
+                  <p>📭 Your watchlist is empty</p>
+                  <p className="sub-message">Search for companies above to add them to your watchlist</p>
+                </div>
+              )}
+
+              {!watchlistLoading && !watchlistError && watchlist.length > 0 && (
+                <div className="watchlist-grid">
+                  {watchlist.map((company) => (
+                    <div key={company.id} className="watchlist-item-card">
+                      <div className="watchlist-card-header">
+                        <div>
+                          <h3>{company.company_name}</h3>
+                          <div className="watchlist-card-meta">
+                            <span className="watchlist-ticker">{company.ticker}</span>
+                            <span className="watchlist-market-badge">{company.market}</span>
+                            <span className="watchlist-exchange">{company.exchange_symbol}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveFromWatchlist(company)}
+                          className="watchlist-remove-button"
+                          disabled={removingTicker === company.ticker}
+                          title="Remove from watchlist"
+                        >
+                          {removingTicker === company.ticker ? '...' : '×'}
+                        </button>
+                      </div>
+
+                      {company.live_data && company.data_available ? (
+                        <div className="watchlist-card-data">
+                          <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">Price:</span>
+                            <span className="watchlist-data-value watchlist-price">
+                              ${formatNumber(company.live_data.price_close)}
+                            </span>
+                          </div>
+                          <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">Volume:</span>
+                            <span className="watchlist-data-value">
+                              {formatNumber(company.live_data.volume, 0)}
+                            </span>
+                          </div>
+                          <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">Market Cap:</span>
+                            <span className="watchlist-data-value">
+                              ${formatLargeNumber(company.live_data.market_cap)}
+                            </span>
+                          </div>
+                          <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">Date:</span>
+                            <span className="watchlist-data-value">
+                              {formatDate(company.live_data.pricing_date)}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="watchlist-card-data">
+                          <p className="watchlist-no-data">Live data unavailable</p>
+                        </div>
+                      )}
+
+                      <div className="watchlist-card-footer">
+                        {company.industry && (
+                          <span className="watchlist-industry-tag">{company.industry}</span>
+                        )}
+                        {company.webpage && (
+                          <a
+                            href={`https://${company.webpage}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="watchlist-website-link"
+                          >
+                            🌐 Website
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       <footer className="tracker-footer">
         <p>
           {activeTab === 'ipo'
             ? 'Data provided by Felix screening.'
+            : activeTab === 'watchlist'
+            ? 'Data provided by S&P Global Capital IQ via Snowflake'
             : 'Data provided by Tushare Pro API, Finnhub, and Yahoo Finance. Auto-refreshes at 12 AM and 12 PM daily.'}
         </p>
         <p className="disclaimer">
