@@ -37,7 +37,11 @@ async def test_capiq_connection(current_user: User = Depends(get_current_user)):
             "details": {
                 "configured": result.get("configured", False),
                 "tables": result.get("tables", []),
-                "table_count": result.get("table_count", 0)
+                "views": result.get("views", []),
+                "all_objects": result.get("all_objects", []),
+                "table_count": result.get("table_count", 0),
+                "view_count": result.get("view_count", 0),
+                "total_count": result.get("total_count", 0)
             }
         }
     except Exception as e:

@@ -123,7 +123,7 @@ class CapIQDataService:
         Test Snowflake CapIQ connection and return status
 
         Returns:
-            Dict with connection status and available tables
+            Dict with connection status and available tables and views
         """
         if not self.available:
             return {
@@ -133,22 +133,32 @@ class CapIQDataService:
             }
 
         try:
-            # Test query to list available tables
-            query = """
-            SHOW TABLES IN SCHEMA
-            """
             cursor = self.conn.cursor()
-            cursor.execute(query)
-            tables = cursor.fetchall()
-            cursor.close()
+            all_objects = []
 
+            # Get tables
+            cursor.execute("SHOW TABLES IN SCHEMA")
+            tables = cursor.fetchall()
             table_names = [row[1] for row in tables]  # Table name is in second column
+            all_objects.extend([{"name": name, "type": "table"} for name in table_names])
+
+            # Get views
+            cursor.execute("SHOW VIEWS IN SCHEMA")
+            views = cursor.fetchall()
+            view_names = [row[1] for row in views]  # View name is in second column
+            all_objects.extend([{"name": name, "type": "view"} for name in view_names])
+
+            cursor.close()
 
             return {
                 "success": True,
                 "message": f"Connected to {settings.SNOWFLAKE_DATABASE}.{settings.SNOWFLAKE_SCHEMA}",
                 "tables": table_names,
-                "table_count": len(table_names)
+                "views": view_names,
+                "all_objects": all_objects,
+                "table_count": len(table_names),
+                "view_count": len(view_names),
+                "total_count": len(all_objects)
             }
         except Exception as e:
             logger.error(f"CapIQ connection test failed: {str(e)}")
