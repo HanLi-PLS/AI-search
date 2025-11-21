@@ -189,7 +189,7 @@ class CapIQDataService:
                 # Use exact exchange names for US markets (Nasdaq and NYSE)
                 market_filter = """AND (
                     ex.exchangename = 'Nasdaq Global Select'
-                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
                     OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
                 )"""
             elif market == "HK":
@@ -271,7 +271,7 @@ class CapIQDataService:
                 # Use exact exchange names for US markets (Nasdaq and NYSE)
                 market_filter = """AND (
                     ex.exchangename = 'Nasdaq Global Select'
-                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
                     OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
                 )"""
             elif market == "HK":

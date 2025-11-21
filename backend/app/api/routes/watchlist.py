@@ -241,7 +241,7 @@ async def test_apple_filter(current_user: User = Depends(get_current_user)):
                 AND (UPPER(c.companyname) LIKE UPPER(%s) OR UPPER(ti.tickersymbol) LIKE UPPER(%s))
                 AND (
                     ex.exchangename = 'Nasdaq Global Select'
-                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
                     OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
                 )
             LIMIT 10
@@ -285,7 +285,7 @@ async def test_apple_filter(current_user: User = Depends(get_current_user)):
                 AND (UPPER(c.companyname) LIKE UPPER(%s) OR UPPER(ti.tickersymbol) LIKE UPPER(%s))
                 AND (
                     ex.exchangename = 'Nasdaq Global Select'
-                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
                     OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
                 )
             LIMIT 10
