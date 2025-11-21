@@ -68,53 +68,37 @@ async def test_query_capiq(current_user: User = Depends(get_current_user)):
         cursor = capiq.conn.cursor()
         results = {}
 
-        # Test 1: Sample companies
+        # Test 1: Sample companies (discover columns with SELECT *)
         try:
             cursor.execute("""
-                SELECT
-                    companyid,
-                    companyname,
-                    countryhqid,
-                    simpleindustryid
+                SELECT *
                 FROM CIQCOMPANY
-                WHERE companyname IS NOT NULL
-                LIMIT 5
+                LIMIT 2
             """)
             companies = cursor.fetchall()
-            results["sample_companies"] = [
-                {
-                    "companyid": row[0],
-                    "companyname": row[1],
-                    "countryhqid": row[2],
-                    "simpleindustryid": row[3]
-                }
-                for row in companies
-            ]
+            column_names = [desc[0] for desc in cursor.description]
+            results["sample_companies"] = {
+                "columns": column_names[:15],  # First 15 column names
+                "row_count": len(companies),
+                "sample_data": [dict(zip(column_names[:15], row[:15])) for row in companies]
+            }
         except Exception as e:
             results["sample_companies_error"] = str(e)
 
-        # Test 2: Sample securities (stocks)
+        # Test 2: Sample securities (discover columns)
         try:
             cursor.execute("""
-                SELECT
-                    securityid,
-                    companyid,
-                    securityname,
-                    exchangeid
+                SELECT *
                 FROM CIQSECURITY
-                WHERE securityname IS NOT NULL
-                LIMIT 5
+                LIMIT 2
             """)
             securities = cursor.fetchall()
-            results["sample_securities"] = [
-                {
-                    "securityid": row[0],
-                    "companyid": row[1],
-                    "securityname": row[2],
-                    "exchangeid": row[3]
-                }
-                for row in securities
-            ]
+            column_names = [desc[0] for desc in cursor.description]
+            results["sample_securities"] = {
+                "columns": column_names[:15],  # First 15 column names
+                "row_count": len(securities),
+                "sample_data": [dict(zip(column_names[:15], row[:15])) for row in securities]
+            }
         except Exception as e:
             results["sample_securities_error"] = str(e)
 
