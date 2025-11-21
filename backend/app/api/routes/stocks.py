@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 import re
 import os
 from backend.app.config import settings
-from backend.app.api.dependencies import get_current_user
+from backend.app.api.routes.auth import get_current_user
 
 try:
     import akshare as ak
