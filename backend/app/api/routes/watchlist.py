@@ -144,10 +144,16 @@ async def test_query_capiq(current_user: User = Depends(get_current_user)):
 async def search_companies(
     query: str,
     limit: int = 10,
+    market: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
     """
     Search for companies by name or ticker across all markets
+
+    Args:
+        query: Company name or ticker to search for
+        limit: Maximum number of results (default 10)
+        market: Optional market filter ('US', 'HK', or None for all markets)
 
     Uses CapIQ if available, otherwise returns empty results
     """
@@ -161,11 +167,12 @@ async def search_companies(
                 "companies": []
             }
 
-        companies = capiq.search_companies(query, limit)
+        companies = capiq.search_companies(query, limit, market)
 
         return {
             "success": True,
             "query": query,
+            "market_filter": market,
             "count": len(companies),
             "companies": companies
         }

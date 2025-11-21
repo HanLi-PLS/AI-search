@@ -167,13 +167,14 @@ class CapIQDataService:
                 "message": f"Connection test failed: {str(e)}"
             }
 
-    def search_companies(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search_companies(self, query: str, limit: int = 10, market: str = None) -> List[Dict[str, Any]]:
         """
-        Search for companies by name or ticker
+        Search for companies by name or ticker across all markets
 
         Args:
             query: Search query (company name or ticker)
             limit: Maximum number of results
+            market: Optional market filter ('US', 'HK', or None for all)
 
         Returns:
             List of matching companies with basic info
@@ -182,36 +183,72 @@ class CapIQDataService:
             return []
 
         try:
-            # This is a template query - adjust based on your actual CapIQ schema
-            sql = """
-            SELECT
-                companyid,
-                companyname,
-                ticker,
-                exchange,
-                country,
-                marketcap
-            FROM company_master
-            WHERE UPPER(companyname) LIKE UPPER(%s)
-               OR UPPER(ticker) LIKE UPPER(%s)
-            LIMIT %s
+            # Build market filter
+            market_filter = ""
+            if market == "US":
+                market_filter = "AND (ex.exchangename LIKE 'Nasdaq%' OR ex.exchangename LIKE 'NYSE%' OR ex.exchangename LIKE 'New York%')"
+            elif market == "HK":
+                market_filter = "AND ex.exchangename LIKE 'Hong Kong%'"
+
+            sql = f"""
+            SELECT DISTINCT
+                c.companyid,
+                c.companyname,
+                c.webpage,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                s.subtypevalue as industry
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            LEFT JOIN ciqCompanyIndustryTree tree
+                ON tree.companyid = c.companyid AND tree.primaryflag = 1
+            LEFT JOIN ciqSubType s
+                ON s.subTypeId = tree.subTypeId
+            WHERE c.companyTypeId = 4  -- public companies only
+                AND c.companyStatusTypeId IN (1, 20)  -- operating/active
+                AND sec.primaryflag = 1
+                AND (UPPER(c.companyname) LIKE UPPER(%s) OR UPPER(ti.tickersymbol) LIKE UPPER(%s))
+                {market_filter}
+            LIMIT {limit}
             """
 
             search_pattern = f"%{query}%"
-            df = pd.read_sql(sql, self.conn, params=[search_pattern, search_pattern, limit])
+            cursor = self.conn.cursor()
+            cursor.execute(sql, [search_pattern, search_pattern])
+            rows = cursor.fetchall()
+            cursor.close()
 
-            return df.to_dict('records')
+            results = []
+            for row in rows:
+                results.append({
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "webpage": row[2],
+                    "ticker": row[3],
+                    "exchange_symbol": row[4],
+                    "exchange_name": row[5],
+                    "industry": row[6]
+                })
+
+            return results
         except Exception as e:
             logger.error(f"Company search failed: {str(e)}")
             return []
 
-    def get_company_data(self, ticker: str, market: str = "US") -> Optional[Dict[str, Any]]:
+    def get_company_data(self, ticker: str, market: str = "US", exchange_name: str = None) -> Optional[Dict[str, Any]]:
         """
-        Get comprehensive company data from CapIQ
+        Get comprehensive company data from CapIQ including latest price and market cap
 
         Args:
             ticker: Stock ticker symbol
             market: Market identifier (US, HK, etc.)
+            exchange_name: Optional specific exchange name
 
         Returns:
             Company data dictionary or None if not found
@@ -220,49 +257,74 @@ class CapIQDataService:
             return None
 
         try:
-            # Template query - adjust to match your CapIQ schema
-            # This query should be customized based on the actual tables and columns available
-            sql = """
+            # Build market filter
+            market_filter = ""
+            if exchange_name:
+                market_filter = f"AND ex.exchangename = '{exchange_name}'"
+            elif market == "US":
+                market_filter = "AND (ex.exchangename LIKE 'Nasdaq%' OR ex.exchangename LIKE 'NYSE%' OR ex.exchangename LIKE 'New York%')"
+            elif market == "HK":
+                market_filter = "AND ex.exchangename LIKE 'Hong Kong%'"
+
+            sql = f"""
             SELECT
                 c.companyid,
-                c.companyname AS name,
-                c.ticker,
-                c.exchange,
-                c.country,
-                c.sector,
-                c.industry,
-                f.marketcap AS market_cap,
-                f.totalrevenue AS revenue,
-                f.netincome AS net_income,
-                f.totalassets AS total_assets,
-                f.totaldebt AS total_debt,
-                f.totalequity AS total_equity,
-                f.operatingcashflow AS operating_cash_flow,
-                f.capex,
-                p.price AS current_price,
-                p.pe_ratio,
-                p.pb_ratio,
-                p.ps_ratio,
-                p.ev_ebitda,
-                p.dividend_yield
-            FROM company_master c
-            LEFT JOIN company_fundamentals f ON c.companyid = f.companyid
-            LEFT JOIN company_pricing p ON c.companyid = p.companyid
-            WHERE c.ticker = %s
-              AND c.exchange LIKE %s
-            ORDER BY f.reportdate DESC
+                c.companyname,
+                c.webpage,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                s.subtypevalue as industry,
+                pe.pricingdate,
+                pe.priceclose,
+                pe.volume,
+                mc.marketcap
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            LEFT JOIN ciqCompanyIndustryTree tree
+                ON tree.companyid = c.companyid AND tree.primaryflag = 1
+            LEFT JOIN ciqSubType s
+                ON s.subTypeId = tree.subTypeId
+            LEFT JOIN ciqpriceequity pe
+                ON ti.tradingitemid = pe.tradingitemid
+            LEFT JOIN ciqmarketcap mc
+                ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND sec.primaryflag = 1
+                AND UPPER(ti.tickersymbol) = UPPER(%s)
+                {market_filter}
+                AND pe.priceclose IS NOT NULL
+            ORDER BY pe.pricingdate DESC
             LIMIT 1
             """
 
-            # Adjust exchange pattern based on market
-            exchange_pattern = "%HK%" if market == "HK" else "%"
+            cursor = self.conn.cursor()
+            cursor.execute(sql, [ticker])
+            row = cursor.fetchone()
+            cursor.close()
 
-            df = pd.read_sql(sql, self.conn, params=[ticker, exchange_pattern])
-
-            if df.empty:
+            if not row:
                 return None
 
-            return df.iloc[0].to_dict()
+            return {
+                "companyid": row[0],
+                "companyname": row[1],
+                "webpage": row[2],
+                "ticker": row[3],
+                "exchange_symbol": row[4],
+                "exchange_name": row[5],
+                "industry": row[6],
+                "pricing_date": row[7],
+                "price_close": float(row[8]) if row[8] else None,
+                "volume": int(row[9]) if row[9] else None,
+                "market_cap": float(row[10]) if row[10] else None
+            }
         except Exception as e:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
             return None
