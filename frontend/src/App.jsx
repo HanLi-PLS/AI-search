@@ -8,6 +8,7 @@ import './App.css';
 const Home = lazy(() => import('./pages/Home'));
 const StockTracker = lazy(() => import('./pages/StockTracker'));
 const StockDetail = lazy(() => import('./pages/StockDetail'));
+const Watchlist = lazy(() => import('./pages/Watchlist'));
 const AISearch = lazy(() => import('./pages/AISearch'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
@@ -37,6 +38,11 @@ function App() {
             <Route path="/stock-tracker/:ticker" element={
               <ProtectedRoute>
                 <StockDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/watchlist" element={
+              <ProtectedRoute>
+                <Watchlist />
               </ProtectedRoute>
             } />
             <Route path="/ai-search" element={

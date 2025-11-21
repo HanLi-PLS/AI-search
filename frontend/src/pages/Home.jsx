@@ -60,6 +60,22 @@ function Home() {
           </button>
         </div>
 
+        <div className="feature-card highlight">
+          <h2>💼 CapIQ Watchlist</h2>
+          <p>Track your portfolio companies across US and HK markets with real-time CapIQ data</p>
+          <ul className="tracker-features">
+            <li>• Search US & HK companies</li>
+            <li>• Real-time pricing data</li>
+            <li>• Custom watchlist management</li>
+          </ul>
+          <button
+            className="tracker-button"
+            onClick={() => navigate('/watchlist')}
+          >
+            CapIQ Watchlist
+          </button>
+        </div>
+
         <div className="feature-card">
           <h2>🧬 Company Intelligence</h2>
           <p>Extract drug pipelines, competitors, and market analysis from documents</p>

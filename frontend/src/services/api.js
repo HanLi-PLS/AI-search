@@ -191,6 +191,47 @@ export const stockAPI = {
   },
 };
 
+// Watchlist API (CapIQ integration)
+export const watchlistAPI = {
+  // Search for companies across markets
+  searchCompanies: async (query, market = null, limit = 10) => {
+    const params = { query, limit };
+    if (market) params.market = market;
+    const response = await api.get('/api/watchlist/search', { params });
+    return response.data;
+  },
+
+  // Add company to watchlist
+  addToWatchlist: async (ticker, market = 'US') => {
+    const response = await api.post('/api/watchlist/add', null, {
+      params: { ticker, market }
+    });
+    return response.data;
+  },
+
+  // Remove company from watchlist
+  removeFromWatchlist: async (ticker, market = 'US') => {
+    const response = await api.delete('/api/watchlist/remove', {
+      params: { ticker, market }
+    });
+    return response.data;
+  },
+
+  // Get user's watchlist with live data
+  getWatchlist: async () => {
+    const response = await api.get('/api/watchlist/list');
+    return response.data;
+  },
+
+  // Get detailed company information
+  getCompanyDetails: async (ticker, market = 'US') => {
+    const response = await api.get(`/api/watchlist/company/${ticker}`, {
+      params: { market }
+    });
+    return response.data;
+  },
+};
+
 // AI Search API functions (matching HTML version API)
 export const uploadFile = async (file, conversationId = null, relativePath = null, abortSignal = null) => {
   const formData = new FormData();
