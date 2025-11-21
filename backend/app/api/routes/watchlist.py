@@ -197,6 +197,123 @@ async def debug_exchanges(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/test-apple-filter")
+async def test_apple_filter(current_user: User = Depends(get_current_user)):
+    """
+    Test the exact filter conditions used in search to debug Apple issue
+    """
+    try:
+        capiq = get_capiq_service()
+        if not capiq.available:
+            return {"success": False, "message": "CapIQ not available"}
+
+        cursor = capiq.conn.cursor()
+        results = {}
+
+        # Test the EXACT query used in search_companies() for Apple
+        try:
+            sql = """
+            SELECT DISTINCT
+                c.companyid,
+                c.companyname,
+                c.webpage,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                s.subtypevalue as industry,
+                sec.primaryflag,
+                c.companyTypeId,
+                c.companyStatusTypeId
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            LEFT JOIN ciqCompanyIndustryTree tree
+                ON tree.companyid = c.companyid AND tree.primaryflag = 1
+            LEFT JOIN ciqSubType s
+                ON s.subTypeId = tree.subTypeId
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND sec.primaryflag = 1
+                AND (UPPER(c.companyname) LIKE UPPER(%s) OR UPPER(ti.tickersymbol) LIKE UPPER(%s))
+                AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )
+            LIMIT 10
+            """
+            cursor.execute(sql, ['%Apple%', '%Apple%'])
+            apple_results = cursor.fetchall()
+            results["apple_with_filter"] = [
+                {
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "webpage": row[2],
+                    "ticker": row[3],
+                    "exchange_symbol": row[4],
+                    "exchange_name": row[5],
+                    "industry": row[6],
+                    "primary_flag": row[7],
+                    "company_type": row[8],
+                    "company_status": row[9]
+                }
+                for row in apple_results
+            ]
+        except Exception as e:
+            results["apple_with_filter_error"] = str(e)
+
+        # Test without primaryflag filter
+        try:
+            sql = """
+            SELECT DISTINCT
+                c.companyid,
+                c.companyname,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                sec.primaryflag
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex ON ti.exchangeid = ex.exchangeid
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND (UPPER(c.companyname) LIKE UPPER(%s) OR UPPER(ti.tickersymbol) LIKE UPPER(%s))
+                AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )
+            LIMIT 10
+            """
+            cursor.execute(sql, ['%Apple%', '%Apple%'])
+            apple_no_primary = cursor.fetchall()
+            results["apple_without_primaryflag"] = [
+                {
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "ticker": row[2],
+                    "exchange_symbol": row[3],
+                    "exchange_name": row[4],
+                    "primary_flag": row[5]
+                }
+                for row in apple_no_primary
+            ]
+        except Exception as e:
+            results["apple_without_primaryflag_error"] = str(e)
+
+        cursor.close()
+        return {"success": True, "results": results}
+
+    except Exception as e:
+        logger.error(f"Apple filter test failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/test-query")
 async def test_query_capiq(current_user: User = Depends(get_current_user)):
     """
