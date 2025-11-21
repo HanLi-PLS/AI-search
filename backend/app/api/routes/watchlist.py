@@ -71,7 +71,7 @@ async def test_query_capiq(current_user: User = Depends(get_current_user)):
         # Test 1: Sample companies
         try:
             cursor.execute("""
-                SELECT TOP 5
+                SELECT
                     companyid,
                     companyname,
                     countryhqid,
@@ -96,7 +96,7 @@ async def test_query_capiq(current_user: User = Depends(get_current_user)):
         # Test 2: Sample securities (stocks)
         try:
             cursor.execute("""
-                SELECT TOP 5
+                SELECT
                     securityid,
                     companyid,
                     securityname,
@@ -121,7 +121,7 @@ async def test_query_capiq(current_user: User = Depends(get_current_user)):
         # Test 3: Sample trading items (tickers)
         try:
             cursor.execute("""
-                SELECT TOP 5
+                SELECT
                     tradingitemid,
                     securityid,
                     tickersymbol,
