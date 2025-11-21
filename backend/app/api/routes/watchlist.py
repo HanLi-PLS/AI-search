@@ -156,6 +156,39 @@ async def debug_exchanges(current_user: User = Depends(get_current_user)):
         except Exception as e:
             results["global_exchanges_error"] = str(e)
 
+        # Find NYSE exchange name by searching for JPMorgan Chase
+        try:
+            cursor.execute("""
+                SELECT DISTINCT
+                    c.companyname,
+                    ti.tickersymbol,
+                    ex.exchangename,
+                    ex.exchangesymbol,
+                    sec.primaryflag
+                FROM ciqcompany c
+                INNER JOIN ciqsecurity sec ON c.companyid = sec.companyid
+                INNER JOIN ciqtradingitem ti ON sec.securityid = ti.securityid
+                INNER JOIN ciqexchange ex ON ti.exchangeid = ex.exchangeid
+                WHERE ti.tickersymbol = 'JPM'
+                    AND c.companyTypeId = 4
+                    AND c.companyStatusTypeId IN (1, 20)
+                    AND sec.primaryflag = 1
+                LIMIT 5
+            """)
+            jpm_results = cursor.fetchall()
+            results["jpm_exchange"] = [
+                {
+                    "company": row[0],
+                    "ticker": row[1],
+                    "exchange": row[2],
+                    "exchange_symbol": row[3],
+                    "primary_flag": row[4]
+                }
+                for row in jpm_results
+            ]
+        except Exception as e:
+            results["jpm_error"] = str(e)
+
         cursor.close()
         return {"success": True, "results": results}
 
