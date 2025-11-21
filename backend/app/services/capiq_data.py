@@ -17,6 +17,7 @@ def get_snowflake_connection():
     """
     Get or create Snowflake connection
     Supports both password and key-pair authentication
+    Fetches credentials from AWS Secrets Manager if configured
     Returns None if CapIQ is not configured
     """
     global _snowflake_conn
@@ -30,10 +31,33 @@ def get_snowflake_connection():
             from cryptography.hazmat.backends import default_backend
             from cryptography.hazmat.primitives import serialization
 
+            # Get credentials - from AWS Secrets Manager or environment variables
+            snowflake_user = settings.SNOWFLAKE_USER
+            snowflake_password = settings.SNOWFLAKE_PASSWORD
+            snowflake_account = settings.SNOWFLAKE_ACCOUNT
+
+            if settings.USE_AWS_SECRETS:
+                # Fetch Snowflake credentials from AWS Secrets Manager
+                try:
+                    from backend.app.utils.aws_secrets import get_secret
+                    logger.info("Fetching Snowflake credentials from AWS Secrets Manager")
+
+                    if settings.AWS_SECRET_NAME_SNOWFLAKE_USER:
+                        snowflake_user = get_secret(settings.AWS_SECRET_NAME_SNOWFLAKE_USER, settings.AWS_REGION).strip()
+                    if settings.AWS_SECRET_NAME_SNOWFLAKE_PASSWORD:
+                        snowflake_password = get_secret(settings.AWS_SECRET_NAME_SNOWFLAKE_PASSWORD, settings.AWS_REGION).strip()
+                    if settings.AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT:
+                        snowflake_account = get_secret(settings.AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT, settings.AWS_REGION).strip()
+
+                    logger.info(f"Successfully fetched Snowflake credentials for user: {snowflake_user}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch Snowflake credentials from AWS Secrets Manager: {str(e)}")
+                    logger.info("Falling back to environment variables")
+
             # Build connection parameters
             conn_params = {
-                "user": settings.SNOWFLAKE_USER,
-                "account": settings.SNOWFLAKE_ACCOUNT,
+                "user": snowflake_user,
+                "account": snowflake_account,
                 "warehouse": settings.SNOWFLAKE_WAREHOUSE,
                 "database": settings.SNOWFLAKE_DATABASE,
                 "schema": settings.SNOWFLAKE_SCHEMA,
@@ -67,10 +91,10 @@ def get_snowflake_connection():
                     encryption_algorithm=serialization.NoEncryption()
                 )
                 conn_params["private_key"] = pkb
-            elif settings.SNOWFLAKE_PASSWORD:
+            elif snowflake_password:
                 # Password authentication
                 logger.info("Using password authentication for Snowflake")
-                conn_params["password"] = settings.SNOWFLAKE_PASSWORD
+                conn_params["password"] = snowflake_password
             else:
                 logger.error("No authentication method configured (need password or private key)")
                 return None

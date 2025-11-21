@@ -9,16 +9,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_key(secret_name: str, region_name: str) -> str:
+def get_secret(secret_name: str, region_name: str) -> str:
     """
-    Retrieve a secret from AWS Secrets Manager
+    Retrieve a secret value from AWS Secrets Manager (returns raw string)
 
     Args:
         secret_name: Name of the secret in AWS Secrets Manager
         region_name: AWS region where the secret is stored
 
     Returns:
-        The secret value
+        The secret value as a string
 
     Raises:
         ClientError: If the secret cannot be retrieved
@@ -37,7 +37,23 @@ def get_key(secret_name: str, region_name: str) -> str:
         logger.error(f"Error retrieving secret {secret_name}: {str(e)}")
         raise e
 
-    secret = get_secret_value_response['SecretString']
-    key = ast.literal_eval(secret)['key']
+    return get_secret_value_response['SecretString']
 
+
+def get_key(secret_name: str, region_name: str) -> str:
+    """
+    Retrieve a secret from AWS Secrets Manager (expects JSON with 'key' field)
+
+    Args:
+        secret_name: Name of the secret in AWS Secrets Manager
+        region_name: AWS region where the secret is stored
+
+    Returns:
+        The secret value
+
+    Raises:
+        ClientError: If the secret cannot be retrieved
+    """
+    secret = get_secret(secret_name, region_name)
+    key = ast.literal_eval(secret)['key']
     return key

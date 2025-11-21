@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
     AWS_SECRET_NAME_FINNHUB: str = os.getenv("AWS_SECRET_NAME_FINNHUB", "finnhub-api-key")
     AWS_SECRET_NAME_TUSHARE: str = os.getenv("AWS_SECRET_NAME_TUSHARE", "tushare-api-token")
+    # Snowflake CapIQ credentials from AWS Secrets Manager
+    AWS_SECRET_NAME_SNOWFLAKE_USER: str = os.getenv("AWS_SECRET_NAME_SNOWFLAKE_USER", "airflow/variables/CAPIQ_SNOWFLAKE_USER")
+    AWS_SECRET_NAME_SNOWFLAKE_PASSWORD: str = os.getenv("AWS_SECRET_NAME_SNOWFLAKE_PASSWORD", "airflow/variables/CAPIQ_SNOWFLAKE_PASSWD")
+    AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT: str = os.getenv("AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT", "airflow/variables/CAPIQ_SNOWFLAKE_ACCOUNT_ID")
 
     # Vision Model Configuration (for image processing in PDFs)
     VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
