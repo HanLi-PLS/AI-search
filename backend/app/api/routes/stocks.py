@@ -867,64 +867,101 @@ async def get_companies():
 @router.get("/stocks/prices")
 async def get_all_prices(force_refresh: bool = False):
     """
-    Get current prices for all HKEX 18A biotech companies from CapIQ
-    Returns comprehensive company data with real-time pricing
+    Get current prices for all HKEX 18A biotech companies
+    Uses the verified company list and enriches with CapIQ pricing data
 
     Args:
-        force_refresh: If True, bypass cache and fetch fresh data (currently unused with CapIQ)
+        force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
-        List of stock data for all HK biotech companies from CapIQ
+        List of stock data for all HKEX 18A biotech companies with CapIQ pricing
     """
     from backend.app.services.capiq_data import get_capiq_service
 
     try:
+        # Step 1: Get the verified HKEX 18A company list
+        companies_list = get_hkex_biotech_companies()
+        logger.info(f"Got {len(companies_list)} HKEX 18A companies from verified list")
+
+        # Step 2: Initialize CapIQ service
         capiq_service = get_capiq_service()
 
         if not capiq_service.available:
-            logger.warning("CapIQ not available, returning empty list")
-            return []
+            logger.warning("CapIQ not available, returning companies without pricing data")
+            return [
+                {
+                    "ticker": company['ticker'],
+                    "name": company['name'],
+                    "current_price": None,
+                    "error": "CapIQ not available",
+                    "data_source": "Fallback List"
+                }
+                for company in companies_list
+            ]
 
-        # Get HK biotech companies from CapIQ
-        companies = await asyncio.to_thread(capiq_service.get_hk_biotech_companies, limit=100)
-
-        logger.info(f"Retrieved {len(companies)} HK biotech companies from CapIQ")
-
-        # Transform CapIQ data to match expected frontend format
+        # Step 3: Fetch CapIQ data for each company
         results = []
-        for company in companies:
-            # Calculate change and change_percent if we have open and close prices
-            change = None
-            change_percent = None
-            if company.get('price_close') and company.get('price_open'):
-                change = company['price_close'] - company['price_open']
-                change_percent = (change / company['price_open'] * 100) if company['price_open'] != 0 else 0
+        for company in companies_list:
+            ticker = company['ticker']
 
-            result = {
-                "ticker": company['ticker'],
-                "name": company['companyname'],
-                "current_price": company.get('price_close'),
-                "open": company.get('price_open'),
-                "day_high": company.get('price_high'),
-                "day_low": company.get('price_low'),
-                "volume": company.get('volume'),
-                "market_cap": company.get('market_cap'),
-                "change": change,
-                "change_percent": change_percent,
-                "industry": company.get('industry'),
-                "webpage": company.get('webpage'),
-                "exchange_name": company.get('exchange_name'),
-                "exchange_symbol": company.get('exchange_symbol'),
-                "pricing_date": company.get('pricing_date'),
-                "data_source": "CapIQ",
-                "last_updated": datetime.now().isoformat(),
-            }
-            results.append(result)
+            # Get CapIQ data for this specific ticker
+            capiq_data = await asyncio.to_thread(
+                capiq_service.get_company_data,
+                ticker=ticker,
+                market="HK"
+            )
 
+            if capiq_data:
+                # Calculate change and change_percent if we have data
+                change = None
+                change_percent = None
+                # CapIQ only returns price_close, so we can't calculate intraday change
+                # Change will be calculated from database history if available
+
+                result = {
+                    "ticker": ticker,
+                    "name": company['name'],  # Use name from our verified list
+                    "current_price": capiq_data.get('price_close'),
+                    "open": None,  # CapIQ get_company_data doesn't return open
+                    "day_high": None,
+                    "day_low": None,
+                    "volume": capiq_data.get('volume'),
+                    "market_cap": capiq_data.get('market_cap'),
+                    "change": change,
+                    "change_percent": change_percent,
+                    "industry": capiq_data.get('industry'),
+                    "webpage": capiq_data.get('webpage'),
+                    "exchange_name": capiq_data.get('exchange_name'),
+                    "exchange_symbol": capiq_data.get('exchange_symbol'),
+                    "pricing_date": capiq_data.get('pricing_date'),
+                    "data_source": "CapIQ",
+                    "last_updated": datetime.now().isoformat(),
+                }
+
+                # Try to calculate daily change from database history
+                try:
+                    result = calculate_daily_change_from_db(ticker, result)
+                except Exception as e:
+                    logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
+
+                results.append(result)
+            else:
+                # CapIQ data not available for this ticker
+                logger.warning(f"No CapIQ data found for {ticker}")
+                results.append({
+                    "ticker": ticker,
+                    "name": company['name'],
+                    "current_price": None,
+                    "error": "No CapIQ data available",
+                    "data_source": "Fallback List",
+                    "last_updated": datetime.now().isoformat(),
+                })
+
+        logger.info(f"Retrieved CapIQ data for {len([r for r in results if r.get('current_price')])} / {len(companies_list)} companies")
         return results
 
     except Exception as e:
-        logger.error(f"Error fetching HK biotech companies from CapIQ: {str(e)}")
+        logger.error(f"Error fetching HK biotech companies with CapIQ data: {str(e)}")
         return []
 
 
@@ -1557,115 +1594,112 @@ async def bulk_backfill_all_history(days: int = 365):
 # ============================================================================
 
 @router.get("/stocks/portfolio")
-async def get_portfolio_companies(
-    force_refresh: bool = False,
-    current_user: dict = Depends(get_current_user)
-):
+async def get_portfolio_companies(force_refresh: bool = False):
     """
-    Get portfolio companies from user's watchlist with live CapIQ data
+    Get portfolio companies with live CapIQ data
+    Uses the PORTFOLIO_COMPANIES list and enriches with CapIQ pricing data
 
     Args:
-        force_refresh: If True, bypass cache and fetch fresh data (currently unused)
-        current_user: Current authenticated user
+        force_refresh: If True, bypass cache and fetch fresh data
 
     Returns:
-        List of portfolio companies from user's watchlist with current prices from CapIQ
+        List of portfolio companies with current prices from CapIQ
     """
     from backend.app.services.capiq_data import get_capiq_service
-    from backend.app.models.watchlist import WatchlistItem
-    from backend.app.database import get_session
+    from backend.app.services.portfolio import PORTFOLIO_COMPANIES
 
     try:
-        # Get user's watchlist from database
-        db = next(get_session())
-        watchlist_items = db.query(WatchlistItem).filter(
-            WatchlistItem.user_id == current_user["id"]
-        ).all()
+        # Step 1: Get the portfolio companies list
+        logger.info(f"Got {len(PORTFOLIO_COMPANIES)} portfolio companies")
 
-        if not watchlist_items:
-            logger.info(f"No watchlist items found for user {current_user['id']}")
-            return {
-                "success": True,
-                "count": 0,
-                "companies": [],
-                "last_updated": datetime.now().isoformat()
-            }
-
-        # Convert watchlist items to dict format for CapIQ service
-        watchlist_data = []
-        for item in watchlist_items:
-            watchlist_data.append({
-                "ticker": item.ticker,
-                "company_name": item.company_name,
-                "market": item.market,
-                "exchange_name": item.exchange_name,
-                "exchange_symbol": item.exchange_symbol,
-                "webpage": item.webpage,
-                "industry": item.industry,
-                "added_at": item.added_at.isoformat() if item.added_at else None
-            })
-
-        # Enrich with live CapIQ data
+        # Step 2: Initialize CapIQ service
         capiq_service = get_capiq_service()
 
         if not capiq_service.available:
-            logger.warning("CapIQ not available, returning watchlist without pricing data")
-            return {
-                "success": True,
-                "count": len(watchlist_data),
-                "companies": watchlist_data,
-                "last_updated": datetime.now().isoformat()
-            }
+            logger.warning("CapIQ not available, returning companies without pricing data")
+            return [
+                {
+                    "ticker": company['ticker'],
+                    "name": company['name'],
+                    "market": company['market'],
+                    "currency": company['currency'],
+                    "current_price": None,
+                    "error": "CapIQ not available",
+                    "data_source": "Portfolio List"
+                }
+                for company in PORTFOLIO_COMPANIES
+            ]
 
-        # Get live data for watchlist companies
-        companies = await asyncio.to_thread(
-            capiq_service.get_watchlist_companies_data,
-            watchlist_data
-        )
-
-        # Transform to match expected frontend format
+        # Step 3: Fetch CapIQ data for each portfolio company
         results = []
-        for company in companies:
-            # Calculate change and change_percent if we have open and close prices
-            change = None
-            change_percent = None
-            if company.get('price_close') and company.get('price_open'):
-                change = company['price_close'] - company['price_open']
-                change_percent = (change / company['price_open'] * 100) if company['price_open'] != 0 else 0
+        for company in PORTFOLIO_COMPANIES:
+            ticker = company['ticker']
+            market = company['market']
 
-            result = {
-                "ticker": company['ticker'],
-                "name": company.get('companyname', company.get('company_name')),
-                "current_price": company.get('price_close'),
-                "open": company.get('price_open'),
-                "day_high": company.get('price_high'),
-                "day_low": company.get('price_low'),
-                "volume": company.get('volume'),
-                "market_cap": company.get('market_cap'),
-                "change": change,
-                "change_percent": change_percent,
-                "industry": company.get('industry'),
-                "webpage": company.get('webpage'),
-                "exchange_name": company.get('exchange_name'),
-                "exchange_symbol": company.get('exchange_symbol'),
-                "pricing_date": company.get('pricing_date'),
-                "market": company.get('market'),
-                "data_source": "CapIQ",
-                "last_updated": datetime.now().isoformat(),
-                "error": company.get('error')
-            }
-            results.append(result)
+            # Determine market code for CapIQ
+            capiq_market = "HK" if market == "HKEX" else "US"
 
-        logger.info(f"Retrieved {len(results)} portfolio companies for user {current_user['id']}")
+            # Get CapIQ data for this specific ticker
+            capiq_data = await asyncio.to_thread(
+                capiq_service.get_company_data,
+                ticker=ticker,
+                market=capiq_market
+            )
 
-        return {
-            "success": True,
-            "count": len(results),
-            "companies": results,
-            "last_updated": datetime.now().isoformat()
-        }
+            if capiq_data:
+                # Calculate change and change_percent if available
+                change = None
+                change_percent = None
+                # CapIQ get_company_data only returns price_close
+                # Change will be calculated from database history if available
+
+                result = {
+                    "ticker": ticker,
+                    "name": company['name'],  # Use name from portfolio list
+                    "market": market,
+                    "currency": company['currency'],
+                    "current_price": capiq_data.get('price_close'),
+                    "open": None,  # CapIQ get_company_data doesn't return open
+                    "day_high": None,
+                    "day_low": None,
+                    "volume": capiq_data.get('volume'),
+                    "market_cap": capiq_data.get('market_cap'),
+                    "change": change,
+                    "change_percent": change_percent,
+                    "industry": capiq_data.get('industry'),
+                    "webpage": capiq_data.get('webpage'),
+                    "exchange_name": capiq_data.get('exchange_name'),
+                    "exchange_symbol": capiq_data.get('exchange_symbol'),
+                    "pricing_date": capiq_data.get('pricing_date'),
+                    "data_source": "CapIQ",
+                    "last_updated": datetime.now().isoformat(),
+                }
+
+                # Try to calculate daily change from database history
+                try:
+                    result = calculate_daily_change_from_db(ticker, result)
+                except Exception as e:
+                    logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
+
+                results.append(result)
+            else:
+                # CapIQ data not available for this ticker
+                logger.warning(f"No CapIQ data found for {ticker}")
+                results.append({
+                    "ticker": ticker,
+                    "name": company['name'],
+                    "market": market,
+                    "currency": company['currency'],
+                    "current_price": None,
+                    "error": "No CapIQ data available",
+                    "data_source": "Portfolio List",
+                    "last_updated": datetime.now().isoformat(),
+                })
+
+        logger.info(f"Retrieved CapIQ data for {len([r for r in results if r.get('current_price')])} / {len(PORTFOLIO_COMPANIES)} portfolio companies")
+        return results
 
     except Exception as e:
-        logger.error(f"Error fetching portfolio companies: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching portfolio companies with CapIQ data: {str(e)}")
+        return []
 
