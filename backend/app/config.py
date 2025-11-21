@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     # Tushare Configuration (for stock data - primary source for HK stocks)
     TUSHARE_API_TOKEN: str = os.getenv("TUSHARE_API_TOKEN", "")
 
+    # Snowflake CapIQ Configuration (for premium company data)
+    USE_CAPIQ_DATA: bool = os.getenv("USE_CAPIQ_DATA", "false").lower() == "true"
+    SNOWFLAKE_USER: str = os.getenv("SNOWFLAKE_USER", "")
+    SNOWFLAKE_PASSWORD: str = os.getenv("SNOWFLAKE_PASSWORD", "")
+    SNOWFLAKE_ACCOUNT: str = os.getenv("SNOWFLAKE_ACCOUNT", "")
+    SNOWFLAKE_WAREHOUSE: str = os.getenv("SNOWFLAKE_WAREHOUSE", "")
+    SNOWFLAKE_DATABASE: str = os.getenv("SNOWFLAKE_DATABASE", "CAPITAL_IQ")
+    SNOWFLAKE_SCHEMA: str = os.getenv("SNOWFLAKE_SCHEMA", "PUBLIC")
+
     # AWS Secrets Manager Configuration (alternative to direct API key)
     USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "true").lower() == "true"
     AWS_SECRET_NAME_OPENAI: str = os.getenv("AWS_SECRET_NAME_OPENAI", "openai-api-key")
