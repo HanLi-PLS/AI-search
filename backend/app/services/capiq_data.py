@@ -183,12 +183,18 @@ class CapIQDataService:
             return []
 
         try:
-            # Build market filter
+            # Build market filter using exact exchange names discovered from CapIQ
             market_filter = ""
             if market == "US":
-                market_filter = "AND (ex.exchangename LIKE 'Nasdaq%' OR ex.exchangename LIKE 'NYSE%' OR ex.exchangename LIKE 'New York%')"
+                # Use exact exchange names for US markets (Nasdaq and NYSE)
+                market_filter = """AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )"""
             elif market == "HK":
-                market_filter = "AND ex.exchangename LIKE 'Hong Kong%'"
+                # Hong Kong Stock Exchange
+                market_filter = "AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'"
 
             sql = f"""
             SELECT DISTINCT
@@ -257,14 +263,20 @@ class CapIQDataService:
             return None
 
         try:
-            # Build market filter
+            # Build market filter using exact exchange names discovered from CapIQ
             market_filter = ""
             if exchange_name:
                 market_filter = f"AND ex.exchangename = '{exchange_name}'"
             elif market == "US":
-                market_filter = "AND (ex.exchangename LIKE 'Nasdaq%' OR ex.exchangename LIKE 'NYSE%' OR ex.exchangename LIKE 'New York%')"
+                # Use exact exchange names for US markets (Nasdaq and NYSE)
+                market_filter = """AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )"""
             elif market == "HK":
-                market_filter = "AND ex.exchangename LIKE 'Hong Kong%'"
+                # Hong Kong Stock Exchange
+                market_filter = "AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'"
 
             sql = f"""
             SELECT
