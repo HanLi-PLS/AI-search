@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 import logging
 from datetime import datetime
 
-from backend.app.models.schemas import User
+from backend.app.models.user import User
 from backend.app.api.routes.auth import get_current_user
 from backend.app.services.capiq_data import get_capiq_service
 
