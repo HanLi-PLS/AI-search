@@ -49,6 +49,96 @@ async def test_capiq_connection(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Connection test failed: {str(e)}")
 
 
+@router.get("/debug-exchanges")
+async def debug_exchanges(current_user: User = Depends(get_current_user)):
+    """
+    Debug endpoint to find US exchanges and search for Apple
+    """
+    try:
+        capiq = get_capiq_service()
+        if not capiq.available:
+            return {"success": False, "message": "CapIQ not available"}
+
+        cursor = capiq.conn.cursor()
+        results = {}
+
+        # Find US exchanges
+        try:
+            cursor.execute("""
+                SELECT DISTINCT ex.exchangename
+                FROM ciqexchange ex
+                WHERE ex.exchangename LIKE '%New York%'
+                   OR ex.exchangename LIKE '%Nasdaq%'
+                   OR ex.exchangename LIKE '%NYSE%'
+                LIMIT 20
+            """)
+            us_exchanges = [row[0] for row in cursor.fetchall()]
+            results["us_exchanges"] = us_exchanges
+        except Exception as e:
+            results["us_exchanges_error"] = str(e)
+
+        # Search for Apple WITHOUT market filter
+        try:
+            cursor.execute("""
+                SELECT DISTINCT
+                    c.companyname,
+                    ti.tickersymbol,
+                    ex.exchangename,
+                    c.companyTypeId,
+                    c.companyStatusTypeId,
+                    sec.primaryflag
+                FROM ciqcompany c
+                INNER JOIN ciqsecurity sec ON c.companyid = sec.companyid
+                INNER JOIN ciqtradingitem ti ON sec.securityid = ti.securityid
+                INNER JOIN ciqexchange ex ON ti.exchangeid = ex.exchangeid
+                WHERE UPPER(c.companyname) LIKE '%APPLE%'
+                LIMIT 10
+            """)
+            apple_all = cursor.fetchall()
+            results["apple_all_results"] = [
+                {
+                    "company": row[0],
+                    "ticker": row[1],
+                    "exchange": row[2],
+                    "type_id": row[3],
+                    "status_id": row[4],
+                    "primary_flag": row[5]
+                }
+                for row in apple_all
+            ]
+        except Exception as e:
+            results["apple_all_error"] = str(e)
+
+        # Search with AAPL ticker
+        try:
+            cursor.execute("""
+                SELECT DISTINCT
+                    c.companyname,
+                    ti.tickersymbol,
+                    ex.exchangename
+                FROM ciqcompany c
+                INNER JOIN ciqsecurity sec ON c.companyid = sec.companyid
+                INNER JOIN ciqtradingitem ti ON sec.securityid = ti.securityid
+                INNER JOIN ciqexchange ex ON ti.exchangeid = ex.exchangeid
+                WHERE UPPER(ti.tickersymbol) LIKE '%AAPL%'
+                LIMIT 10
+            """)
+            aapl_results = cursor.fetchall()
+            results["aapl_ticker_results"] = [
+                {"company": row[0], "ticker": row[1], "exchange": row[2]}
+                for row in aapl_results
+            ]
+        except Exception as e:
+            results["aapl_ticker_error"] = str(e)
+
+        cursor.close()
+        return {"success": True, "results": results}
+
+    except Exception as e:
+        logger.error(f"Debug query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/test-query")
 async def test_query_capiq(current_user: User = Depends(get_current_user)):
     """
