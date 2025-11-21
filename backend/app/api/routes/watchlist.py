@@ -109,27 +109,52 @@ async def debug_exchanges(current_user: User = Depends(get_current_user)):
         except Exception as e:
             results["apple_all_error"] = str(e)
 
-        # Search with AAPL ticker
+        # Search with AAPL ticker - exact match
         try:
             cursor.execute("""
                 SELECT DISTINCT
                     c.companyname,
                     ti.tickersymbol,
-                    ex.exchangename
+                    ex.exchangename,
+                    ex.exchangesymbol,
+                    sec.primaryflag
                 FROM ciqcompany c
                 INNER JOIN ciqsecurity sec ON c.companyid = sec.companyid
                 INNER JOIN ciqtradingitem ti ON sec.securityid = ti.securityid
                 INNER JOIN ciqexchange ex ON ti.exchangeid = ex.exchangeid
-                WHERE UPPER(ti.tickersymbol) LIKE '%AAPL%'
-                LIMIT 10
+                WHERE ti.tickersymbol = 'AAPL'
+                    AND c.companyTypeId = 4
+                    AND c.companyStatusTypeId IN (1, 20)
+                LIMIT 20
             """)
-            aapl_results = cursor.fetchall()
-            results["aapl_ticker_results"] = [
-                {"company": row[0], "ticker": row[1], "exchange": row[2]}
-                for row in aapl_results
+            aapl_exact = cursor.fetchall()
+            results["aapl_exact_match"] = [
+                {
+                    "company": row[0],
+                    "ticker": row[1],
+                    "exchange": row[2],
+                    "exchange_symbol": row[3],
+                    "primary_flag": row[4]
+                }
+                for row in aapl_exact
             ]
         except Exception as e:
-            results["aapl_ticker_error"] = str(e)
+            results["aapl_exact_error"] = str(e)
+
+        # Find all exchanges with "Global Select" or just contains ticker AAPL
+        try:
+            cursor.execute("""
+                SELECT DISTINCT ex.exchangename
+                FROM ciqexchange ex
+                WHERE ex.exchangename LIKE '%Global%'
+                   OR ex.exchangename LIKE '%Select%'
+                   OR ex.exchangename LIKE '%Stock Market%'
+                LIMIT 20
+            """)
+            global_exchanges = [row[0] for row in cursor.fetchall()]
+            results["global_select_exchanges"] = global_exchanges
+        except Exception as e:
+            results["global_exchanges_error"] = str(e)
 
         cursor.close()
         return {"success": True, "results": results}
