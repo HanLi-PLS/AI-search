@@ -47,9 +47,13 @@ class Settings(BaseSettings):
     SNOWFLAKE_USER: str = os.getenv("SNOWFLAKE_USER", "")
     SNOWFLAKE_PASSWORD: str = os.getenv("SNOWFLAKE_PASSWORD", "")
     SNOWFLAKE_ACCOUNT: str = os.getenv("SNOWFLAKE_ACCOUNT", "")
+    SNOWFLAKE_ROLE: str = os.getenv("SNOWFLAKE_ROLE", "")
     SNOWFLAKE_WAREHOUSE: str = os.getenv("SNOWFLAKE_WAREHOUSE", "")
     SNOWFLAKE_DATABASE: str = os.getenv("SNOWFLAKE_DATABASE", "CAPITAL_IQ")
     SNOWFLAKE_SCHEMA: str = os.getenv("SNOWFLAKE_SCHEMA", "PUBLIC")
+    # For key-pair authentication (alternative to password)
+    SNOWFLAKE_PRIVATE_KEY_PATH: str = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH", "")
+    SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: str = os.getenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "")
 
     # AWS Secrets Manager Configuration (alternative to direct API key)
     USE_AWS_SECRETS: bool = os.getenv("USE_AWS_SECRETS", "true").lower() == "true"

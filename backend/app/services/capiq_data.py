@@ -16,6 +16,7 @@ _snowflake_conn = None
 def get_snowflake_connection():
     """
     Get or create Snowflake connection
+    Supports both password and key-pair authentication
     Returns None if CapIQ is not configured
     """
     global _snowflake_conn
@@ -26,18 +27,58 @@ def get_snowflake_connection():
     if _snowflake_conn is None:
         try:
             import snowflake.connector
+            from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives import serialization
 
-            _snowflake_conn = snowflake.connector.connect(
-                user=settings.SNOWFLAKE_USER,
-                password=settings.SNOWFLAKE_PASSWORD,
-                account=settings.SNOWFLAKE_ACCOUNT,
-                warehouse=settings.SNOWFLAKE_WAREHOUSE,
-                database=settings.SNOWFLAKE_DATABASE,
-                schema=settings.SNOWFLAKE_SCHEMA
-            )
+            # Build connection parameters
+            conn_params = {
+                "user": settings.SNOWFLAKE_USER,
+                "account": settings.SNOWFLAKE_ACCOUNT,
+                "warehouse": settings.SNOWFLAKE_WAREHOUSE,
+                "database": settings.SNOWFLAKE_DATABASE,
+                "schema": settings.SNOWFLAKE_SCHEMA,
+            }
+
+            # Add role if specified
+            if settings.SNOWFLAKE_ROLE:
+                conn_params["role"] = settings.SNOWFLAKE_ROLE
+
+            # Choose authentication method
+            if settings.SNOWFLAKE_PRIVATE_KEY_PATH:
+                # Key-pair authentication
+                logger.info("Using key-pair authentication for Snowflake")
+                with open(settings.SNOWFLAKE_PRIVATE_KEY_PATH, "rb") as key_file:
+                    if settings.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE:
+                        p_key = serialization.load_pem_private_key(
+                            key_file.read(),
+                            password=settings.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE.encode(),
+                            backend=default_backend()
+                        )
+                    else:
+                        p_key = serialization.load_pem_private_key(
+                            key_file.read(),
+                            password=None,
+                            backend=default_backend()
+                        )
+
+                pkb = p_key.private_bytes(
+                    encoding=serialization.Encoding.DER,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+                conn_params["private_key"] = pkb
+            elif settings.SNOWFLAKE_PASSWORD:
+                # Password authentication
+                logger.info("Using password authentication for Snowflake")
+                conn_params["password"] = settings.SNOWFLAKE_PASSWORD
+            else:
+                logger.error("No authentication method configured (need password or private key)")
+                return None
+
+            _snowflake_conn = snowflake.connector.connect(**conn_params)
             logger.info(f"Connected to Snowflake CapIQ: {settings.SNOWFLAKE_DATABASE}.{settings.SNOWFLAKE_SCHEMA}")
-        except ImportError:
-            logger.error("snowflake-connector-python not installed. Install with: pip install snowflake-connector-python")
+        except ImportError as e:
+            logger.error(f"Missing dependency: {str(e)}. Install with: pip install snowflake-connector-python cryptography")
             return None
         except Exception as e:
             logger.error(f"Failed to connect to Snowflake CapIQ: {str(e)}")
