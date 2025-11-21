@@ -184,7 +184,7 @@ function Watchlist() {
         <button className="back-button" onClick={() => navigate('/')}>
           ← Back to Home
         </button>
-        <h1>📊 CapIQ Watchlist</h1>
+        <h1>📊 Watchlist</h1>
         <p className="header-subtitle">Track companies from US and HK markets with real-time CapIQ data</p>
       </header>
 

@@ -341,6 +341,147 @@ class CapIQDataService:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
             return None
 
+    def get_hk_biotech_companies(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        Get Hong Kong listed biotech/pharmaceutical companies from CapIQ
+
+        Args:
+            limit: Maximum number of companies to return
+
+        Returns:
+            List of HK biotech companies with pricing data
+        """
+        if not self.available:
+            return []
+
+        try:
+            sql = f"""
+            SELECT DISTINCT
+                c.companyid,
+                c.companyname,
+                c.webpage,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                s.subtypevalue as industry,
+                pe.pricingdate,
+                pe.priceclose,
+                pe.priceopen,
+                pe.pricehigh,
+                pe.pricelow,
+                pe.volume,
+                mc.marketcap
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            LEFT JOIN ciqCompanyIndustryTree tree
+                ON tree.companyid = c.companyid AND tree.primaryflag = 1
+            LEFT JOIN ciqSubType s
+                ON s.subTypeId = tree.subTypeId
+            LEFT JOIN ciqpriceequity pe
+                ON ti.tradingitemid = pe.tradingitemid
+            LEFT JOIN ciqmarketcap mc
+                ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND sec.primaryflag = 1
+                AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'
+                AND (
+                    UPPER(s.subtypevalue) LIKE '%%BIOTECH%%'
+                    OR UPPER(s.subtypevalue) LIKE '%%PHARMA%%'
+                    OR UPPER(s.subtypevalue) LIKE '%%BIOPHARM%%'
+                    OR UPPER(s.subtypevalue) LIKE '%%DRUG%%'
+                    OR UPPER(c.companyname) LIKE '%%PHARMA%%'
+                    OR UPPER(c.companyname) LIKE '%%BIO%%'
+                )
+                AND pe.priceclose IS NOT NULL
+                AND pe.pricingdate = (
+                    SELECT MAX(pe2.pricingdate)
+                    FROM ciqpriceequity pe2
+                    WHERE pe2.tradingitemid = ti.tradingitemid
+                )
+            ORDER BY mc.marketcap DESC NULLS LAST
+            LIMIT {limit}
+            """
+
+            cursor = self.conn.cursor()
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            cursor.close()
+
+            results = []
+            for row in rows:
+                results.append({
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "webpage": row[2],
+                    "ticker": row[3],
+                    "exchange_symbol": row[4],
+                    "exchange_name": row[5],
+                    "industry": row[6],
+                    "pricing_date": row[7],
+                    "price_close": float(row[8]) if row[8] else None,
+                    "price_open": float(row[9]) if row[9] else None,
+                    "price_high": float(row[10]) if row[10] else None,
+                    "price_low": float(row[11]) if row[11] else None,
+                    "volume": int(row[12]) if row[12] else None,
+                    "market_cap": float(row[13]) if row[13] else None
+                })
+
+            logger.info(f"Found {len(results)} HK biotech companies from CapIQ")
+            return results
+        except Exception as e:
+            logger.error(f"Failed to get HK biotech companies: {str(e)}")
+            return []
+
+    def get_watchlist_companies_data(self, watchlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Get live CapIQ data for a list of watchlist companies
+
+        Args:
+            watchlist_items: List of watchlist items with ticker, market, exchange info
+
+        Returns:
+            List of companies with enriched CapIQ data
+        """
+        if not self.available:
+            return []
+
+        results = []
+        for item in watchlist_items:
+            try:
+                # Get live CapIQ data
+                company_data = self.get_company_data(
+                    ticker=item['ticker'],
+                    market=item.get('market', 'US'),
+                    exchange_name=item.get('exchange_name')
+                )
+
+                if company_data:
+                    # Merge watchlist item info with live data
+                    result = {**item, **company_data}
+                    results.append(result)
+                else:
+                    # Add watchlist item with error state
+                    results.append({
+                        **item,
+                        "error": "Unable to fetch live data",
+                        "price_close": None
+                    })
+            except Exception as e:
+                logger.error(f"Error fetching data for {item.get('ticker')}: {str(e)}")
+                results.append({
+                    **item,
+                    "error": str(e),
+                    "price_close": None
+                })
+
+        return results
+
     def get_company_fundamentals(self, ticker: str, periods: int = 4) -> List[Dict[str, Any]]:
         """
         Get historical fundamentals for a company

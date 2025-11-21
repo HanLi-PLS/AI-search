@@ -866,59 +866,65 @@ async def get_companies():
 @router.get("/stocks/prices")
 async def get_all_prices(force_refresh: bool = False):
     """
-    Get current prices for all HKEX 18A biotech companies
-    Uses parallel processing with caching for fast response times
+    Get current prices for all HKEX 18A biotech companies from CapIQ
+    Returns comprehensive company data with real-time pricing
 
     Args:
-        force_refresh: If True, bypass cache and fetch fresh data
+        force_refresh: If True, bypass cache and fetch fresh data (currently unused with CapIQ)
 
     Returns:
-        List of stock data for all companies (includes news_analysis for significant movers >= 10%)
+        List of stock data for all HK biotech companies from CapIQ
     """
-    companies = get_hkex_biotech_companies()
+    from backend.app.services.capiq_data import get_capiq_service
 
-    async def fetch_company_data(company: dict) -> dict:
-        """Async wrapper to fetch data for a single company"""
-        ticker = company["ticker"]
-        code = company.get("code")
-        name = company["name"]
+    try:
+        capiq_service = get_capiq_service()
 
-        logger.info(f"Fetching data for {ticker} ({code}) - {name}")
+        if not capiq_service.available:
+            logger.warning("CapIQ not available, returning empty list")
+            return []
 
-        # Run the synchronous get_stock_data in a thread pool to avoid blocking
-        # Use cache unless force_refresh is True
-        stock_data = await asyncio.to_thread(
-            get_stock_data, ticker, code=code, name=name, use_cache=(not force_refresh)
-        )
+        # Get HK biotech companies from CapIQ
+        companies = await asyncio.to_thread(capiq_service.get_hk_biotech_companies, limit=100)
 
-        if stock_data:
-            # Use name from Tushare if available, otherwise use AAStocks name
-            if "name" not in stock_data or not stock_data["name"]:
-                stock_data["name"] = name
+        logger.info(f"Retrieved {len(companies)} HK biotech companies from CapIQ")
 
-            # Calculate daily change from database (last 2 records)
-            stock_data = calculate_daily_change_from_db(ticker, stock_data)
+        # Transform CapIQ data to match expected frontend format
+        results = []
+        for company in companies:
+            # Calculate change and change_percent if we have open and close prices
+            change = None
+            change_percent = None
+            if company.get('price_close') and company.get('price_open'):
+                change = company['price_close'] - company['price_open']
+                change_percent = (change / company['price_open'] * 100) if company['price_open'] != 0 else 0
 
-            return stock_data
-        else:
-            # Return company info with error
-            return {
-                "ticker": ticker,
-                "name": name,
-                "error": "Unable to fetch data",
-                "current_price": None,
-                "change": None,
-                "change_percent": None,
+            result = {
+                "ticker": company['ticker'],
+                "name": company['companyname'],
+                "current_price": company.get('price_close'),
+                "open": company.get('price_open'),
+                "day_high": company.get('price_high'),
+                "day_low": company.get('price_low'),
+                "volume": company.get('volume'),
+                "market_cap": company.get('market_cap'),
+                "change": change,
+                "change_percent": change_percent,
+                "industry": company.get('industry'),
+                "webpage": company.get('webpage'),
+                "exchange_name": company.get('exchange_name'),
+                "exchange_symbol": company.get('exchange_symbol'),
+                "pricing_date": company.get('pricing_date'),
+                "data_source": "CapIQ",
                 "last_updated": datetime.now().isoformat(),
             }
+            results.append(result)
 
-    # Fetch all companies in parallel
-    logger.info(f"Fetching prices for {len(companies)} companies in parallel")
-    results = await asyncio.gather(*[fetch_company_data(company) for company in companies])
+        return results
 
-    # Note: News analysis removed from landing page for performance
-    # It's now only fetched on individual stock detail pages
-    return list(results)
+    except Exception as e:
+        logger.error(f"Error fetching HK biotech companies from CapIQ: {str(e)}")
+        return []
 
 
 @router.get("/stocks/price/{ticker}")
@@ -1550,29 +1556,111 @@ async def bulk_backfill_all_history(days: int = 365):
 # ============================================================================
 
 @router.get("/stocks/portfolio")
-async def get_portfolio_companies(force_refresh: bool = False):
+async def get_portfolio_companies(
+    force_refresh: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
     """
-    Get portfolio companies data (both HKEX and NASDAQ)
+    Get portfolio companies from user's watchlist with live CapIQ data
 
     Args:
-        force_refresh: If True, bypass cache and fetch fresh data
+        force_refresh: If True, bypass cache and fetch fresh data (currently unused)
+        current_user: Current authenticated user
 
     Returns:
-        List of portfolio companies with current prices and performance (includes news_analysis for significant movers >= 10%)
+        List of portfolio companies from user's watchlist with current prices from CapIQ
     """
-    from backend.app.services.portfolio import PortfolioService
+    from backend.app.services.capiq_data import get_capiq_service
+    from backend.app.models.watchlist import WatchlistItem
+    from backend.app.database import get_session
 
     try:
-        service = PortfolioService()
-        companies = service.get_portfolio_companies(use_cache=(not force_refresh))
+        # Get user's watchlist from database
+        db = next(get_session())
+        watchlist_items = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == current_user["id"]
+        ).all()
 
-        # Note: News analysis removed from portfolio page for performance
-        # It's now only fetched on individual stock detail pages
+        if not watchlist_items:
+            logger.info(f"No watchlist items found for user {current_user['id']}")
+            return {
+                "success": True,
+                "count": 0,
+                "companies": [],
+                "last_updated": datetime.now().isoformat()
+            }
+
+        # Convert watchlist items to dict format for CapIQ service
+        watchlist_data = []
+        for item in watchlist_items:
+            watchlist_data.append({
+                "ticker": item.ticker,
+                "company_name": item.company_name,
+                "market": item.market,
+                "exchange_name": item.exchange_name,
+                "exchange_symbol": item.exchange_symbol,
+                "webpage": item.webpage,
+                "industry": item.industry,
+                "added_at": item.added_at.isoformat() if item.added_at else None
+            })
+
+        # Enrich with live CapIQ data
+        capiq_service = get_capiq_service()
+
+        if not capiq_service.available:
+            logger.warning("CapIQ not available, returning watchlist without pricing data")
+            return {
+                "success": True,
+                "count": len(watchlist_data),
+                "companies": watchlist_data,
+                "last_updated": datetime.now().isoformat()
+            }
+
+        # Get live data for watchlist companies
+        companies = await asyncio.to_thread(
+            capiq_service.get_watchlist_companies_data,
+            watchlist_data
+        )
+
+        # Transform to match expected frontend format
+        results = []
+        for company in companies:
+            # Calculate change and change_percent if we have open and close prices
+            change = None
+            change_percent = None
+            if company.get('price_close') and company.get('price_open'):
+                change = company['price_close'] - company['price_open']
+                change_percent = (change / company['price_open'] * 100) if company['price_open'] != 0 else 0
+
+            result = {
+                "ticker": company['ticker'],
+                "name": company.get('companyname', company.get('company_name')),
+                "current_price": company.get('price_close'),
+                "open": company.get('price_open'),
+                "day_high": company.get('price_high'),
+                "day_low": company.get('price_low'),
+                "volume": company.get('volume'),
+                "market_cap": company.get('market_cap'),
+                "change": change,
+                "change_percent": change_percent,
+                "industry": company.get('industry'),
+                "webpage": company.get('webpage'),
+                "exchange_name": company.get('exchange_name'),
+                "exchange_symbol": company.get('exchange_symbol'),
+                "pricing_date": company.get('pricing_date'),
+                "market": company.get('market'),
+                "data_source": "CapIQ",
+                "last_updated": datetime.now().isoformat(),
+                "error": company.get('error')
+            }
+            results.append(result)
+
+        logger.info(f"Retrieved {len(results)} portfolio companies for user {current_user['id']}")
 
         return {
             "success": True,
-            "count": len(companies),
-            "companies": companies,
+            "count": len(results),
+            "companies": results,
             "last_updated": datetime.now().isoformat()
         }
 

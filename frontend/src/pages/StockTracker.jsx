@@ -542,7 +542,7 @@ function StockTracker() {
           className={`tab-button ${activeTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => handleTabChange('watchlist')}
         >
-          💰 CapIQ Watchlist
+          💰 Watchlist
         </button>
       </div>
 
@@ -901,7 +901,7 @@ function StockTracker() {
         </>
       )}
 
-      {/* CapIQ Watchlist Tab */}
+      {/* Watchlist Tab */}
       {activeTab === 'watchlist' && (
         <>
           <div className="watchlist-tab-container">

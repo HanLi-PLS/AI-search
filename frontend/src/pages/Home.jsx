@@ -61,7 +61,7 @@ function Home() {
         </div>
 
         <div className="feature-card highlight">
-          <h2>💼 CapIQ Watchlist</h2>
+          <h2>💼 Watchlist</h2>
           <p>Track your portfolio companies across US and HK markets with real-time CapIQ data</p>
           <ul className="tracker-features">
             <li>• Search US & HK companies</li>
@@ -72,7 +72,7 @@ function Home() {
             className="tracker-button"
             onClick={() => navigate('/stock-tracker?tab=watchlist')}
           >
-            CapIQ Watchlist
+            Watchlist
           </button>
         </div>
 
