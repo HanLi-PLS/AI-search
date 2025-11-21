@@ -4,20 +4,20 @@ Supports both HKEX and US markets with CapIQ data integration
 """
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Any, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import logging
 from datetime import datetime
 
 from backend.app.models.user import User
+from backend.app.models.watchlist import WatchlistItem
 from backend.app.api.routes.auth import get_current_user
 from backend.app.services.capiq_data import get_capiq_service
+from backend.app.database import get_db
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# In-memory watchlist storage (per user)
-# In production, this should be stored in database
-_user_watchlists: Dict[str, List[Dict[str, Any]]] = {}
 
 
 @router.post("/test-capiq")
@@ -450,6 +450,7 @@ async def search_companies(
 async def add_to_watchlist(
     ticker: str,
     market: str = "US",
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -458,45 +459,70 @@ async def add_to_watchlist(
     Args:
         ticker: Stock ticker symbol
         market: Market identifier (US, HK, etc.)
+
+    Returns company data from CapIQ and stores in database
     """
     try:
-        user_id = current_user.email
+        # Get company data from CapIQ first to ensure it exists
+        capiq = get_capiq_service()
 
-        # Initialize user watchlist if not exists
-        if user_id not in _user_watchlists:
-            _user_watchlists[user_id] = []
+        if not capiq.available:
+            raise HTTPException(status_code=503, detail="CapIQ service not available")
+
+        company_data = capiq.get_company_data(ticker, market)
+
+        if not company_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Company with ticker {ticker} not found in {market} market"
+            )
 
         # Check if already in watchlist
-        existing = [c for c in _user_watchlists[user_id] if c['ticker'] == ticker and c['market'] == market]
+        existing = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == current_user.id,
+            WatchlistItem.company_id == company_data['companyid'],
+            WatchlistItem.exchange_symbol == company_data['exchange_symbol']
+        ).first()
+
         if existing:
             return {
                 "success": False,
-                "message": f"{ticker} ({market}) already in watchlist"
+                "message": f"{company_data['companyname']} ({ticker}) already in watchlist",
+                "company": existing.to_dict()
             }
 
-        # Get company data from CapIQ
-        capiq = get_capiq_service()
-        company_data = None
+        # Create new watchlist item
+        watchlist_item = WatchlistItem(
+            user_id=current_user.id,
+            company_id=company_data['companyid'],
+            company_name=company_data['companyname'],
+            ticker=ticker.upper(),
+            exchange_name=company_data['exchange_name'],
+            exchange_symbol=company_data['exchange_symbol'],
+            market=market,
+            webpage=company_data.get('webpage'),
+            industry=company_data.get('industry')
+        )
 
-        if capiq.available:
-            company_data = capiq.get_company_data(ticker, market)
-
-        # Add to watchlist
-        watchlist_item = {
-            "ticker": ticker,
-            "market": market,
-            "added_at": datetime.now().isoformat(),
-            "data": company_data
-        }
-
-        _user_watchlists[user_id].append(watchlist_item)
+        db.add(watchlist_item)
+        db.commit()
+        db.refresh(watchlist_item)
 
         return {
             "success": True,
-            "message": f"Added {ticker} ({market}) to watchlist",
-            "company": watchlist_item
+            "message": f"Added {company_data['companyname']} ({ticker}) to watchlist",
+            "company": watchlist_item.to_dict(),
+            "live_data": company_data
         }
+
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        db.rollback()
+        logger.error(f"Duplicate watchlist item for user {current_user.id}, ticker {ticker}: {str(e)}")
+        raise HTTPException(status_code=409, detail=f"{ticker} already in watchlist")
     except Exception as e:
+        db.rollback()
         logger.error(f"Failed to add {ticker} to watchlist: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to add to watchlist: {str(e)}")
 
@@ -505,81 +531,112 @@ async def add_to_watchlist(
 async def remove_from_watchlist(
     ticker: str,
     market: str = "US",
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Remove a company from user's watchlist
+
+    Args:
+        ticker: Stock ticker symbol
+        market: Market identifier (US, HK, etc.)
     """
     try:
-        user_id = current_user.email
+        # Find the watchlist item(s) matching ticker and market
+        watchlist_items = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == current_user.id,
+            WatchlistItem.ticker == ticker.upper(),
+            WatchlistItem.market == market
+        ).all()
 
-        if user_id not in _user_watchlists:
-            return {
-                "success": False,
-                "message": "Watchlist is empty"
-            }
-
-        # Remove from watchlist
-        original_len = len(_user_watchlists[user_id])
-        _user_watchlists[user_id] = [
-            c for c in _user_watchlists[user_id]
-            if not (c['ticker'] == ticker and c['market'] == market)
-        ]
-
-        removed = original_len > len(_user_watchlists[user_id])
-
-        if removed:
-            return {
-                "success": True,
-                "message": f"Removed {ticker} ({market}) from watchlist"
-            }
-        else:
+        if not watchlist_items:
             return {
                 "success": False,
                 "message": f"{ticker} ({market}) not found in watchlist"
             }
+
+        # Delete all matching items
+        for item in watchlist_items:
+            db.delete(item)
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Removed {ticker} ({market}) from watchlist",
+            "removed_count": len(watchlist_items)
+        }
+
     except Exception as e:
+        db.rollback()
         logger.error(f"Failed to remove {ticker} from watchlist: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to remove from watchlist: {str(e)}")
 
 
 @router.get("/list")
-async def get_watchlist(current_user: User = Depends(get_current_user)):
+async def get_watchlist(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get user's watchlist with latest data
+    Get user's watchlist with latest live data from CapIQ
 
-    Refreshes company data from CapIQ if available
+    Returns stored watchlist items enriched with real-time pricing data
     """
     try:
-        user_id = current_user.email
+        # Get user's watchlist items from database
+        watchlist_items = db.query(WatchlistItem).filter(
+            WatchlistItem.user_id == current_user.id
+        ).order_by(WatchlistItem.added_at.desc()).all()
 
-        if user_id not in _user_watchlists or not _user_watchlists[user_id]:
+        if not watchlist_items:
             return {
                 "success": True,
                 "count": 0,
                 "companies": []
             }
 
-        watchlist = _user_watchlists[user_id]
-
-        # Refresh data from CapIQ if available
+        # Enrich with live data from CapIQ
         capiq = get_capiq_service()
-        if capiq.available:
-            for item in watchlist:
+        companies = []
+
+        for item in watchlist_items:
+            company_dict = item.to_dict()
+
+            # Try to get live data from CapIQ
+            if capiq and capiq.available:
                 try:
-                    updated_data = capiq.get_company_data(item['ticker'], item['market'])
-                    if updated_data:
-                        item['data'] = updated_data
-                        item['last_updated'] = datetime.now().isoformat()
+                    live_data = capiq.get_company_data(
+                        item.ticker,
+                        item.market,
+                        exchange_name=item.exchange_name
+                    )
+                    if live_data:
+                        # Merge stored data with live data
+                        company_dict['live_data'] = {
+                            'price_close': live_data.get('price_close'),
+                            'volume': live_data.get('volume'),
+                            'market_cap': live_data.get('market_cap'),
+                            'pricing_date': live_data.get('pricing_date'),
+                        }
+                        company_dict['data_available'] = True
+                    else:
+                        company_dict['data_available'] = False
                 except Exception as e:
-                    logger.warning(f"Failed to refresh data for {item['ticker']}: {str(e)}")
+                    logger.warning(f"Failed to fetch live data for {item.ticker}: {str(e)}")
+                    company_dict['data_available'] = False
+            else:
+                company_dict['data_available'] = False
+
+            companies.append(company_dict)
 
         return {
             "success": True,
-            "count": len(watchlist),
-            "companies": watchlist,
+            "count": len(companies),
+            "companies": companies,
             "capiq_available": capiq.available if capiq else False
         }
+
     except Exception as e:
         logger.error(f"Failed to get watchlist: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get watchlist: {str(e)}")
@@ -594,37 +651,45 @@ async def get_company_details(
     """
     Get detailed company information from CapIQ
 
-    Includes fundamentals, pricing, and historical data
+    Includes current pricing data and company information.
+    Historical fundamentals will be added in future updates.
     """
     try:
         capiq = get_capiq_service()
 
         if not capiq.available:
-            return {
-                "success": False,
-                "message": "CapIQ not configured"
-            }
+            raise HTTPException(
+                status_code=503,
+                detail="CapIQ service not available"
+            )
 
-        # Get current data
+        # Get current company data with pricing
         company_data = capiq.get_company_data(ticker, market)
 
         if not company_data:
-            return {
-                "success": False,
-                "message": f"Company {ticker} ({market}) not found in CapIQ"
-            }
+            raise HTTPException(
+                status_code=404,
+                detail=f"Company {ticker} ({market}) not found in CapIQ"
+            )
 
-        # Get historical fundamentals
-        fundamentals = capiq.get_company_fundamentals(ticker, periods=8)
+        # Try to get historical fundamentals (optional - may not be available yet)
+        fundamentals = []
+        try:
+            fundamentals = capiq.get_company_fundamentals(ticker, periods=8)
+        except Exception as e:
+            logger.warning(f"Fundamentals not available for {ticker}: {str(e)}")
 
         return {
             "success": True,
             "ticker": ticker,
             "market": market,
-            "data": company_data,
+            "company": company_data,
             "fundamentals": fundamentals,
             "fundamental_periods": len(fundamentals)
         }
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get company details for {ticker}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get company details: {str(e)}")
