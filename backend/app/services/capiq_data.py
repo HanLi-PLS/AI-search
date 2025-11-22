@@ -321,33 +321,25 @@ class CapIQDataService:
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
             LEFT JOIN (
                 SELECT
-                    fp.companyId,
-                    fcd.dataItemValue as revenue,
-                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
-                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
-                    AND fp.periodTypeId IN (8, 1)  -- LTM (8) preferred, fallback to Annual (1)
-                    AND fi.latestForFinancialPeriodFlag = 1
-                    AND fcd.dataItemValue IS NOT NULL
+                    fin.companyId,
+                    fin.dataValue as revenue,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
+                WHERE di.dataItemMnemonic = 'IQ_TOTAL_REV'
+                    AND p.periodTypeName = 'LTM'
+                    AND fin.dataValue IS NOT NULL
             ) rev ON rev.companyId = c.companyId AND rev.rn = 1
             LEFT JOIN (
                 SELECT
-                    fp.companyId,
-                    fcd.dataItemValue as ipo_date_value,
-                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
-                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fcd.dataItemValue IS NOT NULL
-                    AND fcd.dataItemValue BETWEEN 19000101 AND 21000101  -- Date range filter
-                    AND fi.latestForFinancialPeriodFlag = 1
-                LIMIT 1
+                    fin.companyId,
+                    fin.dataValue as ipo_date_value,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                WHERE di.dataItemMnemonic = 'IQ_IPO_DATE'
+                    AND fin.dataValue IS NOT NULL
             ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
@@ -583,33 +575,25 @@ class CapIQDataService:
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
             LEFT JOIN (
                 SELECT
-                    fp.companyId,
-                    fcd.dataItemValue as revenue,
-                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
-                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
-                    AND fp.periodTypeId IN (8, 1)  -- LTM (8) preferred, fallback to Annual (1)
-                    AND fi.latestForFinancialPeriodFlag = 1
-                    AND fcd.dataItemValue IS NOT NULL
+                    fin.companyId,
+                    fin.dataValue as revenue,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
+                WHERE di.dataItemMnemonic = 'IQ_TOTAL_REV'
+                    AND p.periodTypeName = 'LTM'
+                    AND fin.dataValue IS NOT NULL
             ) rev ON rev.companyId = c.companyId AND rev.rn = 1
             LEFT JOIN (
                 SELECT
-                    fp.companyId,
-                    fcd.dataItemValue as ipo_date_value,
-                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
-                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fcd.dataItemValue IS NOT NULL
-                    AND fcd.dataItemValue BETWEEN 19000101 AND 21000101  -- Date range filter
-                    AND fi.latestForFinancialPeriodFlag = 1
-                LIMIT 1
+                    fin.companyId,
+                    fin.dataValue as ipo_date_value,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                WHERE di.dataItemMnemonic = 'IQ_IPO_DATE'
+                    AND fin.dataValue IS NOT NULL
             ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
