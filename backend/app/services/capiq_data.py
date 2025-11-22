@@ -438,6 +438,122 @@ class CapIQDataService:
             logger.error(f"Failed to get HK biotech companies: {str(e)}")
             return []
 
+    def get_companies_by_tickers(self, tickers: List[str], market: str = "HK") -> List[Dict[str, Any]]:
+        """
+        Get company data for a specific list of tickers from CapIQ
+        This is more efficient than querying each ticker individually
+
+        Args:
+            tickers: List of ticker symbols (e.g., ["2561", "2552", "700"])
+            market: Market identifier (US, HK, etc.)
+
+        Returns:
+            List of companies with pricing data for the matching tickers
+        """
+        if not self.available or not tickers:
+            return []
+
+        try:
+            # Build market filter
+            market_filter = ""
+            if market == "US":
+                market_filter = """AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )"""
+            elif market == "HK":
+                market_filter = "AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'"
+
+            # Normalize tickers: remove .HK suffix and leading zeros for HK market
+            normalized_tickers = []
+            for ticker in tickers:
+                ticker_clean = str(ticker).strip().upper()
+                # Remove .HK suffix
+                ticker_clean = ticker_clean.replace('.HK', '').replace(' HK', '').replace(' ', '')
+                # Remove leading zeros for HK market (CapIQ stores as numbers)
+                if market == "HK":
+                    ticker_clean = ticker_clean.lstrip('0') or '0'
+                normalized_tickers.append(ticker_clean)
+
+            # Create parameterized query with IN clause
+            placeholders = ','.join(['%s'] * len(normalized_tickers))
+
+            sql = f"""
+            SELECT DISTINCT
+                c.companyid,
+                c.companyname,
+                c.webpage,
+                ti.tickersymbol,
+                ex.exchangesymbol,
+                ex.exchangename,
+                s.subtypevalue as industry,
+                pe.pricingdate,
+                pe.priceclose,
+                pe.priceopen,
+                pe.pricehigh,
+                pe.pricelow,
+                pe.volume,
+                mc.marketcap
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            LEFT JOIN ciqCompanyIndustryTree tree
+                ON tree.companyid = c.companyid AND tree.primaryflag = 1
+            LEFT JOIN ciqSubType s
+                ON s.subTypeId = tree.subTypeId
+            LEFT JOIN ciqpriceequity pe
+                ON ti.tradingitemid = pe.tradingitemid
+            LEFT JOIN ciqmarketcap mc
+                ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND sec.primaryflag = 1
+                AND UPPER(ti.tickersymbol) IN ({placeholders})
+                {market_filter}
+                AND pe.priceclose IS NOT NULL
+                AND pe.pricingdate = (
+                    SELECT MAX(pe2.pricingdate)
+                    FROM ciqpriceequity pe2
+                    WHERE pe2.tradingitemid = ti.tradingitemid
+                )
+            ORDER BY mc.marketcap DESC NULLS LAST
+            """
+
+            cursor = self.conn.cursor()
+            cursor.execute(sql, normalized_tickers)
+            rows = cursor.fetchall()
+            cursor.close()
+
+            results = []
+            for row in rows:
+                results.append({
+                    "companyid": row[0],
+                    "companyname": row[1],
+                    "webpage": row[2],
+                    "ticker": row[3],
+                    "exchange_symbol": row[4],
+                    "exchange_name": row[5],
+                    "industry": row[6],
+                    "pricing_date": row[7],
+                    "price_close": float(row[8]) if row[8] else None,
+                    "price_open": float(row[9]) if row[9] else None,
+                    "price_high": float(row[10]) if row[10] else None,
+                    "price_low": float(row[11]) if row[11] else None,
+                    "volume": int(row[12]) if row[12] else None,
+                    "market_cap": float(row[13]) if row[13] else None
+                })
+
+            logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers")
+            return results
+        except Exception as e:
+            logger.error(f"Failed to get companies by tickers: {str(e)}")
+            return []
+
     def get_watchlist_companies_data(self, watchlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Get live CapIQ data for a list of watchlist companies

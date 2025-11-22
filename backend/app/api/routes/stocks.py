@@ -902,13 +902,18 @@ async def get_all_prices(force_refresh: bool = False):
                 for company in verified_companies
             ]
 
-        # Step 3: Fetch all HK biotech companies from CapIQ in one bulk query
+        # Step 3: Extract ticker list from verified companies and query CapIQ for those specific tickers
+        # This ensures we get data for ALL our verified companies, not just those matching industry filters
+        verified_ticker_list = [company['ticker'] for company in verified_companies]
+        logger.info(f"Querying CapIQ for {len(verified_ticker_list)} specific tickers")
+
         capiq_companies = await asyncio.to_thread(
-            capiq_service.get_hk_biotech_companies,
-            limit=200  # Get more than 66 to ensure we capture all
+            capiq_service.get_companies_by_tickers,
+            tickers=verified_ticker_list,
+            market="HK"
         )
 
-        logger.info(f"Retrieved {len(capiq_companies)} companies from CapIQ bulk query")
+        logger.info(f"Retrieved {len(capiq_companies)} companies from CapIQ for our verified ticker list")
 
         # Step 4: Create lookup dict for CapIQ data by ticker
         # Support multiple ticker format variations for matching
@@ -943,8 +948,6 @@ async def get_all_prices(force_refresh: bool = False):
                     # Store padded version (5 digits with leading zeros)
                     ticker_padded = clean_ticker.zfill(5)
                     capiq_lookup[f"{ticker_padded}.HK"] = company
-
-                    logger.info(f"Created HK ticker variants for {ticker_str}: {clean_ticker}.HK, {ticker_no_zeros}.HK, {ticker_padded}.HK")
 
         logger.info(f"Sample CapIQ tickers in lookup: {list(capiq_lookup.keys())[:10]}")
         logger.info(f"Total ticker variants in lookup: {len(capiq_lookup)}")
