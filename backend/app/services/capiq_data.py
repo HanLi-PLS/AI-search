@@ -724,11 +724,17 @@ class CapIQDataService:
             ORDER BY pe.pricingdate DESC
             """
 
+            logger.info(f"Fetching {days} days of historical data for {ticker} (normalized: {query_ticker})")
             cursor = self.conn.cursor()
             cursor.execute(sql, [query_ticker, days])
             rows = cursor.fetchall()
             cursor.close()
 
+            if not rows:
+                logger.warning(f"No historical data rows returned from CapIQ for {ticker} (tried {query_ticker})")
+                return []
+
+            logger.info(f"Retrieved {len(rows)} historical price rows for {ticker}")
             results = []
             for row in rows:
                 results.append({
