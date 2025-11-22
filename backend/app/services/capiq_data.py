@@ -805,6 +805,140 @@ class CapIQDataService:
             logger.error(f"Failed to get historical prices for {ticker}: {str(e)}")
             return []
 
+    def explore_schema_for_data_items(self, test_ticker: str = "700") -> Dict[str, Any]:
+        """
+        Explore CapIQ schema to find correct data item IDs and period types
+        This helps identify the right values for IQ_IPO_DATE and LTM revenue
+
+        Args:
+            test_ticker: Sample ticker to test with (default "700" = Tencent)
+
+        Returns:
+            Dictionary with exploration results
+        """
+        if not self.available:
+            return {"error": "CapIQ not available"}
+
+        results = {}
+        cursor = self.conn.cursor()
+
+        try:
+            # 1. Find available period types
+            logger.info("=== Exploring period types ===")
+            period_query = """
+            SELECT DISTINCT periodTypeId, COUNT(*) as count
+            FROM ciqFinPeriod
+            GROUP BY periodTypeId
+            ORDER BY periodTypeId
+            LIMIT 20
+            """
+            cursor.execute(period_query)
+            period_types = cursor.fetchall()
+            results["period_types"] = [{"periodTypeId": row[0], "count": row[1]} for row in period_types]
+            logger.info(f"Found {len(period_types)} period types:")
+            for row in period_types:
+                logger.info(f"  periodTypeId = {row[0]}: {row[1]} records")
+
+            # 2. Sample data item IDs used in the database
+            logger.info("\n=== Exploring data item IDs ===")
+            data_item_query = """
+            SELECT DISTINCT dataItemId, COUNT(*) as usage_count
+            FROM ciqFinCollectionData
+            WHERE dataItemId BETWEEN 1 AND 200
+            GROUP BY dataItemId
+            ORDER BY dataItemId
+            LIMIT 50
+            """
+            cursor.execute(data_item_query)
+            data_items = cursor.fetchall()
+            results["data_items"] = [{"dataItemId": row[0], "count": row[1]} for row in data_items]
+            logger.info(f"Found {len(data_items)} data item IDs (1-200):")
+            for row in data_items[:20]:
+                logger.info(f"  dataItemId = {row[0]}: used {row[1]} times")
+
+            # 3. Test revenue query with different period types for a known company
+            logger.info(f"\n=== Testing revenue for ticker {test_ticker} ===")
+            revenue_test_query = """
+            SELECT
+                fp.periodTypeId,
+                fi.periodEndDate,
+                fcd.dataItemId,
+                fcd.dataItemValue as value
+            FROM ciqCompany c
+            INNER JOIN ciqSecurity sec ON c.companyId = sec.companyId
+            INNER JOIN ciqTradingItem ti ON sec.securityId = ti.securityId
+            INNER JOIN ciqFinPeriod fp ON c.companyId = fp.companyId
+            INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+            INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+            INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+            INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+            WHERE UPPER(ti.tickerSymbol) = %s
+                AND fcd.dataItemId IN (1, 2, 3, 4, 5)  -- Test multiple data items
+                AND fp.periodTypeId IN (1, 2, 3, 4, 5, 6, 7, 8)  -- Test multiple period types
+                AND fi.latestForFinancialPeriodFlag = 1
+                AND fcd.dataItemValue IS NOT NULL
+            ORDER BY fp.periodTypeId, fcd.dataItemId, fi.periodEndDate DESC
+            LIMIT 50
+            """
+            cursor.execute(revenue_test_query, [test_ticker.upper()])
+            revenue_samples = cursor.fetchall()
+            results["revenue_samples"] = [
+                {
+                    "periodTypeId": row[0],
+                    "periodEndDate": str(row[1]),
+                    "dataItemId": row[2],
+                    "value": float(row[3]) if row[3] else None
+                }
+                for row in revenue_samples
+            ]
+            logger.info(f"Found {len(revenue_samples)} revenue samples for ticker {test_ticker}:")
+            for row in revenue_samples[:10]:
+                logger.info(f"  periodType={row[0]}, dataItem={row[2]}, periodEnd={row[1]}, value={row[3]}")
+
+            # 4. Look for IPO/listing date data items
+            # Try to find data items that might contain dates (often stored as integers like YYYYMMDD)
+            logger.info("\n=== Looking for potential IPO date data items ===")
+            ipo_search_query = """
+            SELECT DISTINCT
+                fcd.dataItemId,
+                fcd.dataItemValue,
+                COUNT(*) as count
+            FROM ciqCompany c
+            INNER JOIN ciqSecurity sec ON c.companyId = sec.companyId
+            INNER JOIN ciqTradingItem ti ON sec.securityId = ti.securityId
+            INNER JOIN ciqFinPeriod fp ON c.companyId = fp.companyId
+            INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+            INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+            INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+            INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+            WHERE UPPER(ti.tickerSymbol) = %s
+                AND fcd.dataItemId BETWEEN 1 AND 500
+                AND fcd.dataItemValue IS NOT NULL
+                -- Look for values that might be dates (8-digit numbers like 20100101)
+                AND fcd.dataItemValue BETWEEN 19000101 AND 21000101
+            GROUP BY fcd.dataItemId, fcd.dataItemValue
+            ORDER BY fcd.dataItemId
+            LIMIT 30
+            """
+            cursor.execute(ipo_search_query, [test_ticker.upper()])
+            ipo_candidates = cursor.fetchall()
+            results["ipo_date_candidates"] = [
+                {"dataItemId": row[0], "value": row[1], "count": row[2]}
+                for row in ipo_candidates
+            ]
+            logger.info(f"Found {len(ipo_candidates)} potential date data items:")
+            for row in ipo_candidates[:10]:
+                logger.info(f"  dataItemId={row[0]}, value={row[1]} (count={row[2]})")
+
+            cursor.close()
+            logger.info("\n✓ Schema exploration complete")
+            return results
+
+        except Exception as e:
+            logger.error(f"Schema exploration failed: {str(e)}")
+            cursor.close()
+            return {"error": str(e)}
+
     def close(self):
         """Close Snowflake connection"""
         global _snowflake_conn

@@ -49,6 +49,51 @@ async def test_capiq_connection(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Connection test failed: {str(e)}")
 
 
+@router.get("/debug-schema")
+async def debug_capiq_schema(
+    test_ticker: str = "700",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Debug endpoint to explore CapIQ schema and find correct data item IDs
+
+    This helps identify:
+    - Available period types (to find LTM)
+    - Data item IDs for revenue and IPO date
+    - Sample financial data for a test company
+
+    Args:
+        test_ticker: Ticker to use for testing (default "700" = Tencent)
+    """
+    try:
+        capiq = get_capiq_service()
+
+        if not capiq.available:
+            return {
+                "success": False,
+                "message": "CapIQ not available"
+            }
+
+        logger.info(f"Exploring CapIQ schema with test ticker: {test_ticker}")
+        results = capiq.explore_schema_for_data_items(test_ticker)
+
+        if "error" in results:
+            return {
+                "success": False,
+                "error": results["error"]
+            }
+
+        return {
+            "success": True,
+            "test_ticker": test_ticker,
+            "exploration_results": results
+        }
+
+    except Exception as e:
+        logger.error(f"Schema exploration failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Schema exploration failed: {str(e)}")
+
+
 @router.get("/debug-exchanges")
 async def debug_exchanges(current_user: User = Depends(get_current_user)):
     """
