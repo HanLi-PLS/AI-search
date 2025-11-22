@@ -302,7 +302,8 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                ti.startdate as listing_date
+                ti.startdate as listing_date,
+                rev.revenue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -318,6 +319,21 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN (
+                SELECT
+                    fp.companyId,
+                    fcd.dataItemValue as revenue,
+                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
+                    AND fp.periodTypeId = 1  -- Annual periods
+                    AND fi.latestForFinancialPeriodFlag = 1
+                    AND fcd.dataItemValue IS NOT NULL
+            ) rev ON rev.companyId = c.companyId AND rev.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -337,6 +353,12 @@ class CapIQDataService:
                 return None
 
             market_cap = float(row[13]) if row[13] else None
+            ttm_revenue = float(row[15]) if row[15] else None
+
+            # Calculate P/S ratio
+            ps_ratio = None
+            if market_cap and ttm_revenue and ttm_revenue > 0:
+                ps_ratio = market_cap / ttm_revenue
 
             return {
                 "companyid": row[0],
@@ -354,8 +376,8 @@ class CapIQDataService:
                 "volume": int(row[12]) if row[12] else None,
                 "market_cap": market_cap,
                 "listing_date": row[14],  # IPO/listing date
-                "ttm_revenue": None,  # TODO: Add revenue data when schema is confirmed
-                "ps_ratio": None  # TODO: Calculate when revenue is available
+                "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
+                "ps_ratio": ps_ratio  # Price-to-Sales ratio
             }
         except Exception as e:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
@@ -515,7 +537,8 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                ti.startdate as listing_date
+                ti.startdate as listing_date,
+                rev.revenue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -531,6 +554,21 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN (
+                SELECT
+                    fp.companyId,
+                    fcd.dataItemValue as revenue,
+                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
+                    AND fp.periodTypeId = 1  -- Annual periods
+                    AND fi.latestForFinancialPeriodFlag = 1
+                    AND fcd.dataItemValue IS NOT NULL
+            ) rev ON rev.companyId = c.companyId AND rev.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -554,6 +592,12 @@ class CapIQDataService:
             companies_with_mcap = 0
             for row in rows:
                 market_cap = float(row[13]) if row[13] else None
+                ttm_revenue = float(row[15]) if row[15] else None
+
+                # Calculate P/S ratio
+                ps_ratio = None
+                if market_cap and ttm_revenue and ttm_revenue > 0:
+                    ps_ratio = market_cap / ttm_revenue
 
                 if market_cap:
                     companies_with_mcap += 1
@@ -574,8 +618,8 @@ class CapIQDataService:
                     "volume": int(row[12]) if row[12] else None,
                     "market_cap": market_cap,
                     "listing_date": row[14],  # IPO/listing date
-                    "ttm_revenue": None,  # TODO: Add revenue data when schema is confirmed
-                    "ps_ratio": None  # TODO: Calculate when revenue is available
+                    "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
+                    "ps_ratio": ps_ratio  # Price-to-Sales ratio
                 })
 
             logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers ({companies_with_mcap} with market cap)")
