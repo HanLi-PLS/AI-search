@@ -293,14 +293,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                COALESCE(
-                    mc.marketcap,
-                    (SELECT mc2.marketcap
-                     FROM ciqmarketcap mc2
-                     WHERE mc2.companyid = c.companyid
-                     ORDER BY mc2.pricingdate DESC
-                     LIMIT 1)
-                ) as marketcap
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -507,14 +500,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                COALESCE(
-                    mc.marketcap,
-                    (SELECT mc2.marketcap
-                     FROM ciqmarketcap mc2
-                     WHERE mc2.companyid = c.companyid
-                     ORDER BY mc2.pricingdate DESC
-                     LIMIT 1)
-                ) as marketcap
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
