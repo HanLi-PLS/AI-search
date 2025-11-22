@@ -546,6 +546,109 @@ class StockDataService:
             if close_db:
                 db.close()
 
+    def fetch_and_store_capiq_history(
+        self,
+        ticker: str,
+        days: int = 90,
+        db: Session = None
+    ) -> int:
+        """
+        Fetch historical price data from CapIQ and store in database
+
+        Args:
+            ticker: Stock ticker (e.g., "2561.HK")
+            days: Number of days of history to fetch (default 90)
+            db: Database session (optional)
+
+        Returns:
+            Number of records stored/updated
+        """
+        from backend.app.services.capiq_data import get_capiq_service
+
+        close_db = False
+        if db is None:
+            db = self.get_db()
+            close_db = True
+
+        try:
+            # Determine market based on ticker
+            market = "HK" if ".HK" in ticker.upper() else "US"
+
+            # Fetch historical data from CapIQ
+            capiq_service = get_capiq_service()
+            if not capiq_service.available:
+                logger.warning(f"CapIQ not available for {ticker}")
+                return 0
+
+            historical_data = capiq_service.get_historical_prices(
+                ticker=ticker,
+                market=market,
+                days=days
+            )
+
+            if not historical_data:
+                logger.warning(f"No CapIQ historical data found for {ticker}")
+                return 0
+
+            records_stored = 0
+
+            for record in historical_data:
+                trade_date = record['trade_date']
+                if isinstance(trade_date, str):
+                    trade_date = datetime.fromisoformat(trade_date).date()
+
+                # Check if record already exists
+                existing = db.query(StockDaily).filter(
+                    and_(
+                        StockDaily.ticker == ticker,
+                        StockDaily.trade_date == trade_date
+                    )
+                ).first()
+
+                close_price = record.get('close')
+                open_price = record.get('open')
+                high_price = record.get('high')
+                low_price = record.get('low')
+                volume = record.get('volume')
+
+                if existing:
+                    # Update existing record with CapIQ data
+                    existing.open = open_price
+                    existing.high = high_price
+                    existing.low = low_price
+                    existing.close = close_price
+                    existing.volume = volume
+                    existing.data_source = "CapIQ"
+                    existing.updated_at = datetime.now()
+                else:
+                    # Create new record
+                    stock_daily = StockDaily(
+                        ticker=ticker,
+                        ts_code=ticker,  # Use ticker as ts_code for CapIQ data
+                        trade_date=trade_date,
+                        open=open_price,
+                        high=high_price,
+                        low=low_price,
+                        close=close_price,
+                        volume=volume,
+                        data_source="CapIQ"
+                    )
+                    db.add(stock_daily)
+
+                records_stored += 1
+
+            db.commit()
+            logger.info(f"Stored {records_stored} CapIQ historical records for {ticker}")
+            return records_stored
+
+        except Exception as e:
+            logger.error(f"Failed to fetch/store CapIQ history for {ticker}: {str(e)}")
+            db.rollback()
+            return 0
+        finally:
+            if close_db:
+                db.close()
+
     def bulk_update_all_stocks(self, tickers: List[tuple], db: Session = None) -> Dict[str, int]:
         """
         Update all stocks incrementally

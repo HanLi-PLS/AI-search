@@ -663,6 +663,89 @@ class CapIQDataService:
             logger.error(f"Failed to get fundamentals for {ticker}: {str(e)}")
             return []
 
+    def get_historical_prices(self, ticker: str, market: str = "HK", days: int = 90) -> List[Dict[str, Any]]:
+        """
+        Get historical daily prices for a company from CapIQ
+
+        Args:
+            ticker: Stock ticker symbol (e.g., "2561.HK" or "2561")
+            market: Market identifier (US, HK, etc.)
+            days: Number of days of history to fetch (default 90)
+
+        Returns:
+            List of daily price records sorted by date descending
+        """
+        if not self.available:
+            return []
+
+        try:
+            # Build market filter
+            market_filter = ""
+            if market == "US":
+                market_filter = """AND (
+                    ex.exchangename = 'Nasdaq Global Select'
+                    OR ex.exchangename LIKE 'New York Stock Exchange%%'
+                    OR ex.exchangesymbol IN ('NasdaqGS', 'NYSE', 'NYSEArca')
+                )"""
+            elif market == "HK":
+                market_filter = "AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'"
+
+            # Normalize ticker for HK market
+            query_ticker = ticker
+            if market == "HK":
+                query_ticker = ticker.upper().replace('.HK', '').replace(' HK', '').replace(' ', '')
+                query_ticker = query_ticker.lstrip('0') or '0'
+                logger.debug(f"Normalized HK ticker {ticker} -> {query_ticker} for historical query")
+
+            sql = f"""
+            SELECT
+                pe.pricingdate,
+                pe.priceclose,
+                pe.priceopen,
+                pe.pricehigh,
+                pe.pricelow,
+                pe.volume
+            FROM ciqcompany c
+            INNER JOIN ciqsecurity sec
+                ON c.companyid = sec.companyid
+            INNER JOIN ciqtradingitem ti
+                ON sec.securityid = ti.securityid
+            INNER JOIN ciqexchange ex
+                ON ti.exchangeid = ex.exchangeid
+            INNER JOIN ciqpriceequity pe
+                ON ti.tradingitemid = pe.tradingitemid
+            WHERE c.companyTypeId = 4
+                AND c.companyStatusTypeId IN (1, 20)
+                AND sec.primaryflag = 1
+                AND UPPER(ti.tickersymbol) = UPPER(%s)
+                {market_filter}
+                AND pe.priceclose IS NOT NULL
+                AND pe.pricingdate >= DATEADD(day, -%s, CURRENT_DATE())
+            ORDER BY pe.pricingdate DESC
+            """
+
+            cursor = self.conn.cursor()
+            cursor.execute(sql, [query_ticker, days])
+            rows = cursor.fetchall()
+            cursor.close()
+
+            results = []
+            for row in rows:
+                results.append({
+                    "trade_date": row[0],
+                    "close": float(row[1]) if row[1] else None,
+                    "open": float(row[2]) if row[2] else None,
+                    "high": float(row[3]) if row[3] else None,
+                    "low": float(row[4]) if row[4] else None,
+                    "volume": int(row[5]) if row[5] else None,
+                })
+
+            logger.info(f"Found {len(results)} historical price records for {ticker} from CapIQ")
+            return results
+        except Exception as e:
+            logger.error(f"Failed to get historical prices for {ticker}: {str(e)}")
+            return []
+
     def close(self):
         """Close Snowflake connection"""
         global _snowflake_conn

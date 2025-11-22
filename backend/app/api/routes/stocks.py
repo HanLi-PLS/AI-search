@@ -1834,3 +1834,73 @@ async def get_portfolio_companies(force_refresh: bool = False):
             "error": str(e)
         }
 
+
+@router.post("/stocks/update-capiq-history")
+async def update_capiq_historical_data(days: int = 90):
+    """
+    Fetch and store historical price data from CapIQ for all HKEX 18A companies
+
+    This endpoint fetches historical data from CapIQ and stores it in the database,
+    so subsequent page loads can read from the database instead of calling CapIQ API.
+
+    Args:
+        days: Number of days of history to fetch (default 90)
+
+    Returns:
+        Update statistics showing how many companies were updated
+    """
+    from backend.app.services.stock_data import StockDataService
+
+    try:
+        # Get list of HKEX 18A companies
+        companies = get_hkex_biotech_companies()
+        logger.info(f"Starting CapIQ historical data update for {len(companies)} HKEX 18A companies ({days} days)")
+
+        stock_service = StockDataService()
+
+        stats = {
+            'total': len(companies),
+            'updated': 0,
+            'total_records': 0,
+            'errors': 0,
+            'skipped': 0
+        }
+
+        for company in companies:
+            ticker = company['ticker']
+            try:
+                logger.info(f"Fetching CapIQ history for {ticker}...")
+                records = stock_service.fetch_and_store_capiq_history(
+                    ticker=ticker,
+                    days=days
+                )
+
+                if records > 0:
+                    stats['updated'] += 1
+                    stats['total_records'] += records
+                    logger.info(f"✓ Updated {ticker}: {records} records")
+                else:
+                    stats['skipped'] += 1
+                    logger.warning(f"✗ Skipped {ticker}: No data available")
+
+            except Exception as e:
+                stats['errors'] += 1
+                logger.error(f"✗ Error updating {ticker}: {str(e)}")
+
+        logger.info(f"CapIQ historical update complete: {stats['updated']}/{stats['total']} companies, {stats['total_records']} total records")
+
+        return {
+            "success": True,
+            "message": f"Updated {stats['updated']} companies with {stats['total_records']} historical records",
+            "stats": stats,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error in CapIQ historical data update: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
