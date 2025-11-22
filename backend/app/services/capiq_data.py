@@ -663,14 +663,14 @@ class CapIQDataService:
             logger.error(f"Failed to get fundamentals for {ticker}: {str(e)}")
             return []
 
-    def get_historical_prices(self, ticker: str, market: str = "HK", days: int = 90) -> List[Dict[str, Any]]:
+    def get_historical_prices(self, ticker: str, market: str = "HK", days: int = 365) -> List[Dict[str, Any]]:
         """
         Get historical daily prices for a company from CapIQ
 
         Args:
             ticker: Stock ticker symbol (e.g., "2561.HK" or "2561")
             market: Market identifier (US, HK, etc.)
-            days: Number of days of history to fetch (default 90)
+            days: Number of days of history to fetch (default 365 = 1 year)
 
         Returns:
             List of daily price records sorted by date descending

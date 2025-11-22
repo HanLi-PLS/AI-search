@@ -1836,7 +1836,7 @@ async def get_portfolio_companies(force_refresh: bool = False):
 
 
 @router.post("/stocks/update-capiq-history")
-async def update_capiq_historical_data(days: int = 90):
+async def update_capiq_historical_data(days: int = 365):
     """
     Fetch and store historical price data from CapIQ for all HKEX 18A companies
 
@@ -1844,7 +1844,7 @@ async def update_capiq_historical_data(days: int = 90):
     so subsequent page loads can read from the database instead of calling CapIQ API.
 
     Args:
-        days: Number of days of history to fetch (default 90)
+        days: Number of days of history to fetch (default 365 = 1 year)
 
     Returns:
         Update statistics showing how many companies were updated

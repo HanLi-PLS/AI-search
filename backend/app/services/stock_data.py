@@ -549,7 +549,7 @@ class StockDataService:
     def fetch_and_store_capiq_history(
         self,
         ticker: str,
-        days: int = 90,
+        days: int = 365,
         db: Session = None
     ) -> int:
         """
@@ -557,7 +557,7 @@ class StockDataService:
 
         Args:
             ticker: Stock ticker (e.g., "2561.HK")
-            days: Number of days of history to fetch (default 90)
+            days: Number of days of history to fetch (default 365 = 1 year)
             db: Database session (optional)
 
         Returns:

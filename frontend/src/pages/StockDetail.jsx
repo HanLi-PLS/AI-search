@@ -433,8 +433,12 @@ function StockDetail() {
                   const day = date.getDate();
                   return `${month} ${day}`;
                 }}
-                interval="preserveStartEnd"
-                minTickGap={30}
+                // Show ticks intelligently based on data length
+                interval={historyData.length > 180 ? Math.floor(historyData.length / 8) :
+                         historyData.length > 90 ? Math.floor(historyData.length / 10) :
+                         Math.floor(historyData.length / 6)}
+                minTickGap={50}
+                angle={0}
               />
               <YAxis
                 yAxisId="left"
