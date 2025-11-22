@@ -43,7 +43,7 @@ class PortfolioService:
 
     def get_hk_stock_data(self, ticker: str, ts_code: str) -> Dict[str, Any]:
         """
-        Get HK stock data from Tushare
+        Get HK stock data - tries CapIQ first, falls back to Tushare
 
         Args:
             ticker: Stock ticker (e.g., "2561.HK")
@@ -52,7 +52,47 @@ class PortfolioService:
         Returns:
             Stock data dictionary
         """
+        # Try CapIQ first (most comprehensive data)
         try:
+            from backend.app.services.capiq_data import get_capiq_service
+
+            capiq_service = get_capiq_service()
+            if capiq_service.available:
+                logger.debug(f"Trying CapIQ for {ticker}")
+                capiq_data = capiq_service.get_company_data(ticker, market="HK")
+
+                if capiq_data and capiq_data.get('price_close'):
+                    logger.info(f"✓ Got HK stock data from CapIQ for {ticker}")
+
+                    # Convert CapIQ data to standard format
+                    change = None
+                    change_percent = None
+                    if capiq_data.get('price_close') and capiq_data.get('price_open'):
+                        change = capiq_data['price_close'] - capiq_data['price_open']
+                        change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
+
+                    return {
+                        "ticker": ticker,
+                        "ts_code": ts_code,
+                        "current_price": capiq_data.get('price_close'),
+                        "open": capiq_data.get('price_open'),
+                        "day_high": capiq_data.get('price_high'),
+                        "day_low": capiq_data.get('price_low'),
+                        "previous_close": capiq_data.get('price_close'),  # Will be updated from DB if available
+                        "volume": capiq_data.get('volume'),
+                        "market_cap": capiq_data.get('market_cap'),
+                        "change": change,
+                        "change_percent": change_percent,
+                        "trade_date": capiq_data.get('pricing_date'),
+                        "data_source": "CapIQ",
+                        "last_updated": datetime.now().isoformat()
+                    }
+        except Exception as e:
+            logger.warning(f"CapIQ failed for {ticker}, falling back to Tushare: {str(e)}")
+
+        # Fallback to Tushare
+        try:
+            logger.debug(f"Trying Tushare for {ticker}")
             pro = ts.pro_api()
 
             # Get latest trading data
@@ -64,6 +104,8 @@ class PortfolioService:
 
             # Get the most recent data
             latest = df.iloc[0]
+
+            logger.info(f"✓ Got HK stock data from Tushare for {ticker}")
 
             return {
                 "ticker": ticker,
@@ -83,12 +125,12 @@ class PortfolioService:
             }
 
         except Exception as e:
-            logger.error(f"Error fetching HK stock data for {ticker}: {str(e)}")
+            logger.error(f"Error fetching HK stock data for {ticker} from both CapIQ and Tushare: {str(e)}")
             return None
 
     def get_us_stock_data(self, ticker: str) -> Dict[str, Any]:
         """
-        Get US stock data from Finnhub (preferred) or fallbacks
+        Get US stock data - tries CapIQ first, falls back to Finnhub/Tushare/yfinance
 
         Args:
             ticker: Stock ticker (e.g., "ZBIO")
@@ -96,7 +138,45 @@ class PortfolioService:
         Returns:
             Stock data dictionary
         """
-        # Try Finnhub first (most reliable for NASDAQ stocks)
+        # Try CapIQ first (most comprehensive data)
+        try:
+            from backend.app.services.capiq_data import get_capiq_service
+
+            capiq_service = get_capiq_service()
+            if capiq_service.available:
+                logger.debug(f"Trying CapIQ for US stock {ticker}")
+                capiq_data = capiq_service.get_company_data(ticker, market="US")
+
+                if capiq_data and capiq_data.get('price_close'):
+                    logger.info(f"✓ Got US stock data from CapIQ for {ticker}")
+
+                    # Convert CapIQ data to standard format
+                    change = None
+                    change_percent = None
+                    if capiq_data.get('price_close') and capiq_data.get('price_open'):
+                        change = capiq_data['price_close'] - capiq_data['price_open']
+                        change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
+
+                    return {
+                        "ticker": ticker,
+                        "ts_code": ticker,
+                        "current_price": capiq_data.get('price_close'),
+                        "open": capiq_data.get('price_open'),
+                        "day_high": capiq_data.get('price_high'),
+                        "day_low": capiq_data.get('price_low'),
+                        "previous_close": capiq_data.get('price_close'),  # Will be updated from DB if available
+                        "volume": capiq_data.get('volume'),
+                        "market_cap": capiq_data.get('market_cap'),
+                        "change": change,
+                        "change_percent": change_percent,
+                        "trade_date": capiq_data.get('pricing_date'),
+                        "data_source": "CapIQ",
+                        "last_updated": datetime.now().isoformat()
+                    }
+        except Exception as e:
+            logger.warning(f"CapIQ failed for {ticker}, falling back to Finnhub: {str(e)}")
+
+        # Try Finnhub as fallback (reliable for NASDAQ stocks)
         try:
             import finnhub
             from backend.app.config import settings
