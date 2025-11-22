@@ -301,7 +301,9 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                mc.marketcap,
+                ti.startdate as listing_date,
+                rev.dataitemvalue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -317,6 +319,17 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN (
+                SELECT
+                    fi.companyid,
+                    fi.dataitemvalue,
+                    ROW_NUMBER() OVER (PARTITION BY fi.companyid ORDER BY fp.periodenddate DESC) as rn
+                FROM ciqFinInstance fi
+                INNER JOIN ciqFinPeriod fp ON fi.financialperiodid = fp.financialperiodid
+                WHERE fi.dataitemid = 1 -- IQ_TOTAL_REV (Revenue)
+                    AND fp.periodtypeid = 1 -- Annual
+                    AND fi.dataitemvalue IS NOT NULL
+            ) rev ON rev.companyid = c.companyid AND rev.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -335,6 +348,13 @@ class CapIQDataService:
             if not row:
                 return None
 
+            # Calculate P/S ratio if we have both market cap and revenue
+            market_cap = float(row[13]) if row[13] else None
+            ttm_revenue = float(row[15]) if row[15] else None
+            ps_ratio = None
+            if market_cap and ttm_revenue and ttm_revenue > 0:
+                ps_ratio = market_cap / ttm_revenue
+
             return {
                 "companyid": row[0],
                 "companyname": row[1],
@@ -349,7 +369,10 @@ class CapIQDataService:
                 "price_high": float(row[10]) if row[10] else None,
                 "price_low": float(row[11]) if row[11] else None,
                 "volume": int(row[12]) if row[12] else None,
-                "market_cap": float(row[13]) if row[13] else None
+                "market_cap": market_cap,
+                "listing_date": row[14],  # IPO/listing date
+                "ttm_revenue": ttm_revenue,  # Trailing twelve months revenue
+                "ps_ratio": ps_ratio  # Price-to-Sales ratio
             }
         except Exception as e:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
@@ -508,7 +531,9 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                mc.marketcap,
+                ti.startdate as listing_date,
+                rev.dataitemvalue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -524,6 +549,17 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN (
+                SELECT
+                    fi.companyid,
+                    fi.dataitemvalue,
+                    ROW_NUMBER() OVER (PARTITION BY fi.companyid ORDER BY fp.periodenddate DESC) as rn
+                FROM ciqFinInstance fi
+                INNER JOIN ciqFinPeriod fp ON fi.financialperiodid = fp.financialperiodid
+                WHERE fi.dataitemid = 1 -- IQ_TOTAL_REV (Revenue)
+                    AND fp.periodtypeid = 1 -- Annual
+                    AND fi.dataitemvalue IS NOT NULL
+            ) rev ON rev.companyid = c.companyid AND rev.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -547,6 +583,13 @@ class CapIQDataService:
             companies_with_mcap = 0
             for row in rows:
                 market_cap = float(row[13]) if row[13] else None
+                ttm_revenue = float(row[15]) if row[15] else None
+
+                # Calculate P/S ratio
+                ps_ratio = None
+                if market_cap and ttm_revenue and ttm_revenue > 0:
+                    ps_ratio = market_cap / ttm_revenue
+
                 if market_cap:
                     companies_with_mcap += 1
 
@@ -564,7 +607,10 @@ class CapIQDataService:
                     "price_high": float(row[10]) if row[10] else None,
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
-                    "market_cap": market_cap
+                    "market_cap": market_cap,
+                    "listing_date": row[14],  # IPO/listing date
+                    "ttm_revenue": ttm_revenue,  # Trailing twelve months revenue
+                    "ps_ratio": ps_ratio  # Price-to-Sales ratio
                 })
 
             logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers ({companies_with_mcap} with market cap)")

@@ -1038,6 +1038,9 @@ async def get_all_prices(force_refresh: bool = False):
                     "exchange_name": capiq_data.get('exchange_name'),
                     "exchange_symbol": capiq_data.get('exchange_symbol'),
                     "pricing_date": capiq_data.get('pricing_date'),
+                    "listing_date": capiq_data.get('listing_date'),  # IPO/listing date
+                    "ttm_revenue": capiq_data.get('ttm_revenue'),  # Trailing twelve months revenue
+                    "ps_ratio": capiq_data.get('ps_ratio'),  # Price-to-Sales ratio
                     "data_source": "CapIQ",
                     "last_updated": datetime.now().isoformat(),
                 }
