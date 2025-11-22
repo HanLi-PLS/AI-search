@@ -361,7 +361,8 @@ class CapIQDataService:
                 "ps_ratio": None
             }
 
-            # Query 2: Try to get LTM revenue (separate query for isolation)
+            # Query 2: Try to get annual revenue (separate query for isolation)
+            # Using periodTypeId=1 (Annual) as LTM period type not available in this CapIQ instance
             ttm_revenue = None
             try:
                 revenue_sql = """
@@ -372,7 +373,7 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fp.companyId = %s
-                    AND fp.periodTypeId = 3
+                    AND fp.periodTypeId = 1
                     AND fcd.dataItemId = 1
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
@@ -632,7 +633,8 @@ class CapIQDataService:
                     "ps_ratio": None
                 })
 
-            # Query 2: Try to get LTM revenue for all companies (batch query)
+            # Query 2: Try to get annual revenue for all companies (batch query)
+            # Using periodTypeId=1 (Annual) as LTM period type not available in this CapIQ instance
             revenue_map = {}
             try:
                 company_placeholders = ','.join(['%s'] * len(company_ids))
@@ -647,7 +649,7 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fp.companyId IN ({company_placeholders})
-                    AND fp.periodTypeId = 3
+                    AND fp.periodTypeId = 1
                     AND fcd.dataItemId = 1
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
