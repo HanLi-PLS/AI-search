@@ -302,7 +302,8 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                rev.revenue as ttm_revenue
+                rev.revenue as ttm_revenue,
+                ipo.ipo_date_value
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -329,10 +330,25 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
-                    AND fp.periodTypeId = 1  -- Annual periods
+                    AND fp.periodTypeId IN (8, 1)  -- LTM (8) preferred, fallback to Annual (1)
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
             ) rev ON rev.companyId = c.companyId AND rev.rn = 1
+            LEFT JOIN (
+                SELECT
+                    fp.companyId,
+                    fcd.dataItemValue as ipo_date_value,
+                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fcd.dataItemValue IS NOT NULL
+                    AND fcd.dataItemValue BETWEEN 19000101 AND 21000101  -- Date range filter
+                    AND fi.latestForFinancialPeriodFlag = 1
+                LIMIT 1
+            ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -353,11 +369,23 @@ class CapIQDataService:
 
             market_cap = float(row[13]) if row[13] else None
             ttm_revenue = float(row[14]) if row[14] else None
+            ipo_date_raw = row[15] if row[15] else None
 
             # Calculate P/S ratio
             ps_ratio = None
             if market_cap and ttm_revenue and ttm_revenue > 0:
                 ps_ratio = market_cap / ttm_revenue
+
+            # Convert IPO date from YYYYMMDD integer to date string
+            listing_date = None
+            if ipo_date_raw:
+                try:
+                    ipo_str = str(int(ipo_date_raw))
+                    if len(ipo_str) == 8:
+                        # Format: YYYYMMDD -> YYYY-MM-DD
+                        listing_date = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
 
             return {
                 "companyid": row[0],
@@ -374,8 +402,8 @@ class CapIQDataService:
                 "price_low": float(row[11]) if row[11] else None,
                 "volume": int(row[12]) if row[12] else None,
                 "market_cap": market_cap,
-                "listing_date": None,  # TODO: Find correct column name for listing date
-                "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
+                "listing_date": listing_date,
+                "ttm_revenue": ttm_revenue,
                 "ps_ratio": ps_ratio  # Price-to-Sales ratio
             }
         except Exception as e:
@@ -536,7 +564,8 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                rev.revenue as ttm_revenue
+                rev.revenue as ttm_revenue,
+                ipo.ipo_date_value
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -563,10 +592,25 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fcd.dataItemId = 1  -- IQ_TOTAL_REV (Total Revenue)
-                    AND fp.periodTypeId = 1  -- Annual periods
+                    AND fp.periodTypeId IN (8, 1)  -- LTM (8) preferred, fallback to Annual (1)
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
             ) rev ON rev.companyId = c.companyId AND rev.rn = 1
+            LEFT JOIN (
+                SELECT
+                    fp.companyId,
+                    fcd.dataItemValue as ipo_date_value,
+                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fcd.dataItemValue IS NOT NULL
+                    AND fcd.dataItemValue BETWEEN 19000101 AND 21000101  -- Date range filter
+                    AND fi.latestForFinancialPeriodFlag = 1
+                LIMIT 1
+            ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -591,11 +635,23 @@ class CapIQDataService:
             for row in rows:
                 market_cap = float(row[13]) if row[13] else None
                 ttm_revenue = float(row[14]) if row[14] else None
+                ipo_date_raw = row[15] if row[15] else None
 
                 # Calculate P/S ratio
                 ps_ratio = None
                 if market_cap and ttm_revenue and ttm_revenue > 0:
                     ps_ratio = market_cap / ttm_revenue
+
+                # Convert IPO date from YYYYMMDD integer to date string
+                listing_date = None
+                if ipo_date_raw:
+                    try:
+                        ipo_str = str(int(ipo_date_raw))
+                        if len(ipo_str) == 8:
+                            # Format: YYYYMMDD -> YYYY-MM-DD
+                            listing_date = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
 
                 if market_cap:
                     companies_with_mcap += 1
@@ -615,8 +671,8 @@ class CapIQDataService:
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
                     "market_cap": market_cap,
-                    "listing_date": None,  # TODO: Find correct column name for listing date
-                    "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
+                    "listing_date": listing_date,
+                    "ttm_revenue": ttm_revenue,
                     "ps_ratio": ps_ratio  # Price-to-Sales ratio
                 })
 
