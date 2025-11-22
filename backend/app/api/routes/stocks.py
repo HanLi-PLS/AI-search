@@ -911,17 +911,43 @@ async def get_all_prices(force_refresh: bool = False):
         logger.info(f"Retrieved {len(capiq_companies)} companies from CapIQ bulk query")
 
         # Step 4: Create lookup dict for CapIQ data by ticker
+        # Support multiple ticker format variations for matching
         capiq_lookup = {}
         for company in capiq_companies:
             ticker = company.get('ticker')
             if ticker:
+                # Store under original format
                 capiq_lookup[ticker] = company
+
+                # Also store normalized versions for flexible matching
+                # Handle formats: "2561.HK", "02561.HK", "2561 HK", "2561"
+                normalized = ticker.upper().replace(' ', '.').replace('HK', '.HK')
+                capiq_lookup[normalized] = company
+
+                # Store version without leading zeros
+                if '.HK' in normalized:
+                    code = normalized.replace('.HK', '')
+                    # Remove leading zeros: "02561" -> "2561"
+                    code_no_zeros = code.lstrip('0') or '0'
+                    capiq_lookup[f"{code_no_zeros}.HK"] = company
+
+        logger.debug(f"Sample CapIQ tickers: {list(capiq_lookup.keys())[:5]}")
 
         # Step 5: Match verified companies with CapIQ data
         results = []
         for verified_company in verified_companies:
             ticker = verified_company['ticker']
+
+            # Try direct lookup first
             capiq_data = capiq_lookup.get(ticker)
+
+            # If not found, try with leading zeros (e.g., "2561.HK" -> "02561.HK")
+            if not capiq_data and '.HK' in ticker:
+                code = ticker.replace('.HK', '')
+                padded_ticker = f"{code.zfill(5)}.HK"
+                capiq_data = capiq_lookup.get(padded_ticker)
+                if capiq_data:
+                    logger.debug(f"Matched {ticker} using padded format {padded_ticker}")
 
             if capiq_data:
                 # We have CapIQ data for this verified company
@@ -1660,10 +1686,18 @@ async def get_portfolio_companies(force_refresh: bool = False):
             # Determine market code for CapIQ
             capiq_market = "HK" if market == "HKEX" else "US"
 
+            # Normalize HK ticker format to 5-digit code for CapIQ lookup
+            # CapIQ uses format like "02561.HK" instead of "2561.HK"
+            search_ticker = ticker
+            if capiq_market == "HK" and '.HK' in ticker:
+                code = ticker.replace('.HK', '')
+                search_ticker = f"{code.zfill(5)}.HK"
+                logger.debug(f"Normalized {ticker} to {search_ticker} for CapIQ lookup")
+
             # Get CapIQ data for this specific ticker
             capiq_data = await asyncio.to_thread(
                 capiq_service.get_company_data,
-                ticker=ticker,
+                ticker=search_ticker,
                 market=capiq_market
             )
 
