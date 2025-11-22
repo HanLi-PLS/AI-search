@@ -95,6 +95,21 @@ export const exportWatchlistToCSV = (watchlist) => {
       accessor: (item) => item.live_data?.market_cap || 'N/A'
     },
     {
+      key: 'ttm_revenue',
+      header: 'Revenue (Annual)',
+      accessor: (item) => item.live_data?.ttm_revenue || 'N/A'
+    },
+    {
+      key: 'ps_ratio',
+      header: 'P/S Ratio',
+      accessor: (item) => item.live_data?.ps_ratio || 'N/A'
+    },
+    {
+      key: 'listing_date',
+      header: 'Listing Date',
+      accessor: (item) => item.live_data?.listing_date || 'N/A'
+    },
+    {
       key: 'pricing_date',
       header: 'Data Date',
       accessor: (item) => item.live_data?.pricing_date || 'N/A'
