@@ -421,22 +421,26 @@ function StockDetail() {
 
         {historyData && historyData.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={historyData} margin={{ top: 5, right: 80, left: 20, bottom: 5 }}>
+            <LineChart
+              data={historyData.map(d => ({
+                ...d,
+                timestamp: new Date(d.date).getTime()
+              }))}
+              margin={{ top: 5, right: 80, left: 20, bottom: 5 }}
+            >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                dataKey="date"
+                dataKey="timestamp"
+                type="number"
+                scale="time"
+                domain={['dataMin', 'dataMax']}
                 tick={{ fontSize: 11 }}
-                tickFormatter={(dateStr) => {
-                  // Parse the ISO date string properly
-                  const date = new Date(dateStr);
+                tickFormatter={(timestamp) => {
+                  const date = new Date(timestamp);
                   const month = date.toLocaleDateString('en-US', { month: 'short' });
                   const day = date.getDate();
                   return `${month} ${day}`;
                 }}
-                // Show ticks intelligently based on data length
-                interval={historyData.length > 180 ? Math.floor(historyData.length / 8) :
-                         historyData.length > 90 ? Math.floor(historyData.length / 10) :
-                         Math.floor(historyData.length / 6)}
                 minTickGap={50}
                 angle={0}
               />
@@ -454,8 +458,8 @@ function StockDetail() {
               />
               <Tooltip
                 formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
-                labelFormatter={(dateStr) => {
-                  const date = new Date(dateStr);
+                labelFormatter={(timestamp) => {
+                  const date = new Date(timestamp);
                   return date.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'short',
