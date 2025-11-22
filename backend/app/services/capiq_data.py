@@ -947,11 +947,11 @@ class CapIQDataService:
             INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
             WHERE UPPER(ti.tickerSymbol) = %s
                 AND fcd.dataItemId IN (1, 2, 3, 4, 5)  -- Test multiple data items
-                AND fp.periodTypeId IN (1, 2, 3, 4, 5, 6, 7, 8)  -- Test multiple period types
+                AND fp.periodTypeId IN (1, 2, 3, 4, 10)  -- Test period types that actually exist
                 AND fi.latestForFinancialPeriodFlag = 1
                 AND fcd.dataItemValue IS NOT NULL
             ORDER BY fp.periodTypeId, fcd.dataItemId, fi.periodEndDate DESC
-            LIMIT 50
+            LIMIT 100
             """
             cursor.execute(revenue_test_query, [test_ticker.upper()])
             revenue_samples = cursor.fetchall()
