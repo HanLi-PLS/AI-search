@@ -320,7 +320,9 @@ function StockDetail() {
           </div>
           <div className="stat-item">
             <span className="stat-label">Market Cap</span>
-            <span className="stat-value">{stockData.market_cap || 'N/A'}</span>
+            <span className="stat-value">
+              {stockData.market_cap ? `${stockData.market_cap.toFixed(2)} mn` : 'N/A'}
+            </span>
           </div>
         </div>
 

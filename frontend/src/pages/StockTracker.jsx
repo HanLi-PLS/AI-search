@@ -520,6 +520,12 @@ function StockTracker() {
     return formatNumber(value, 2);
   };
 
+  const formatMarketCap = (value) => {
+    if (value === null || value === undefined) return 'N/A';
+    // Market cap is already in millions from CapIQ
+    return `${value.toFixed(2)} mn`;
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString();
@@ -1099,7 +1105,7 @@ function StockTracker() {
                           <div className="watchlist-data-row">
                             <span className="watchlist-data-label">Market Cap:</span>
                             <span className="watchlist-data-value">
-                              ${formatLargeNumber(company.live_data.market_cap)}
+                              {formatMarketCap(company.live_data.market_cap)}
                             </span>
                           </div>
                           <div className="watchlist-data-row">
