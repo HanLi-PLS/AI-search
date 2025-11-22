@@ -365,15 +365,18 @@ class CapIQDataService:
             ttm_revenue = None
             try:
                 revenue_sql = """
-                SELECT fin.dataValue
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
-                WHERE fin.companyId = %s
-                    AND di.dataItemMnemonic = 'IQ_TOTAL_REV'
-                    AND p.periodTypeName = 'LTM'
-                    AND fin.dataValue IS NOT NULL
-                ORDER BY p.calendarYear DESC, p.calendarQuarter DESC
+                SELECT fcd.dataItemValue
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fp.companyId = %s
+                    AND fp.periodTypeId = 8
+                    AND fcd.dataItemId = 1
+                    AND fi.latestForFinancialPeriodFlag = 1
+                    AND fcd.dataItemValue IS NOT NULL
+                ORDER BY fi.periodEndDate DESC
                 LIMIT 1
                 """
                 cursor.execute(revenue_sql, [company_id])
@@ -388,29 +391,13 @@ class CapIQDataService:
                 logger.warning(f"Failed to fetch revenue for {ticker} (company_id={company_id}): {e}")
 
             # Query 3: Try to get IPO/listing date (separate query for isolation)
+            # TODO: Need to explore schema to find correct dataItemId for IPO date
+            # Run scripts/explore_capiq_data_items.py to identify the right dataItemId
+            # For now, listing_date will remain None until we identify the correct field
             try:
-                ipo_sql = """
-                SELECT fin.dataValue
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                WHERE fin.companyId = %s
-                    AND di.dataItemMnemonic = 'IQ_IPO_DATE'
-                    AND fin.dataValue IS NOT NULL
-                ORDER BY fin.periodId DESC
-                LIMIT 1
-                """
-                cursor.execute(ipo_sql, [company_id])
-                ipo_row = cursor.fetchone()
-                if ipo_row and ipo_row[0]:
-                    ipo_date_raw = ipo_row[0]
-                    # Convert IPO date from YYYYMMDD integer to date string
-                    try:
-                        ipo_str = str(int(ipo_date_raw))
-                        if len(ipo_str) == 8:
-                            # Format: YYYYMMDD -> YYYY-MM-DD
-                            result["listing_date"] = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
+                # Temporarily disabled until we identify correct dataItemId
+                # The exploration query in explore_schema_for_data_items() can help find this
+                pass
             except Exception as e:
                 logger.warning(f"Failed to fetch IPO date for {ticker} (company_id={company_id}): {e}")
 
@@ -651,16 +638,19 @@ class CapIQDataService:
                 company_placeholders = ','.join(['%s'] * len(company_ids))
                 revenue_sql = f"""
                 SELECT
-                    fin.companyId,
-                    fin.dataValue,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
-                WHERE fin.companyId IN ({company_placeholders})
-                    AND di.dataItemMnemonic = 'IQ_TOTAL_REV'
-                    AND p.periodTypeName = 'LTM'
-                    AND fin.dataValue IS NOT NULL
+                    fp.companyId,
+                    fcd.dataItemValue,
+                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
+                FROM ciqFinPeriod fp
+                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
+                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
+                WHERE fp.companyId IN ({company_placeholders})
+                    AND fp.periodTypeId = 8
+                    AND fcd.dataItemId = 1
+                    AND fi.latestForFinancialPeriodFlag = 1
+                    AND fcd.dataItemValue IS NOT NULL
                 """
                 cursor.execute(revenue_sql, company_ids)
                 revenue_rows = cursor.fetchall()
@@ -675,33 +665,13 @@ class CapIQDataService:
                 logger.warning(f"Failed to batch fetch revenue: {e}")
 
             # Query 3: Try to get IPO dates for all companies (batch query)
+            # TODO: Need to explore schema to find correct dataItemId for IPO date
+            # Run scripts/explore_capiq_data_items.py to identify the right dataItemId
             ipo_map = {}
             try:
-                ipo_sql = f"""
-                SELECT
-                    fin.companyId,
-                    fin.dataValue,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                WHERE fin.companyId IN ({company_placeholders})
-                    AND di.dataItemMnemonic = 'IQ_IPO_DATE'
-                    AND fin.dataValue IS NOT NULL
-                """
-                cursor.execute(ipo_sql, company_ids)
-                ipo_rows = cursor.fetchall()
-
-                # Build map of company_id -> formatted date (only rn=1, most recent)
-                for row in ipo_rows:
-                    if row[2] == 1:  # rn = 1 (most recent)
-                        try:
-                            ipo_str = str(int(row[1]))
-                            if len(ipo_str) == 8:
-                                ipo_map[row[0]] = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
-                        except (ValueError, TypeError) as e:
-                            logger.warning(f"Failed to parse IPO date {row[1]}: {e}")
-
-                logger.info(f"Fetched IPO dates for {len(ipo_map)}/{len(company_ids)} companies")
+                # Temporarily disabled until we identify correct dataItemId
+                # The exploration query in explore_schema_for_data_items() can help find this
+                pass
             except Exception as e:
                 logger.warning(f"Failed to batch fetch IPO dates: {e}")
 
