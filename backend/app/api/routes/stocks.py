@@ -944,9 +944,10 @@ async def get_all_prices(force_refresh: bool = False):
                     ticker_padded = clean_ticker.zfill(5)
                     capiq_lookup[f"{ticker_padded}.HK"] = company
 
-                    logger.debug(f"Created HK ticker variants for {ticker_str}: {clean_ticker}.HK, {ticker_no_zeros}.HK, {ticker_padded}.HK")
+                    logger.info(f"Created HK ticker variants for {ticker_str}: {clean_ticker}.HK, {ticker_no_zeros}.HK, {ticker_padded}.HK")
 
-        logger.debug(f"Sample CapIQ tickers in lookup: {list(capiq_lookup.keys())[:10]}")
+        logger.info(f"Sample CapIQ tickers in lookup: {list(capiq_lookup.keys())[:10]}")
+        logger.info(f"Total ticker variants in lookup: {len(capiq_lookup)}")
 
         # Step 5: Match verified companies with CapIQ data
         results = []
@@ -965,6 +966,7 @@ async def get_all_prices(force_refresh: bool = False):
                     logger.debug(f"Matched {ticker} using padded format {padded_ticker}")
 
             if capiq_data:
+                logger.info(f"✓ Matched {ticker} with CapIQ data")
                 # We have CapIQ data for this verified company
                 # Calculate change and change_percent if we have data
                 change = None
@@ -1002,7 +1004,7 @@ async def get_all_prices(force_refresh: bool = False):
                 results.append(result)
             else:
                 # No CapIQ data found for this verified company
-                logger.debug(f"No CapIQ data found for {ticker}")
+                logger.warning(f"✗ No CapIQ data found for {ticker} - tried variants: {ticker}, {padded_ticker if '.HK' in ticker else 'N/A'}")
                 results.append({
                     "ticker": ticker,
                     "name": verified_company['name'],
