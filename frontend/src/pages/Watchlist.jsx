@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { watchlistAPI } from '../services/api';
+import { showSuccess, showError, showInfo } from '../utils/toast';
+import { exportWatchlistToCSV } from '../utils/csvExport';
 import './Watchlist.css';
 
 function Watchlist() {
@@ -109,13 +111,13 @@ function Watchlist() {
           prev.filter(c => c.ticker !== company.ticker)
         );
 
-        alert(`Added ${company.companyname} to watchlist!`);
+        showSuccess(`Added ${company.companyname} to watchlist!`);
       } else {
-        alert(response.message || 'Failed to add to watchlist');
+        showError(response.message || 'Failed to add to watchlist');
       }
     } catch (err) {
       console.error('Error adding to watchlist:', err);
-      alert(err.response?.data?.detail || 'Failed to add to watchlist');
+      showError(err.response?.data?.detail || 'Failed to add to watchlist');
     } finally {
       setAddingTicker(null);
     }
@@ -142,15 +144,30 @@ function Watchlist() {
           )
         );
 
-        alert(`Removed ${company.company_name} from watchlist`);
+        showSuccess(`Removed ${company.company_name} from watchlist`);
       } else {
-        alert('Failed to remove from watchlist');
+        showError('Failed to remove from watchlist');
       }
     } catch (err) {
       console.error('Error removing from watchlist:', err);
-      alert('Failed to remove from watchlist');
+      showError('Failed to remove from watchlist');
     } finally {
       setRemovingTicker(null);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (watchlist.length === 0) {
+      showInfo('No data to export. Add companies to your watchlist first.');
+      return;
+    }
+
+    try {
+      exportWatchlistToCSV(watchlist);
+      showSuccess(`Exported ${watchlist.length} companies to CSV`);
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+      showError('Failed to export CSV. Please try again.');
     }
   };
 
@@ -275,13 +292,23 @@ function Watchlist() {
       <div className="watchlist-section">
         <div className="section-header">
           <h2>💼 My Watchlist ({watchlist.length})</h2>
-          <button
-            onClick={fetchWatchlist}
-            className="refresh-button"
-            disabled={refreshing}
-          >
-            {refreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
-          </button>
+          <div className="header-actions">
+            <button
+              onClick={handleExportCSV}
+              className="export-button"
+              disabled={watchlist.length === 0}
+              title="Export to CSV"
+            >
+              📥 Export CSV
+            </button>
+            <button
+              onClick={fetchWatchlist}
+              className="refresh-button"
+              disabled={refreshing}
+            >
+              {refreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
+            </button>
+          </div>
         </div>
 
         {loading && watchlist.length === 0 && (

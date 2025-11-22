@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { stockAPI, watchlistAPI } from '../services/api';
 import StockCard from '../components/StockCard';
+import { showSuccess, showError, showInfo } from '../utils/toast';
+import { exportStockTrackerToCSV } from '../utils/csvExport';
 import './StockTracker.css';
 
 function StockTracker() {
@@ -167,10 +169,10 @@ function StockTracker() {
       // Refresh stats after update
       await fetchHistoryStats();
 
-      alert(`Successfully updated ${result.statistics.updated} stocks with ${result.statistics.new_records} new records!`);
+      showSuccess(`Successfully updated ${result.statistics.updated} stocks with ${result.statistics.new_records} new records!`);
     } catch (err) {
       console.error('Error updating historical data:', err);
-      alert('Failed to update historical data. Please try again.');
+      showError('Failed to update historical data. Please try again.');
     } finally {
       setIsUpdatingHistory(false);
     }
@@ -228,10 +230,10 @@ function StockTracker() {
       // Refresh stats after update
       await fetchHistoryStats();
 
-      alert(`Successfully updated portfolio history with ${totalRecords} new records!`);
+      showSuccess(`Successfully updated portfolio history with ${totalRecords} new records!`);
     } catch (err) {
       console.error('Error updating portfolio historical data:', err);
-      alert('Failed to update portfolio historical data. Please try again.');
+      showError('Failed to update portfolio historical data. Please try again.');
     } finally {
       setIsUpdatingPortfolioHistory(false);
     }
@@ -315,13 +317,13 @@ function StockTracker() {
         setSearchResults(prev =>
           prev.filter(c => c.ticker !== company.ticker)
         );
-        alert(`Added ${company.companyname} to watchlist!`);
+        showSuccess(`Added ${company.companyname} to watchlist!`);
       } else {
-        alert(response.message || 'Failed to add to watchlist');
+        showError(response.message || 'Failed to add to watchlist');
       }
     } catch (err) {
       console.error('Error adding to watchlist:', err);
-      alert(err.response?.data?.detail || 'Failed to add to watchlist');
+      showError(err.response?.data?.detail || 'Failed to add to watchlist');
     } finally {
       setAddingTicker(null);
     }
@@ -346,15 +348,30 @@ function StockTracker() {
             !(c.ticker === company.ticker && c.market === company.market)
           )
         );
-        alert(`Removed ${company.company_name} from watchlist`);
+        showSuccess(`Removed ${company.company_name} from watchlist`);
       } else {
-        alert('Failed to remove from watchlist');
+        showError('Failed to remove from watchlist');
       }
     } catch (err) {
       console.error('Error removing from watchlist:', err);
-      alert('Failed to remove from watchlist');
+      showError('Failed to remove from watchlist');
     } finally {
       setRemovingTicker(null);
+    }
+  };
+
+  const handleExportCSV = (data, tabName) => {
+    if (!data || data.length === 0) {
+      showInfo('No data to export');
+      return;
+    }
+
+    try {
+      exportStockTrackerToCSV(data, tabName);
+      showSuccess(`Exported ${data.length} items to CSV`);
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+      showError('Failed to export CSV. Please try again.');
     }
   };
 
@@ -589,6 +606,15 @@ function StockTracker() {
             >
               {isUpdatingHistory ? '📊 Updating History...' : '📊 Update History'}
             </button>
+
+            <button
+              onClick={() => handleExportCSV(filteredAndSortedStocks, 'hkex_18a')}
+              className="export-button"
+              disabled={!stockData || stockData.length === 0}
+              title="Export to CSV"
+            >
+              📥 Export CSV
+            </button>
           </div>
 
           <div className="stats-bar">
@@ -672,6 +698,15 @@ function StockTracker() {
                 title="Update historical data for portfolio companies"
               >
                 {isUpdatingPortfolioHistory ? '📊 Updating History...' : '📊 Update History'}
+              </button>
+
+              <button
+                onClick={() => handleExportCSV(portfolioCompanies, 'portfolio')}
+                className="export-button"
+                disabled={!portfolioCompanies || portfolioCompanies.length === 0}
+                title="Export to CSV"
+              >
+                📥 Export CSV
               </button>
             </div>
 
