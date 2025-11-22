@@ -1050,16 +1050,53 @@ async def get_all_prices(force_refresh: bool = False):
 
                 results.append(result)
             else:
-                # No CapIQ data found for this verified company
-                logger.warning(f"✗ No CapIQ data found for {ticker} - tried variants: {ticker}, {padded_ticker if '.HK' in ticker else 'N/A'}")
-                results.append({
-                    "ticker": ticker,
-                    "name": verified_company['name'],
-                    "current_price": None,
-                    "error": "No CapIQ data available",
-                    "data_source": "Fallback List",
-                    "last_updated": datetime.now().isoformat(),
-                })
+                # No CapIQ data found for this verified company - try fallback sources (Tushare, etc.)
+                logger.warning(f"✗ No CapIQ data found for {ticker} - trying fallback sources (Tushare, Finnhub, etc.)")
+
+                # Call get_stock_data which has the full fallback chain: Tushare → Finnhub → AKShare → Web Search
+                fallback_data = get_stock_data(
+                    ticker=ticker,
+                    code=verified_company.get('code'),
+                    name=verified_company['name'],
+                    use_cache=not force_refresh
+                )
+
+                if fallback_data:
+                    # Successfully got data from fallback source
+                    logger.info(f"✓ Got fallback data for {ticker} from {fallback_data.get('data_source')}")
+                    result = {
+                        "ticker": ticker,
+                        "name": verified_company['name'],
+                        "current_price": fallback_data.get('current_price'),
+                        "open": fallback_data.get('open'),
+                        "day_high": fallback_data.get('day_high'),
+                        "day_low": fallback_data.get('day_low'),
+                        "volume": fallback_data.get('volume'),
+                        "market_cap": fallback_data.get('market_cap'),
+                        "change": fallback_data.get('change'),
+                        "change_percent": fallback_data.get('change_percent'),
+                        "data_source": fallback_data.get('data_source'),
+                        "last_updated": datetime.now().isoformat(),
+                    }
+
+                    # Try to calculate daily change from database history
+                    try:
+                        result = calculate_daily_change_from_db(ticker, result)
+                    except Exception as e:
+                        logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
+
+                    results.append(result)
+                else:
+                    # All sources failed
+                    logger.error(f"✗ No data available from any source for {ticker}")
+                    results.append({
+                        "ticker": ticker,
+                        "name": verified_company['name'],
+                        "current_price": None,
+                        "error": "No data available from any source",
+                        "data_source": "None",
+                        "last_updated": datetime.now().isoformat(),
+                    })
 
         matched_count = len([r for r in results if r.get('current_price')])
         logger.info(f"Matched {matched_count} / {len(verified_companies)} verified companies with CapIQ data")
