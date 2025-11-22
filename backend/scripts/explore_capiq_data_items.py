@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
 Standalone script to explore CapIQ schema and find correct data item IDs
-Can be run directly on EC2: python scripts/explore_capiq_data_items.py
+Can be run directly on EC2: python backend/scripts/explore_capiq_data_items.py
 """
 import sys
 import os
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path for imports
+# Script is at: /opt/ai-search/backend/scripts/explore_capiq_data_items.py
+# Project root: /opt/ai-search (3 levels up)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 def main():
     try:
-        from app.services.capiq_data import get_capiq_service
+        from backend.app.services.capiq_data import get_capiq_service
 
         print("=" * 80)
         print("CapIQ Schema Exploration")
@@ -145,8 +147,8 @@ def main():
 
     except ImportError as e:
         print(f"ERROR: Missing dependency - {e}")
-        print("\nMake sure you're running from the backend directory:")
-        print("  cd backend && python scripts/explore_capiq_data_items.py")
+        print("\nMake sure you're running from the project root directory:")
+        print("  cd /opt/ai-search && python backend/scripts/explore_capiq_data_items.py")
         sys.exit(1)
     except Exception as e:
         print(f"ERROR: {e}")
