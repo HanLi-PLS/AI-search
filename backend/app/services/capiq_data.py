@@ -289,8 +289,18 @@ class CapIQDataService:
                 s.subtypevalue as industry,
                 pe.pricingdate,
                 pe.priceclose,
+                pe.priceopen,
+                pe.pricehigh,
+                pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                COALESCE(
+                    mc.marketcap,
+                    (SELECT mc2.marketcap
+                     FROM ciqmarketcap mc2
+                     WHERE mc2.companyid = c.companyid
+                     ORDER BY mc2.pricingdate DESC
+                     LIMIT 1)
+                ) as marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -334,8 +344,11 @@ class CapIQDataService:
                 "industry": row[6],
                 "pricing_date": row[7],
                 "price_close": float(row[8]) if row[8] else None,
-                "volume": int(row[9]) if row[9] else None,
-                "market_cap": float(row[10]) if row[10] else None
+                "price_open": float(row[9]) if row[9] else None,
+                "price_high": float(row[10]) if row[10] else None,
+                "price_low": float(row[11]) if row[11] else None,
+                "volume": int(row[12]) if row[12] else None,
+                "market_cap": float(row[13]) if row[13] else None
             }
         except Exception as e:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
@@ -494,7 +507,14 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                COALESCE(
+                    mc.marketcap,
+                    (SELECT mc2.marketcap
+                     FROM ciqmarketcap mc2
+                     WHERE mc2.companyid = c.companyid
+                     ORDER BY mc2.pricingdate DESC
+                     LIMIT 1)
+                ) as marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -521,7 +541,7 @@ class CapIQDataService:
                     FROM ciqpriceequity pe2
                     WHERE pe2.tradingitemid = ti.tradingitemid
                 )
-            ORDER BY mc.marketcap DESC NULLS LAST
+            ORDER BY marketcap DESC NULLS LAST
             """
 
             cursor = self.conn.cursor()
@@ -530,7 +550,12 @@ class CapIQDataService:
             cursor.close()
 
             results = []
+            companies_with_mcap = 0
             for row in rows:
+                market_cap = float(row[13]) if row[13] else None
+                if market_cap:
+                    companies_with_mcap += 1
+
                 results.append({
                     "companyid": row[0],
                     "companyname": row[1],
@@ -545,10 +570,10 @@ class CapIQDataService:
                     "price_high": float(row[10]) if row[10] else None,
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
-                    "market_cap": float(row[13]) if row[13] else None
+                    "market_cap": market_cap
                 })
 
-            logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers")
+            logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers ({companies_with_mcap} with market cap)")
             return results
         except Exception as e:
             logger.error(f"Failed to get companies by tickers: {str(e)}")

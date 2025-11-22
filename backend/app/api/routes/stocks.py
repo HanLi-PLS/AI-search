@@ -780,7 +780,7 @@ def get_stock_data_from_akshare(code: str, ticker: str, retry_count: int = 2) ->
 
 def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: bool = True) -> Optional[Dict[str, Any]]:
     """
-    Fetch stock data with caching, tries multiple sources: Tushare -> Finnhub -> AKShare -> Web Search (GPT-4.1)
+    Fetch stock data with caching, tries multiple sources: CapIQ -> Tushare -> Finnhub -> AKShare -> Web Search (GPT-4.1)
 
     Args:
         ticker: Stock ticker symbol (e.g., "1801.HK")
@@ -800,7 +800,51 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
 
     # Try multiple real data sources in order of preference
 
-    # 1. Try Tushare Pro (best for HK stocks - free & fast)
+    # 1. Try CapIQ first (most comprehensive data for covered companies)
+    from backend.app.services.capiq_data import get_capiq_service
+    try:
+        capiq_service = get_capiq_service()
+        if capiq_service.available:
+            logger.debug(f"Trying CapIQ for {ticker}")
+            # Determine market based on ticker format
+            market = "HK" if ".HK" in ticker.upper() else "US"
+            capiq_data = capiq_service.get_company_data(ticker, market=market)
+
+            if capiq_data and capiq_data.get('price_close'):
+                logger.info(f"✓ Got real data from CapIQ for {ticker}")
+
+                # Convert CapIQ data to standard format
+                change = None
+                change_percent = None
+                if capiq_data.get('price_close') and capiq_data.get('price_open'):
+                    change = capiq_data['price_close'] - capiq_data['price_open']
+                    change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
+
+                stock_data = {
+                    "ticker": ticker,
+                    "current_price": capiq_data.get('price_close'),
+                    "open": capiq_data.get('price_open'),
+                    "previous_close": capiq_data.get('price_close'),  # Will be updated from DB if available
+                    "day_high": capiq_data.get('price_high'),
+                    "day_low": capiq_data.get('price_low'),
+                    "volume": capiq_data.get('volume'),
+                    "market_cap": capiq_data.get('market_cap'),
+                    "change": change,
+                    "change_percent": change_percent,
+                    "currency": "HKD" if market == "HK" else "USD",
+                    "last_updated": datetime.now().isoformat(),
+                    "data_source": "CapIQ",
+                    "webpage": capiq_data.get('webpage'),
+                    "industry": capiq_data.get('industry'),
+                }
+
+                # Cache the result
+                _stock_cache[ticker] = (stock_data, datetime.now())
+                return stock_data
+    except Exception as e:
+        logger.warning(f"CapIQ lookup failed for {ticker}: {str(e)}")
+
+    # 2. Try Tushare Pro (best for HK stocks - free & fast)
     if TUSHARE_AVAILABLE:
         logger.debug(f"Trying Tushare for {ticker}")
         stock_data = get_stock_data_from_tushare(ticker, code=code)
@@ -811,7 +855,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 2. Try Finnhub if Tushare failed
+    # 3. Try Finnhub if CapIQ and Tushare failed
     if FINNHUB_AVAILABLE:
         logger.debug(f"Trying Finnhub for {ticker}")
         stock_data = get_stock_data_from_finnhub(ticker)
@@ -822,7 +866,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 3. Try AKShare if both Tushare and Finnhub failed
+    # 4. Try AKShare if CapIQ, Tushare and Finnhub failed
     if AKSHARE_AVAILABLE and code:
         logger.debug(f"Trying AKShare for {ticker} ({code})")
         stock_data = get_stock_data_from_akshare(code, ticker)
@@ -833,7 +877,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
             _stock_cache[ticker] = (stock_data, datetime.now())
             return stock_data
 
-    # 4. Try web search with GPT-4.1 if all APIs failed
+    # 5. Try web search with GPT-4.1 if all APIs failed
     if settings.OPENAI_API_KEY:
         logger.debug(f"Trying web search for {ticker}")
         stock_data = get_stock_data_from_websearch(ticker, name=name)
