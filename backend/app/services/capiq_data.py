@@ -361,23 +361,21 @@ class CapIQDataService:
                 "ps_ratio": None
             }
 
-            # Query 2: Try to get annual revenue (separate query for isolation)
-            # Using periodTypeId=1 (Annual) as LTM period type not available in this CapIQ instance
+            # Query 2: Try to get LTM revenue (separate query for isolation)
             ttm_revenue = None
             try:
                 revenue_sql = """
                 SELECT fcd.dataItemValue
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                FROM ciqFinPeriod p
+                INNER JOIN ciqFinInstance fi ON p.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinCollection fc ON fi.financialInstanceId = fc.financialInstanceId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fp.companyId = %s
-                    AND fp.periodTypeId = 1
-                    AND fcd.dataItemId = 1
-                    AND fi.latestForFinancialPeriodFlag = 1
+                INNER JOIN ciqPeriodType pt ON p.periodTypeId = pt.periodTypeId
+                WHERE p.companyId = %s
+                    AND fcd.dataItemId = 28
+                    AND pt.periodTypeName = 'LTM'
                     AND fcd.dataItemValue IS NOT NULL
-                ORDER BY fi.periodEndDate DESC
+                ORDER BY p.calendarYear DESC, p.calendarQuarter DESC
                 LIMIT 1
                 """
                 cursor.execute(revenue_sql, [company_id])
@@ -633,25 +631,23 @@ class CapIQDataService:
                     "ps_ratio": None
                 })
 
-            # Query 2: Try to get annual revenue for all companies (batch query)
-            # Using periodTypeId=1 (Annual) as LTM period type not available in this CapIQ instance
+            # Query 2: Try to get LTM revenue for all companies (batch query)
             revenue_map = {}
             try:
                 company_placeholders = ','.join(['%s'] * len(company_ids))
                 revenue_sql = f"""
                 SELECT
-                    fp.companyId,
+                    p.companyId,
                     fcd.dataItemValue,
-                    ROW_NUMBER() OVER (PARTITION BY fp.companyId ORDER BY fi.periodEndDate DESC) as rn
-                FROM ciqFinPeriod fp
-                INNER JOIN ciqFinInstance fi ON fp.financialPeriodId = fi.financialPeriodId
-                INNER JOIN ciqFinInstanceToCollection fitc ON fi.financialInstanceId = fitc.financialInstanceId
-                INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
+                    ROW_NUMBER() OVER (PARTITION BY p.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
+                FROM ciqFinPeriod p
+                INNER JOIN ciqFinInstance fi ON p.financialPeriodId = fi.financialPeriodId
+                INNER JOIN ciqFinCollection fc ON fi.financialInstanceId = fc.financialInstanceId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
-                WHERE fp.companyId IN ({company_placeholders})
-                    AND fp.periodTypeId = 1
-                    AND fcd.dataItemId = 1
-                    AND fi.latestForFinancialPeriodFlag = 1
+                INNER JOIN ciqPeriodType pt ON p.periodTypeId = pt.periodTypeId
+                WHERE p.companyId IN ({company_placeholders})
+                    AND fcd.dataItemId = 28
+                    AND pt.periodTypeName = 'LTM'
                     AND fcd.dataItemValue IS NOT NULL
                 """
                 cursor.execute(revenue_sql, company_ids)
