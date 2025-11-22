@@ -286,7 +286,8 @@ class CapIQDataService:
                 query_ticker = query_ticker.lstrip('0') or '0'
                 logger.debug(f"Normalized HK ticker {ticker} -> {query_ticker} for CapIQ query")
 
-            sql = f"""
+            # Query 1: Get core company data, price, and market cap (essential data)
+            core_sql = f"""
             SELECT
                 c.companyid,
                 c.companyname,
@@ -301,9 +302,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap,
-                rev.revenue as ttm_revenue,
-                ipo.ipo_date_value
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -319,28 +318,6 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
-            LEFT JOIN (
-                SELECT
-                    fin.companyId,
-                    fin.dataValue as revenue,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
-                WHERE di.dataItemMnemonic = 'IQ_TOTAL_REV'
-                    AND p.periodTypeName = 'LTM'
-                    AND fin.dataValue IS NOT NULL
-            ) rev ON rev.companyId = c.companyId AND rev.rn = 1
-            LEFT JOIN (
-                SELECT
-                    fin.companyId,
-                    fin.dataValue as ipo_date_value,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                WHERE di.dataItemMnemonic = 'IQ_IPO_DATE'
-                    AND fin.dataValue IS NOT NULL
-            ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -352,35 +329,20 @@ class CapIQDataService:
             """
 
             cursor = self.conn.cursor()
-            cursor.execute(sql, [query_ticker])
+            cursor.execute(core_sql, [query_ticker])
             row = cursor.fetchone()
-            cursor.close()
 
             if not row:
+                cursor.close()
                 return None
 
+            # Extract core data
+            company_id = row[0]
             market_cap = float(row[13]) if row[13] else None
-            ttm_revenue = float(row[14]) if row[14] else None
-            ipo_date_raw = row[15] if row[15] else None
 
-            # Calculate P/S ratio
-            ps_ratio = None
-            if market_cap and ttm_revenue and ttm_revenue > 0:
-                ps_ratio = market_cap / ttm_revenue
-
-            # Convert IPO date from YYYYMMDD integer to date string
-            listing_date = None
-            if ipo_date_raw:
-                try:
-                    ipo_str = str(int(ipo_date_raw))
-                    if len(ipo_str) == 8:
-                        # Format: YYYYMMDD -> YYYY-MM-DD
-                        listing_date = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
-
-            return {
-                "companyid": row[0],
+            # Build base result with core data
+            result = {
+                "companyid": company_id,
                 "companyname": row[1],
                 "webpage": row[2],
                 "ticker": row[3],
@@ -394,10 +356,66 @@ class CapIQDataService:
                 "price_low": float(row[11]) if row[11] else None,
                 "volume": int(row[12]) if row[12] else None,
                 "market_cap": market_cap,
-                "listing_date": listing_date,
-                "ttm_revenue": ttm_revenue,
-                "ps_ratio": ps_ratio  # Price-to-Sales ratio
+                "listing_date": None,
+                "ttm_revenue": None,
+                "ps_ratio": None
             }
+
+            # Query 2: Try to get LTM revenue (separate query for isolation)
+            ttm_revenue = None
+            try:
+                revenue_sql = """
+                SELECT fin.dataValue
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
+                WHERE fin.companyId = %s
+                    AND di.dataItemMnemonic = 'IQ_TOTAL_REV'
+                    AND p.periodTypeName = 'LTM'
+                    AND fin.dataValue IS NOT NULL
+                ORDER BY p.calendarYear DESC, p.calendarQuarter DESC
+                LIMIT 1
+                """
+                cursor.execute(revenue_sql, [company_id])
+                revenue_row = cursor.fetchone()
+                if revenue_row and revenue_row[0]:
+                    ttm_revenue = float(revenue_row[0])
+                    result["ttm_revenue"] = ttm_revenue
+                    # Calculate P/S ratio if we have both market cap and revenue
+                    if market_cap and ttm_revenue > 0:
+                        result["ps_ratio"] = market_cap / ttm_revenue
+            except Exception as e:
+                logger.warning(f"Failed to fetch revenue for {ticker} (company_id={company_id}): {e}")
+
+            # Query 3: Try to get IPO/listing date (separate query for isolation)
+            try:
+                ipo_sql = """
+                SELECT fin.dataValue
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                WHERE fin.companyId = %s
+                    AND di.dataItemMnemonic = 'IQ_IPO_DATE'
+                    AND fin.dataValue IS NOT NULL
+                ORDER BY fin.periodId DESC
+                LIMIT 1
+                """
+                cursor.execute(ipo_sql, [company_id])
+                ipo_row = cursor.fetchone()
+                if ipo_row and ipo_row[0]:
+                    ipo_date_raw = ipo_row[0]
+                    # Convert IPO date from YYYYMMDD integer to date string
+                    try:
+                        ipo_str = str(int(ipo_date_raw))
+                        if len(ipo_str) == 8:
+                            # Format: YYYYMMDD -> YYYY-MM-DD
+                            result["listing_date"] = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch IPO date for {ticker} (company_id={company_id}): {e}")
+
+            cursor.close()
+            return result
         except Exception as e:
             logger.error(f"Failed to get company data for {ticker}: {str(e)}")
             return None
@@ -540,7 +558,8 @@ class CapIQDataService:
             # Create parameterized query with IN clause
             placeholders = ','.join(['%s'] * len(normalized_tickers))
 
-            sql = f"""
+            # Query 1: Get core company data (price, market cap) - essential data
+            core_sql = f"""
             SELECT DISTINCT
                 c.companyid,
                 c.companyname,
@@ -555,9 +574,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap,
-                rev.revenue as ttm_revenue,
-                ipo.ipo_date_value
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -573,28 +590,6 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
-            LEFT JOIN (
-                SELECT
-                    fin.companyId,
-                    fin.dataValue as revenue,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
-                WHERE di.dataItemMnemonic = 'IQ_TOTAL_REV'
-                    AND p.periodTypeName = 'LTM'
-                    AND fin.dataValue IS NOT NULL
-            ) rev ON rev.companyId = c.companyId AND rev.rn = 1
-            LEFT JOIN (
-                SELECT
-                    fin.companyId,
-                    fin.dataValue as ipo_date_value,
-                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
-                FROM ciqFinancialData fin
-                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
-                WHERE di.dataItemMnemonic = 'IQ_IPO_DATE'
-                    AND fin.dataValue IS NOT NULL
-            ) ipo ON ipo.companyId = c.companyId AND ipo.rn = 1
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -606,42 +601,32 @@ class CapIQDataService:
                     FROM ciqpriceequity pe2
                     WHERE pe2.tradingitemid = ti.tradingitemid
                 )
-            ORDER BY marketcap DESC NULLS LAST
+            ORDER BY mc.marketcap DESC NULLS LAST
             """
 
             cursor = self.conn.cursor()
-            cursor.execute(sql, normalized_tickers)
+            cursor.execute(core_sql, normalized_tickers)
             rows = cursor.fetchall()
-            cursor.close()
 
+            if not rows:
+                cursor.close()
+                return []
+
+            # Build results with core data
             results = []
+            company_ids = []
             companies_with_mcap = 0
+
             for row in rows:
+                company_id = row[0]
                 market_cap = float(row[13]) if row[13] else None
-                ttm_revenue = float(row[14]) if row[14] else None
-                ipo_date_raw = row[15] if row[15] else None
-
-                # Calculate P/S ratio
-                ps_ratio = None
-                if market_cap and ttm_revenue and ttm_revenue > 0:
-                    ps_ratio = market_cap / ttm_revenue
-
-                # Convert IPO date from YYYYMMDD integer to date string
-                listing_date = None
-                if ipo_date_raw:
-                    try:
-                        ipo_str = str(int(ipo_date_raw))
-                        if len(ipo_str) == 8:
-                            # Format: YYYYMMDD -> YYYY-MM-DD
-                            listing_date = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to parse IPO date {ipo_date_raw}: {e}")
 
                 if market_cap:
                     companies_with_mcap += 1
 
+                company_ids.append(company_id)
                 results.append({
-                    "companyid": row[0],
+                    "companyid": company_id,
                     "companyname": row[1],
                     "webpage": row[2],
                     "ticker": row[3],
@@ -655,10 +640,88 @@ class CapIQDataService:
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
                     "market_cap": market_cap,
-                    "listing_date": listing_date,
-                    "ttm_revenue": ttm_revenue,
-                    "ps_ratio": ps_ratio  # Price-to-Sales ratio
+                    "listing_date": None,
+                    "ttm_revenue": None,
+                    "ps_ratio": None
                 })
+
+            # Query 2: Try to get LTM revenue for all companies (batch query)
+            revenue_map = {}
+            try:
+                company_placeholders = ','.join(['%s'] * len(company_ids))
+                revenue_sql = f"""
+                SELECT
+                    fin.companyId,
+                    fin.dataValue,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                INNER JOIN ciqPeriod p ON fin.periodId = p.periodId
+                WHERE fin.companyId IN ({company_placeholders})
+                    AND di.dataItemMnemonic = 'IQ_TOTAL_REV'
+                    AND p.periodTypeName = 'LTM'
+                    AND fin.dataValue IS NOT NULL
+                """
+                cursor.execute(revenue_sql, company_ids)
+                revenue_rows = cursor.fetchall()
+
+                # Build map of company_id -> revenue (only rn=1, most recent)
+                for row in revenue_rows:
+                    if row[2] == 1:  # rn = 1 (most recent)
+                        revenue_map[row[0]] = float(row[1])
+
+                logger.info(f"Fetched revenue for {len(revenue_map)}/{len(company_ids)} companies")
+            except Exception as e:
+                logger.warning(f"Failed to batch fetch revenue: {e}")
+
+            # Query 3: Try to get IPO dates for all companies (batch query)
+            ipo_map = {}
+            try:
+                ipo_sql = f"""
+                SELECT
+                    fin.companyId,
+                    fin.dataValue,
+                    ROW_NUMBER() OVER (PARTITION BY fin.companyId ORDER BY fin.periodId DESC) as rn
+                FROM ciqFinancialData fin
+                INNER JOIN ciqDataItem di ON fin.dataItemId = di.dataItemId
+                WHERE fin.companyId IN ({company_placeholders})
+                    AND di.dataItemMnemonic = 'IQ_IPO_DATE'
+                    AND fin.dataValue IS NOT NULL
+                """
+                cursor.execute(ipo_sql, company_ids)
+                ipo_rows = cursor.fetchall()
+
+                # Build map of company_id -> formatted date (only rn=1, most recent)
+                for row in ipo_rows:
+                    if row[2] == 1:  # rn = 1 (most recent)
+                        try:
+                            ipo_str = str(int(row[1]))
+                            if len(ipo_str) == 8:
+                                ipo_map[row[0]] = f"{ipo_str[:4]}-{ipo_str[4:6]}-{ipo_str[6:8]}"
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Failed to parse IPO date {row[1]}: {e}")
+
+                logger.info(f"Fetched IPO dates for {len(ipo_map)}/{len(company_ids)} companies")
+            except Exception as e:
+                logger.warning(f"Failed to batch fetch IPO dates: {e}")
+
+            cursor.close()
+
+            # Merge revenue and IPO data into results
+            for result in results:
+                company_id = result["companyid"]
+                market_cap = result["market_cap"]
+
+                # Add revenue and calculate P/S ratio
+                if company_id in revenue_map:
+                    ttm_revenue = revenue_map[company_id]
+                    result["ttm_revenue"] = ttm_revenue
+                    if market_cap and ttm_revenue > 0:
+                        result["ps_ratio"] = market_cap / ttm_revenue
+
+                # Add IPO date
+                if company_id in ipo_map:
+                    result["listing_date"] = ipo_map[company_id]
 
             logger.info(f"Found {len(results)} companies from CapIQ for {len(tickers)} requested tickers ({companies_with_mcap} with market cap)")
             return results
