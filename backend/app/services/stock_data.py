@@ -593,49 +593,57 @@ class StockDataService:
             records_stored = 0
 
             for record in historical_data:
-                trade_date = record['trade_date']
-                if isinstance(trade_date, str):
-                    trade_date = datetime.fromisoformat(trade_date).date()
+                try:
+                    trade_date = record['trade_date']
+                    # Handle both date objects and strings
+                    if isinstance(trade_date, str):
+                        trade_date = datetime.fromisoformat(trade_date).date()
+                    elif isinstance(trade_date, datetime):
+                        trade_date = trade_date.date()
+                    # If it's already a date object, use it as-is
 
-                # Check if record already exists
-                existing = db.query(StockDaily).filter(
-                    and_(
-                        StockDaily.ticker == ticker,
-                        StockDaily.trade_date == trade_date
-                    )
-                ).first()
+                    # Check if record already exists
+                    existing = db.query(StockDaily).filter(
+                        and_(
+                            StockDaily.ticker == ticker,
+                            StockDaily.trade_date == trade_date
+                        )
+                    ).first()
 
-                close_price = record.get('close')
-                open_price = record.get('open')
-                high_price = record.get('high')
-                low_price = record.get('low')
-                volume = record.get('volume')
+                    close_price = record.get('close')
+                    open_price = record.get('open')
+                    high_price = record.get('high')
+                    low_price = record.get('low')
+                    volume = record.get('volume')
 
-                if existing:
-                    # Update existing record with CapIQ data
-                    existing.open = open_price
-                    existing.high = high_price
-                    existing.low = low_price
-                    existing.close = close_price
-                    existing.volume = volume
-                    existing.data_source = "CapIQ"
-                    existing.updated_at = datetime.now()
-                else:
-                    # Create new record
-                    stock_daily = StockDaily(
-                        ticker=ticker,
-                        ts_code=ticker,  # Use ticker as ts_code for CapIQ data
-                        trade_date=trade_date,
-                        open=open_price,
-                        high=high_price,
-                        low=low_price,
-                        close=close_price,
-                        volume=volume,
-                        data_source="CapIQ"
-                    )
-                    db.add(stock_daily)
+                    if existing:
+                        # Update existing record with CapIQ data
+                        existing.open = open_price
+                        existing.high = high_price
+                        existing.low = low_price
+                        existing.close = close_price
+                        existing.volume = volume
+                        existing.data_source = "CapIQ"
+                        existing.updated_at = datetime.now()
+                    else:
+                        # Create new record
+                        stock_daily = StockDaily(
+                            ticker=ticker,
+                            ts_code=ticker,  # Use ticker as ts_code for CapIQ data
+                            trade_date=trade_date,
+                            open=open_price,
+                            high=high_price,
+                            low=low_price,
+                            close=close_price,
+                            volume=volume,
+                            data_source="CapIQ"
+                        )
+                        db.add(stock_daily)
 
-                records_stored += 1
+                    records_stored += 1
+                except Exception as record_error:
+                    logger.error(f"Error processing record for {ticker} on {record.get('trade_date')}: {str(record_error)}")
+                    continue
 
             db.commit()
             logger.info(f"Stored {records_stored} CapIQ historical records for {ticker}")
