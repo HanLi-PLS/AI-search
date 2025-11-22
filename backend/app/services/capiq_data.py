@@ -302,7 +302,6 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                ti.startdate as listing_date,
                 rev.revenue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
@@ -353,7 +352,7 @@ class CapIQDataService:
                 return None
 
             market_cap = float(row[13]) if row[13] else None
-            ttm_revenue = float(row[15]) if row[15] else None
+            ttm_revenue = float(row[14]) if row[14] else None
 
             # Calculate P/S ratio
             ps_ratio = None
@@ -375,7 +374,7 @@ class CapIQDataService:
                 "price_low": float(row[11]) if row[11] else None,
                 "volume": int(row[12]) if row[12] else None,
                 "market_cap": market_cap,
-                "listing_date": row[14],  # IPO/listing date
+                "listing_date": None,  # TODO: Find correct column name for listing date
                 "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
                 "ps_ratio": ps_ratio  # Price-to-Sales ratio
             }
@@ -537,7 +536,6 @@ class CapIQDataService:
                 pe.pricelow,
                 pe.volume,
                 mc.marketcap,
-                ti.startdate as listing_date,
                 rev.revenue as ttm_revenue
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
@@ -592,7 +590,7 @@ class CapIQDataService:
             companies_with_mcap = 0
             for row in rows:
                 market_cap = float(row[13]) if row[13] else None
-                ttm_revenue = float(row[15]) if row[15] else None
+                ttm_revenue = float(row[14]) if row[14] else None
 
                 # Calculate P/S ratio
                 ps_ratio = None
@@ -617,7 +615,7 @@ class CapIQDataService:
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
                     "market_cap": market_cap,
-                    "listing_date": row[14],  # IPO/listing date
+                    "listing_date": None,  # TODO: Find correct column name for listing date
                     "ttm_revenue": ttm_revenue,  # Trailing twelve months (annual) revenue
                     "ps_ratio": ps_ratio  # Price-to-Sales ratio
                 })
