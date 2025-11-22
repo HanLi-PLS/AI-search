@@ -6,7 +6,10 @@ Test script to explore CapIQ schema and find correct data item IDs for:
 - Period types available
 """
 import sys
-sys.path.insert(0, '/home/user/AI-search/backend')
+import os
+
+# Add parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.services.capiq_data import get_capiq_service
 
