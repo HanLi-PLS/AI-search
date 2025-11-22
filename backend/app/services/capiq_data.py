@@ -278,6 +278,14 @@ class CapIQDataService:
                 # Hong Kong Stock Exchange
                 market_filter = "AND ex.exchangename = 'The Stock Exchange of Hong Kong Ltd.'"
 
+            # Normalize ticker for HK market (CapIQ stores as numbers without .HK suffix)
+            query_ticker = ticker
+            if market == "HK":
+                # Remove .HK suffix and leading zeros
+                query_ticker = ticker.upper().replace('.HK', '').replace(' HK', '').replace(' ', '')
+                query_ticker = query_ticker.lstrip('0') or '0'
+                logger.debug(f"Normalized HK ticker {ticker} -> {query_ticker} for CapIQ query")
+
             sql = f"""
             SELECT
                 c.companyid,
@@ -320,7 +328,7 @@ class CapIQDataService:
             """
 
             cursor = self.conn.cursor()
-            cursor.execute(sql, [ticker])
+            cursor.execute(sql, [query_ticker])
             row = cursor.fetchone()
             cursor.close()
 
