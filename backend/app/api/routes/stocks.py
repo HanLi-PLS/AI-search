@@ -916,22 +916,37 @@ async def get_all_prices(force_refresh: bool = False):
         for company in capiq_companies:
             ticker = company.get('ticker')
             if ticker:
+                ticker_str = str(ticker).strip()
+
                 # Store under original format
-                capiq_lookup[ticker] = company
+                capiq_lookup[ticker_str] = company
 
-                # Also store normalized versions for flexible matching
-                # Handle formats: "2561.HK", "02561.HK", "2561 HK", "2561"
-                normalized = ticker.upper().replace(' ', '.').replace('HK', '.HK')
-                capiq_lookup[normalized] = company
+                # IMPORTANT: CapIQ stores HK tickers as just numbers (e.g., "2561", "700")
+                # but our company list uses "2561.HK" format
+                # Create all possible format variations for matching
 
-                # Store version without leading zeros
-                if '.HK' in normalized:
-                    code = normalized.replace('.HK', '')
-                    # Remove leading zeros: "02561" -> "2561"
-                    code_no_zeros = code.lstrip('0') or '0'
-                    capiq_lookup[f"{code_no_zeros}.HK"] = company
+                # Check if this looks like a HK stock (numeric only or has leading zeros)
+                is_numeric = ticker_str.replace(' ', '').replace('.', '').isdigit()
 
-        logger.debug(f"Sample CapIQ tickers: {list(capiq_lookup.keys())[:5]}")
+                if is_numeric:
+                    # Remove any existing .HK suffix and spaces
+                    clean_ticker = ticker_str.upper().replace('.HK', '').replace(' HK', '').replace(' ', '').replace('.', '')
+
+                    # Store with .HK suffix (most common format in our lists)
+                    capiq_lookup[f"{clean_ticker}.HK"] = company
+
+                    # Also store version without leading zeros
+                    ticker_no_zeros = clean_ticker.lstrip('0') or '0'
+                    if ticker_no_zeros != clean_ticker:
+                        capiq_lookup[f"{ticker_no_zeros}.HK"] = company
+
+                    # Store padded version (5 digits with leading zeros)
+                    ticker_padded = clean_ticker.zfill(5)
+                    capiq_lookup[f"{ticker_padded}.HK"] = company
+
+                    logger.debug(f"Created HK ticker variants for {ticker_str}: {clean_ticker}.HK, {ticker_no_zeros}.HK, {ticker_padded}.HK")
+
+        logger.debug(f"Sample CapIQ tickers in lookup: {list(capiq_lookup.keys())[:10]}")
 
         # Step 5: Match verified companies with CapIQ data
         results = []
@@ -1686,12 +1701,13 @@ async def get_portfolio_companies(force_refresh: bool = False):
             # Determine market code for CapIQ
             capiq_market = "HK" if market == "HKEX" else "US"
 
-            # Normalize HK ticker format to 5-digit code for CapIQ lookup
-            # CapIQ uses format like "02561.HK" instead of "2561.HK"
+            # IMPORTANT: CapIQ stores HK tickers as just numbers (e.g., "2561", "700")
+            # without the ".HK" suffix, so we need to strip it before querying
             search_ticker = ticker
             if capiq_market == "HK" and '.HK' in ticker:
-                code = ticker.replace('.HK', '')
-                search_ticker = f"{code.zfill(5)}.HK"
+                # Remove .HK suffix and any leading zeros
+                code = ticker.replace('.HK', '').lstrip('0') or '0'
+                search_ticker = code  # Just the number, no .HK suffix
                 logger.debug(f"Normalized {ticker} to {search_ticker} for CapIQ lookup")
 
             # Get CapIQ data for this specific ticker
