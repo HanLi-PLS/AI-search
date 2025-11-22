@@ -372,7 +372,7 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fp.companyId = %s
-                    AND fp.periodTypeId = 8
+                    AND fp.periodTypeId = 3
                     AND fcd.dataItemId = 1
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
@@ -647,7 +647,7 @@ class CapIQDataService:
                 INNER JOIN ciqFinCollection fc ON fitc.financialCollectionId = fc.financialCollectionId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 WHERE fp.companyId IN ({company_placeholders})
-                    AND fp.periodTypeId = 8
+                    AND fp.periodTypeId = 3
                     AND fcd.dataItemId = 1
                     AND fi.latestForFinancialPeriodFlag = 1
                     AND fcd.dataItemValue IS NOT NULL
