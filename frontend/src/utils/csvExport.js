@@ -96,7 +96,7 @@ export const exportWatchlistToCSV = (watchlist) => {
     },
     {
       key: 'ttm_revenue',
-      header: 'Revenue (Annual)',
+      header: 'Revenue (LTM)',
       accessor: (item) => item.live_data?.ttm_revenue || 'N/A'
     },
     {
