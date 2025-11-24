@@ -836,6 +836,9 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
                     "data_source": "CapIQ",
                     "webpage": capiq_data.get('webpage'),
                     "industry": capiq_data.get('industry'),
+                    "ttm_revenue": capiq_data.get('ttm_revenue'),
+                    "ps_ratio": capiq_data.get('ps_ratio'),
+                    "listing_date": capiq_data.get('listing_date'),
                 }
 
                 # Cache the result
