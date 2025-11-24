@@ -1109,6 +1109,22 @@ function StockTracker() {
                             </span>
                           </div>
                           <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">Revenue (LTM):</span>
+                            <span className="watchlist-data-value">
+                              {company.live_data.ttm_revenue
+                                ? `$${formatMarketCap(company.live_data.ttm_revenue)}`
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="watchlist-data-row">
+                            <span className="watchlist-data-label">P/S Ratio:</span>
+                            <span className="watchlist-data-value">
+                              {company.live_data.ps_ratio
+                                ? formatNumber(company.live_data.ps_ratio, 2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="watchlist-data-row">
                             <span className="watchlist-data-label">Date:</span>
                             <span className="watchlist-data-value">
                               {formatDate(company.live_data.pricing_date)}

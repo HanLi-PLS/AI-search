@@ -324,6 +324,18 @@ function StockDetail() {
               {stockData.market_cap ? `${stockData.market_cap.toFixed(2)} mn` : 'N/A'}
             </span>
           </div>
+          <div className="stat-item">
+            <span className="stat-label">Revenue (LTM)</span>
+            <span className="stat-value">
+              {stockData.ttm_revenue ? `${stockData.ttm_revenue.toFixed(2)} mn` : 'N/A'}
+            </span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-label">P/S Ratio</span>
+            <span className="stat-value">
+              {stockData.ps_ratio ? stockData.ps_ratio.toFixed(2) : 'N/A'}
+            </span>
+          </div>
         </div>
 
         {stockData.data_source && (
