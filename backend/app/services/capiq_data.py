@@ -432,16 +432,24 @@ class CapIQDataService:
                 ORDER BY p.calendarYear DESC, p.calendarQuarter DESC
                 LIMIT 1
                 """
-                cursor.execute(revenue_sql, [company_id])
-                revenue_row = cursor.fetchone()
-                if revenue_row and revenue_row[0]:
-                    ttm_revenue = float(revenue_row[0])
-                    ttm_revenue_currency = revenue_row[1] if revenue_row[1] else None
-                    result["ttm_revenue"] = ttm_revenue
-                    result["ttm_revenue_currency"] = ttm_revenue_currency
+                try:
+                    cursor.execute(revenue_sql, [company_id])
+                    revenue_row = cursor.fetchone()
+                    if revenue_row and revenue_row[0]:
+                        ttm_revenue = float(revenue_row[0])
+                        ttm_revenue_currency = revenue_row[1] if revenue_row[1] else None
+                        result["ttm_revenue"] = ttm_revenue
+                        result["ttm_revenue_currency"] = ttm_revenue_currency
+                        logger.debug(f"Got revenue for {ticker}: {ttm_revenue} {ttm_revenue_currency}")
+                    else:
+                        logger.debug(f"No revenue data found for {ticker}")
+                except Exception as revenue_error:
+                    logger.error(f"Revenue query failed for {ticker}: {str(revenue_error)}")
+                    result["ttm_revenue"] = None
+                    result["ttm_revenue_currency"] = None
 
-                    # Calculate P/S ratio with currency conversion if needed
-                    if market_cap and ttm_revenue > 0:
+                # Calculate P/S ratio with currency conversion if needed
+                if ttm_revenue and market_cap and ttm_revenue > 0:
                         if market_cap_currency and ttm_revenue_currency and market_cap_currency != ttm_revenue_currency:
                             # Try to convert revenue to market cap currency
                             converted_revenue = convert_currency(ttm_revenue, ttm_revenue_currency, market_cap_currency)
