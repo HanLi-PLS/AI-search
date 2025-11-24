@@ -666,8 +666,16 @@ class CapIQDataService:
             """
 
             cursor = self.conn.cursor()
-            cursor.execute(core_sql, normalized_tickers)
-            rows = cursor.fetchall()
+
+            logger.info(f"Executing CapIQ query for {len(normalized_tickers)} tickers...")
+            try:
+                cursor.execute(core_sql, normalized_tickers)
+                rows = cursor.fetchall()
+                logger.info(f"Query completed, fetched {len(rows) if rows else 0} rows")
+            except Exception as query_error:
+                logger.error(f"CapIQ query failed: {str(query_error)}")
+                cursor.close()
+                return []
 
             if not rows:
                 logger.warning(f"CapIQ returned 0 companies for {len(normalized_tickers)} tickers")
