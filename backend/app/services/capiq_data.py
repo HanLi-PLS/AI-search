@@ -324,7 +324,8 @@ class CapIQDataService:
                 query_ticker = query_ticker.lstrip('0') or '0'
                 logger.debug(f"Normalized HK ticker {ticker} -> {query_ticker} for CapIQ query")
 
-            # Query 1: Get core company data, price, and market cap with currency (essential data)
+            # Query 1: Get core company data, price, and market cap (essential data)
+            # Note: Market cap currency is inferred from exchange
             core_sql = f"""
             SELECT
                 c.companyid,
@@ -340,8 +341,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap,
-                mc_cur.isocode AS market_cap_currency
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -357,8 +357,6 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
-            LEFT JOIN ciqCurrency mc_cur
-                ON mc.currencyId = mc_cur.currencyId
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -380,7 +378,15 @@ class CapIQDataService:
             # Extract core data
             company_id = row[0]
             market_cap = float(row[13]) if row[13] else None
-            market_cap_currency = row[14] if row[14] else None
+            exchange_name = row[5]
+
+            # Infer market cap currency from exchange
+            if exchange_name == 'The Stock Exchange of Hong Kong Ltd.':
+                market_cap_currency = 'HKD'
+            elif 'New York Stock Exchange' in exchange_name or 'Nasdaq' in exchange_name:
+                market_cap_currency = 'USD'
+            else:
+                market_cap_currency = 'USD' if market == 'US' else 'HKD' if market == 'HK' else None
 
             # Build base result with core data
             result = {
@@ -389,7 +395,7 @@ class CapIQDataService:
                 "webpage": row[2],
                 "ticker": row[3],
                 "exchange_symbol": row[4],
-                "exchange_name": row[5],
+                "exchange_name": exchange_name,
                 "industry": row[6],
                 "pricing_date": row[7],
                 "price_close": float(row[8]) if row[8] else None,
@@ -616,7 +622,8 @@ class CapIQDataService:
             # Create parameterized query with IN clause
             placeholders = ','.join(['%s'] * len(normalized_tickers))
 
-            # Query 1: Get core company data (price, market cap with currency) - essential data
+            # Query 1: Get core company data (price, market cap) - essential data
+            # Note: Market cap currency is inferred from exchange (HKD for HK, USD for US)
             core_sql = f"""
             SELECT DISTINCT
                 c.companyid,
@@ -632,8 +639,7 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap,
-                mc_cur.isocode AS market_cap_currency
+                mc.marketcap
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -649,8 +655,6 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
-            LEFT JOIN ciqCurrency mc_cur
-                ON mc.currencyId = mc_cur.currencyId
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -696,7 +700,15 @@ class CapIQDataService:
             for row in rows:
                 company_id = row[0]
                 market_cap = float(row[13]) if row[13] else None
-                market_cap_currency = row[14] if row[14] else None
+                exchange_name = row[5]
+
+                # Infer market cap currency from exchange
+                if exchange_name == 'The Stock Exchange of Hong Kong Ltd.':
+                    market_cap_currency = 'HKD'
+                elif 'New York Stock Exchange' in exchange_name or 'Nasdaq' in exchange_name:
+                    market_cap_currency = 'USD'
+                else:
+                    market_cap_currency = 'USD' if market == 'US' else 'HKD' if market == 'HK' else None
 
                 if market_cap:
                     companies_with_mcap += 1
@@ -708,7 +720,7 @@ class CapIQDataService:
                     "webpage": row[2],
                     "ticker": row[3],
                     "exchange_symbol": row[4],
-                    "exchange_name": row[5],
+                    "exchange_name": exchange_name,
                     "industry": row[6],
                     "pricing_date": row[7],
                     "price_close": float(row[8]) if row[8] else None,
