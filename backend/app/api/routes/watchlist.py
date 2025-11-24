@@ -666,6 +666,8 @@ async def get_watchlist(
                             'pricing_date': live_data.get('pricing_date'),
                             'ttm_revenue': live_data.get('ttm_revenue'),
                             'ttm_revenue_currency': live_data.get('ttm_revenue_currency'),
+                            'ttm_revenue_converted': live_data.get('ttm_revenue_converted'),
+                            'exchange_rate_used': live_data.get('exchange_rate_used'),
                             'ps_ratio': live_data.get('ps_ratio'),
                             'ps_ratio_note': live_data.get('ps_ratio_note'),
                             'listing_date': live_data.get('listing_date'),

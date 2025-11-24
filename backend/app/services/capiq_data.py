@@ -454,17 +454,24 @@ class CapIQDataService:
                             # Try to convert revenue to market cap currency
                             converted_revenue = convert_currency(ttm_revenue, ttm_revenue_currency, market_cap_currency)
                             if converted_revenue:
+                                exchange_rate = converted_revenue / ttm_revenue
                                 result["ps_ratio"] = market_cap / converted_revenue
-                                result["ps_ratio_note"] = f"Revenue converted from {ttm_revenue_currency} to {market_cap_currency} (rate: 1 {ttm_revenue_currency} = {converted_revenue/ttm_revenue:.4f} {market_cap_currency})"
-                                logger.info(f"Converted revenue for {ticker}: {ttm_revenue} {ttm_revenue_currency} → {converted_revenue:.2f} {market_cap_currency}")
+                                result["exchange_rate_used"] = exchange_rate
+                                result["ttm_revenue_converted"] = converted_revenue
+                                result["ps_ratio_note"] = f"Revenue converted from {ttm_revenue_currency} to {market_cap_currency}"
+                                logger.info(f"Converted revenue for {ticker}: {ttm_revenue} {ttm_revenue_currency} → {converted_revenue:.2f} {market_cap_currency} (rate: {exchange_rate:.4f})")
                             else:
                                 # Currency conversion not available
                                 result["ps_ratio"] = None
+                                result["exchange_rate_used"] = None
+                                result["ttm_revenue_converted"] = None
                                 result["ps_ratio_note"] = f"Currency mismatch: Market cap in {market_cap_currency}, Revenue in {ttm_revenue_currency} (conversion not available)"
                                 logger.warning(f"Cannot convert {ttm_revenue_currency} to {market_cap_currency} for {ticker}")
                         else:
                             # Same currency or one is unknown - calculate P/S ratio directly
                             result["ps_ratio"] = market_cap / ttm_revenue
+                            result["exchange_rate_used"] = None
+                            result["ttm_revenue_converted"] = None
             except Exception as e:
                 logger.warning(f"Failed to fetch revenue for {ticker} (company_id={company_id}): {e}")
 
@@ -813,16 +820,23 @@ class CapIQDataService:
                             # Try to convert revenue to market cap currency
                             converted_revenue = convert_currency(ttm_revenue, ttm_revenue_currency, market_cap_currency)
                             if converted_revenue:
+                                exchange_rate = converted_revenue / ttm_revenue
                                 result["ps_ratio"] = market_cap / converted_revenue
-                                result["ps_ratio_note"] = f"Revenue converted from {ttm_revenue_currency} to {market_cap_currency} (rate: 1 {ttm_revenue_currency} = {converted_revenue/ttm_revenue:.4f} {market_cap_currency})"
-                                logger.debug(f"Converted revenue for company_id={company_id}: {ttm_revenue} {ttm_revenue_currency} → {converted_revenue:.2f} {market_cap_currency}")
+                                result["exchange_rate_used"] = exchange_rate
+                                result["ttm_revenue_converted"] = converted_revenue
+                                result["ps_ratio_note"] = f"Revenue converted from {ttm_revenue_currency} to {market_cap_currency}"
+                                logger.debug(f"Converted revenue for company_id={company_id}: {ttm_revenue} {ttm_revenue_currency} → {converted_revenue:.2f} {market_cap_currency} (rate: {exchange_rate:.4f})")
                             else:
                                 # Currency conversion not available
                                 result["ps_ratio"] = None
+                                result["exchange_rate_used"] = None
+                                result["ttm_revenue_converted"] = None
                                 result["ps_ratio_note"] = f"Currency mismatch: Market cap in {market_cap_currency}, Revenue in {ttm_revenue_currency} (conversion not available)"
                         else:
                             # Same currency or one is unknown - calculate P/S ratio directly
                             result["ps_ratio"] = market_cap / ttm_revenue
+                            result["exchange_rate_used"] = None
+                            result["ttm_revenue_converted"] = None
 
                 # Add IPO date
                 if company_id in ipo_map:

@@ -100,6 +100,16 @@ export const exportWatchlistToCSV = (watchlist) => {
       accessor: (item) => item.live_data?.ttm_revenue || 'N/A'
     },
     {
+      key: 'ttm_revenue_currency',
+      header: 'Revenue Currency',
+      accessor: (item) => item.live_data?.ttm_revenue_currency || 'N/A'
+    },
+    {
+      key: 'exchange_rate_used',
+      header: 'Exchange Rate Used',
+      accessor: (item) => item.live_data?.exchange_rate_used || 'N/A'
+    },
+    {
       key: 'ps_ratio',
       header: 'P/S Ratio',
       accessor: (item) => item.live_data?.ps_ratio || 'N/A'

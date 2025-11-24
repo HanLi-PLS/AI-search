@@ -839,6 +839,8 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
                     "industry": capiq_data.get('industry'),
                     "ttm_revenue": capiq_data.get('ttm_revenue'),
                     "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
+                    "ttm_revenue_converted": capiq_data.get('ttm_revenue_converted'),
+                    "exchange_rate_used": capiq_data.get('exchange_rate_used'),
                     "ps_ratio": capiq_data.get('ps_ratio'),
                     "ps_ratio_note": capiq_data.get('ps_ratio_note'),
                     "listing_date": capiq_data.get('listing_date'),
@@ -1048,6 +1050,8 @@ async def get_all_prices(force_refresh: bool = False):
                     "listing_date": capiq_data.get('listing_date'),  # IPO/listing date
                     "ttm_revenue": capiq_data.get('ttm_revenue'),  # Trailing twelve months revenue
                     "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),  # Revenue currency
+                    "ttm_revenue_converted": capiq_data.get('ttm_revenue_converted'),  # Converted revenue (if exchange rate applied)
+                    "exchange_rate_used": capiq_data.get('exchange_rate_used'),  # Exchange rate used for conversion
                     "ps_ratio": capiq_data.get('ps_ratio'),  # Price-to-Sales ratio
                     "ps_ratio_note": capiq_data.get('ps_ratio_note'),  # Warning if currency mismatch
                     "data_source": "CapIQ",

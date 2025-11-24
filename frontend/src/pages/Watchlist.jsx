@@ -381,10 +381,18 @@ function Watchlist() {
                       <span className="data-label">Revenue (LTM):</span>
                       <span className="data-value">
                         {company.live_data.ttm_revenue
-                          ? `$${formatLargeNumber(company.live_data.ttm_revenue)}`
+                          ? `${formatLargeNumber(company.live_data.ttm_revenue)} ${company.live_data.ttm_revenue_currency || 'USD'}`
                           : 'N/A'}
                       </span>
                     </div>
+                    {company.live_data.exchange_rate_used && (
+                      <div className="data-row">
+                        <span className="data-label">Exchange Rate:</span>
+                        <span className="data-value">
+                          1 {company.live_data.ttm_revenue_currency} = {company.live_data.exchange_rate_used.toFixed(4)} {company.live_data.market_cap_currency}
+                        </span>
+                      </div>
+                    )}
                     <div className="data-row">
                       <span className="data-label">P/S Ratio:</span>
                       <span className="data-value">
