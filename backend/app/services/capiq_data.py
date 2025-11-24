@@ -597,14 +597,21 @@ class CapIQDataService:
 
             # Normalize tickers: remove .HK suffix and leading zeros for HK market
             normalized_tickers = []
+            original_to_normalized = {}  # Track mapping for debugging
             for ticker in tickers:
                 ticker_clean = str(ticker).strip().upper()
+                original_ticker = ticker_clean  # Keep original for logging
                 # Remove .HK suffix
                 ticker_clean = ticker_clean.replace('.HK', '').replace(' HK', '').replace(' ', '')
                 # Remove leading zeros for HK market (CapIQ stores as numbers)
                 if market == "HK":
                     ticker_clean = ticker_clean.lstrip('0') or '0'
                 normalized_tickers.append(ticker_clean)
+                original_to_normalized[original_ticker] = ticker_clean
+
+            logger.info(f"Normalizing {len(tickers)} tickers for CapIQ query")
+            logger.info(f"Sample normalized tickers: {normalized_tickers[:10]}")
+            logger.debug(f"Ticker mapping: {original_to_normalized}")
 
             # Create parameterized query with IN clause
             placeholders = ','.join(['%s'] * len(normalized_tickers))
@@ -663,8 +670,15 @@ class CapIQDataService:
             rows = cursor.fetchall()
 
             if not rows:
+                logger.warning(f"CapIQ returned 0 companies for {len(normalized_tickers)} tickers")
+                logger.warning(f"Sample tickers queried: {normalized_tickers[:10]}")
                 cursor.close()
                 return []
+
+            # Log what tickers were found
+            found_tickers = [row[3] for row in rows]  # tickersymbol is at index 3
+            logger.info(f"CapIQ returned {len(rows)} companies")
+            logger.info(f"Sample found tickers: {found_tickers[:10]}")
 
             # Build results with core data
             results = []
