@@ -84,6 +84,9 @@ class PortfolioService:
                         "change": change,
                         "change_percent": change_percent,
                         "trade_date": capiq_data.get('pricing_date'),
+                        "ttm_revenue": capiq_data.get('ttm_revenue'),
+                        "ps_ratio": capiq_data.get('ps_ratio'),
+                        "listing_date": capiq_data.get('listing_date'),
                         "data_source": "CapIQ",
                         "last_updated": datetime.now().isoformat()
                     }
@@ -170,6 +173,9 @@ class PortfolioService:
                         "change": change,
                         "change_percent": change_percent,
                         "trade_date": capiq_data.get('pricing_date'),
+                        "ttm_revenue": capiq_data.get('ttm_revenue'),
+                        "ps_ratio": capiq_data.get('ps_ratio'),
+                        "listing_date": capiq_data.get('listing_date'),
                         "data_source": "CapIQ",
                         "last_updated": datetime.now().isoformat()
                     }
