@@ -377,22 +377,22 @@ function Watchlist() {
                         ${formatLargeNumber(company.live_data.market_cap)}
                       </span>
                     </div>
-                    {company.live_data.ttm_revenue && (
-                      <div className="data-row">
-                        <span className="data-label">Revenue (Annual):</span>
-                        <span className="data-value">
-                          ${formatLargeNumber(company.live_data.ttm_revenue)}
-                        </span>
-                      </div>
-                    )}
-                    {company.live_data.ps_ratio && (
-                      <div className="data-row">
-                        <span className="data-label">P/S Ratio:</span>
-                        <span className="data-value">
-                          {formatNumber(company.live_data.ps_ratio, 2)}
-                        </span>
-                      </div>
-                    )}
+                    <div className="data-row">
+                      <span className="data-label">Revenue (LTM):</span>
+                      <span className="data-value">
+                        {company.live_data.ttm_revenue
+                          ? `$${formatLargeNumber(company.live_data.ttm_revenue)}`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="data-row">
+                      <span className="data-label">P/S Ratio:</span>
+                      <span className="data-value">
+                        {company.live_data.ps_ratio
+                          ? formatNumber(company.live_data.ps_ratio, 2)
+                          : 'N/A'}
+                      </span>
+                    </div>
                     {company.live_data.listing_date && (
                       <div className="data-row">
                         <span className="data-label">Listing Date:</span>
