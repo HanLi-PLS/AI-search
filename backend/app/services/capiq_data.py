@@ -358,19 +358,24 @@ class CapIQDataService:
                 "market_cap": market_cap,
                 "listing_date": None,
                 "ttm_revenue": None,
+                "ttm_revenue_currency": None,
                 "ps_ratio": None
             }
 
-            # Query 2: Try to get LTM revenue (separate query for isolation)
+            # Query 2: Try to get LTM revenue with currency (separate query for isolation)
             ttm_revenue = None
+            ttm_revenue_currency = None
             try:
                 revenue_sql = """
-                SELECT fcd.dataItemValue
+                SELECT
+                    fcd.dataItemValue,
+                    cur.isocode AS currency
                 FROM ciqFinPeriod p
                 INNER JOIN ciqFinInstance fi ON p.financialPeriodId = fi.financialPeriodId
                 INNER JOIN ciqFinCollection fc ON fi.financialInstanceId = fc.financialInstanceId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 INNER JOIN ciqPeriodType pt ON p.periodTypeId = pt.periodTypeId
+                LEFT JOIN ciqCurrency cur ON fc.currencyId = cur.currencyId
                 WHERE p.companyId = %s
                     AND fcd.dataItemId = 28
                     AND pt.periodTypeName = 'LTM'
@@ -382,8 +387,12 @@ class CapIQDataService:
                 revenue_row = cursor.fetchone()
                 if revenue_row and revenue_row[0]:
                     ttm_revenue = float(revenue_row[0])
+                    ttm_revenue_currency = revenue_row[1] if revenue_row[1] else None
                     result["ttm_revenue"] = ttm_revenue
+                    result["ttm_revenue_currency"] = ttm_revenue_currency
                     # Calculate P/S ratio if we have both market cap and revenue
+                    # Note: This assumes market cap and revenue are in the same currency
+                    # TODO: Add currency conversion if they differ
                     if market_cap and ttm_revenue > 0:
                         result["ps_ratio"] = market_cap / ttm_revenue
             except Exception as e:
@@ -628,10 +637,11 @@ class CapIQDataService:
                     "market_cap": market_cap,
                     "listing_date": None,
                     "ttm_revenue": None,
+                    "ttm_revenue_currency": None,
                     "ps_ratio": None
                 })
 
-            # Query 2: Try to get LTM revenue for all companies (batch query)
+            # Query 2: Try to get LTM revenue with currency for all companies (batch query)
             revenue_map = {}
             try:
                 company_placeholders = ','.join(['%s'] * len(company_ids))
@@ -639,12 +649,14 @@ class CapIQDataService:
                 SELECT
                     p.companyId,
                     fcd.dataItemValue,
+                    cur.isocode AS currency,
                     ROW_NUMBER() OVER (PARTITION BY p.companyId ORDER BY p.calendarYear DESC, p.calendarQuarter DESC) as rn
                 FROM ciqFinPeriod p
                 INNER JOIN ciqFinInstance fi ON p.financialPeriodId = fi.financialPeriodId
                 INNER JOIN ciqFinCollection fc ON fi.financialInstanceId = fc.financialInstanceId
                 INNER JOIN ciqFinCollectionData fcd ON fc.financialCollectionId = fcd.financialCollectionId
                 INNER JOIN ciqPeriodType pt ON p.periodTypeId = pt.periodTypeId
+                LEFT JOIN ciqCurrency cur ON fc.currencyId = cur.currencyId
                 WHERE p.companyId IN ({company_placeholders})
                     AND fcd.dataItemId = 28
                     AND pt.periodTypeName = 'LTM'
@@ -653,10 +665,13 @@ class CapIQDataService:
                 cursor.execute(revenue_sql, company_ids)
                 revenue_rows = cursor.fetchall()
 
-                # Build map of company_id -> revenue (only rn=1, most recent)
+                # Build map of company_id -> (revenue, currency) (only rn=1, most recent)
                 for row in revenue_rows:
-                    if row[2] == 1:  # rn = 1 (most recent)
-                        revenue_map[row[0]] = float(row[1])
+                    if row[3] == 1:  # rn = 1 (most recent)
+                        revenue_map[row[0]] = {
+                            'revenue': float(row[1]),
+                            'currency': row[2] if row[2] else None
+                        }
 
                 logger.info(f"Fetched revenue for {len(revenue_map)}/{len(company_ids)} companies")
             except Exception as e:
@@ -680,10 +695,16 @@ class CapIQDataService:
                 company_id = result["companyid"]
                 market_cap = result["market_cap"]
 
-                # Add revenue and calculate P/S ratio
+                # Add revenue with currency and calculate P/S ratio
                 if company_id in revenue_map:
-                    ttm_revenue = revenue_map[company_id]
+                    revenue_data = revenue_map[company_id]
+                    ttm_revenue = revenue_data['revenue']
+                    ttm_revenue_currency = revenue_data['currency']
                     result["ttm_revenue"] = ttm_revenue
+                    result["ttm_revenue_currency"] = ttm_revenue_currency
+                    # Calculate P/S ratio if we have both market cap and revenue
+                    # Note: This assumes market cap and revenue are in the same currency
+                    # TODO: Add currency conversion if they differ
                     if market_cap and ttm_revenue > 0:
                         result["ps_ratio"] = market_cap / ttm_revenue
 

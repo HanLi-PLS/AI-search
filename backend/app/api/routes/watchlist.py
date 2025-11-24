@@ -664,6 +664,7 @@ async def get_watchlist(
                             'market_cap': live_data.get('market_cap'),
                             'pricing_date': live_data.get('pricing_date'),
                             'ttm_revenue': live_data.get('ttm_revenue'),
+                            'ttm_revenue_currency': live_data.get('ttm_revenue_currency'),
                             'ps_ratio': live_data.get('ps_ratio'),
                             'listing_date': live_data.get('listing_date'),
                         }
