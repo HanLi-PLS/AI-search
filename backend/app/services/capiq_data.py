@@ -286,7 +286,7 @@ class CapIQDataService:
                 query_ticker = query_ticker.lstrip('0') or '0'
                 logger.debug(f"Normalized HK ticker {ticker} -> {query_ticker} for CapIQ query")
 
-            # Query 1: Get core company data, price, and market cap (essential data)
+            # Query 1: Get core company data, price, and market cap with currency (essential data)
             core_sql = f"""
             SELECT
                 c.companyid,
@@ -302,7 +302,8 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                mc.marketcap,
+                mc_cur.isocode AS market_cap_currency
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -318,6 +319,8 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN ciqCurrency mc_cur
+                ON mc.currencyId = mc_cur.currencyId
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -339,6 +342,7 @@ class CapIQDataService:
             # Extract core data
             company_id = row[0]
             market_cap = float(row[13]) if row[13] else None
+            market_cap_currency = row[14] if row[14] else None
 
             # Build base result with core data
             result = {
@@ -356,6 +360,7 @@ class CapIQDataService:
                 "price_low": float(row[11]) if row[11] else None,
                 "volume": int(row[12]) if row[12] else None,
                 "market_cap": market_cap,
+                "market_cap_currency": market_cap_currency,
                 "listing_date": None,
                 "ttm_revenue": None,
                 "ttm_revenue_currency": None,
@@ -390,11 +395,16 @@ class CapIQDataService:
                     ttm_revenue_currency = revenue_row[1] if revenue_row[1] else None
                     result["ttm_revenue"] = ttm_revenue
                     result["ttm_revenue_currency"] = ttm_revenue_currency
-                    # Calculate P/S ratio if we have both market cap and revenue
-                    # Note: This assumes market cap and revenue are in the same currency
-                    # TODO: Add currency conversion if they differ
+                    # Calculate P/S ratio only if currencies match or one is unknown
                     if market_cap and ttm_revenue > 0:
-                        result["ps_ratio"] = market_cap / ttm_revenue
+                        if market_cap_currency and ttm_revenue_currency and market_cap_currency != ttm_revenue_currency:
+                            # Currency mismatch - don't calculate P/S ratio
+                            logger.warning(f"Currency mismatch for {ticker}: market_cap={market_cap_currency}, revenue={ttm_revenue_currency}. P/S ratio not calculated.")
+                            result["ps_ratio"] = None
+                            result["ps_ratio_note"] = f"Currency mismatch: Market cap in {market_cap_currency}, Revenue in {ttm_revenue_currency}"
+                        else:
+                            # Same currency or one is unknown - calculate P/S ratio
+                            result["ps_ratio"] = market_cap / ttm_revenue
             except Exception as e:
                 logger.warning(f"Failed to fetch revenue for {ticker} (company_id={company_id}): {e}")
 
@@ -553,7 +563,7 @@ class CapIQDataService:
             # Create parameterized query with IN clause
             placeholders = ','.join(['%s'] * len(normalized_tickers))
 
-            # Query 1: Get core company data (price, market cap) - essential data
+            # Query 1: Get core company data (price, market cap with currency) - essential data
             core_sql = f"""
             SELECT DISTINCT
                 c.companyid,
@@ -569,7 +579,8 @@ class CapIQDataService:
                 pe.pricehigh,
                 pe.pricelow,
                 pe.volume,
-                mc.marketcap
+                mc.marketcap,
+                mc_cur.isocode AS market_cap_currency
             FROM ciqcompany c
             INNER JOIN ciqsecurity sec
                 ON c.companyid = sec.companyid
@@ -585,6 +596,8 @@ class CapIQDataService:
                 ON ti.tradingitemid = pe.tradingitemid
             LEFT JOIN ciqmarketcap mc
                 ON mc.companyid = c.companyid AND mc.pricingdate = pe.pricingdate
+            LEFT JOIN ciqCurrency mc_cur
+                ON mc.currencyId = mc_cur.currencyId
             WHERE c.companyTypeId = 4
                 AND c.companyStatusTypeId IN (1, 20)
                 AND sec.primaryflag = 1
@@ -615,6 +628,7 @@ class CapIQDataService:
             for row in rows:
                 company_id = row[0]
                 market_cap = float(row[13]) if row[13] else None
+                market_cap_currency = row[14] if row[14] else None
 
                 if market_cap:
                     companies_with_mcap += 1
@@ -635,6 +649,7 @@ class CapIQDataService:
                     "price_low": float(row[11]) if row[11] else None,
                     "volume": int(row[12]) if row[12] else None,
                     "market_cap": market_cap,
+                    "market_cap_currency": market_cap_currency,
                     "listing_date": None,
                     "ttm_revenue": None,
                     "ttm_revenue_currency": None,
@@ -700,13 +715,19 @@ class CapIQDataService:
                     revenue_data = revenue_map[company_id]
                     ttm_revenue = revenue_data['revenue']
                     ttm_revenue_currency = revenue_data['currency']
+                    market_cap_currency = result["market_cap_currency"]
                     result["ttm_revenue"] = ttm_revenue
                     result["ttm_revenue_currency"] = ttm_revenue_currency
-                    # Calculate P/S ratio if we have both market cap and revenue
-                    # Note: This assumes market cap and revenue are in the same currency
-                    # TODO: Add currency conversion if they differ
+                    # Calculate P/S ratio only if currencies match or one is unknown
                     if market_cap and ttm_revenue > 0:
-                        result["ps_ratio"] = market_cap / ttm_revenue
+                        if market_cap_currency and ttm_revenue_currency and market_cap_currency != ttm_revenue_currency:
+                            # Currency mismatch - don't calculate P/S ratio
+                            logger.warning(f"Currency mismatch for company_id={company_id}: market_cap={market_cap_currency}, revenue={ttm_revenue_currency}. P/S ratio not calculated.")
+                            result["ps_ratio"] = None
+                            result["ps_ratio_note"] = f"Currency mismatch: Market cap in {market_cap_currency}, Revenue in {ttm_revenue_currency}"
+                        else:
+                            # Same currency or one is unknown - calculate P/S ratio
+                            result["ps_ratio"] = market_cap / ttm_revenue
 
                 # Add IPO date
                 if company_id in ipo_map:

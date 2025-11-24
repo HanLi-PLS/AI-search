@@ -829,6 +829,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
                     "day_low": capiq_data.get('price_low'),
                     "volume": capiq_data.get('volume'),
                     "market_cap": capiq_data.get('market_cap'),
+                    "market_cap_currency": capiq_data.get('market_cap_currency'),
                     "change": change,
                     "change_percent": change_percent,
                     "currency": "HKD" if market == "HK" else "USD",
@@ -839,6 +840,7 @@ def get_stock_data(ticker: str, code: str = None, name: str = None, use_cache: b
                     "ttm_revenue": capiq_data.get('ttm_revenue'),
                     "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
                     "ps_ratio": capiq_data.get('ps_ratio'),
+                    "ps_ratio_note": capiq_data.get('ps_ratio_note'),
                     "listing_date": capiq_data.get('listing_date'),
                 }
 
@@ -1035,6 +1037,7 @@ async def get_all_prices(force_refresh: bool = False):
                     "day_low": capiq_data.get('price_low'),
                     "volume": capiq_data.get('volume'),
                     "market_cap": capiq_data.get('market_cap'),
+                    "market_cap_currency": capiq_data.get('market_cap_currency'),  # Market cap currency
                     "change": change,
                     "change_percent": change_percent,
                     "industry": capiq_data.get('industry'),
@@ -1046,6 +1049,7 @@ async def get_all_prices(force_refresh: bool = False):
                     "ttm_revenue": capiq_data.get('ttm_revenue'),  # Trailing twelve months revenue
                     "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),  # Revenue currency
                     "ps_ratio": capiq_data.get('ps_ratio'),  # Price-to-Sales ratio
+                    "ps_ratio_note": capiq_data.get('ps_ratio_note'),  # Warning if currency mismatch
                     "data_source": "CapIQ",
                     "last_updated": datetime.now().isoformat(),
                 }

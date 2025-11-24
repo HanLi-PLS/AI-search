@@ -662,10 +662,12 @@ async def get_watchlist(
                             'price_close': live_data.get('price_close'),
                             'volume': live_data.get('volume'),
                             'market_cap': live_data.get('market_cap'),
+                            'market_cap_currency': live_data.get('market_cap_currency'),
                             'pricing_date': live_data.get('pricing_date'),
                             'ttm_revenue': live_data.get('ttm_revenue'),
                             'ttm_revenue_currency': live_data.get('ttm_revenue_currency'),
                             'ps_ratio': live_data.get('ps_ratio'),
+                            'ps_ratio_note': live_data.get('ps_ratio_note'),
                             'listing_date': live_data.get('listing_date'),
                         }
                         company_dict['data_available'] = True

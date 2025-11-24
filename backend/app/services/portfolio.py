@@ -81,12 +81,14 @@ class PortfolioService:
                         "previous_close": capiq_data.get('price_close'),  # Will be updated from DB if available
                         "volume": capiq_data.get('volume'),
                         "market_cap": capiq_data.get('market_cap'),
+                        "market_cap_currency": capiq_data.get('market_cap_currency'),
                         "change": change,
                         "change_percent": change_percent,
                         "trade_date": capiq_data.get('pricing_date'),
                         "ttm_revenue": capiq_data.get('ttm_revenue'),
                         "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
                         "ps_ratio": capiq_data.get('ps_ratio'),
+                        "ps_ratio_note": capiq_data.get('ps_ratio_note'),
                         "listing_date": capiq_data.get('listing_date'),
                         "data_source": "CapIQ",
                         "last_updated": datetime.now().isoformat()
@@ -171,12 +173,14 @@ class PortfolioService:
                         "previous_close": capiq_data.get('price_close'),  # Will be updated from DB if available
                         "volume": capiq_data.get('volume'),
                         "market_cap": capiq_data.get('market_cap'),
+                        "market_cap_currency": capiq_data.get('market_cap_currency'),
                         "change": change,
                         "change_percent": change_percent,
                         "trade_date": capiq_data.get('pricing_date'),
                         "ttm_revenue": capiq_data.get('ttm_revenue'),
                         "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
                         "ps_ratio": capiq_data.get('ps_ratio'),
+                        "ps_ratio_note": capiq_data.get('ps_ratio_note'),
                         "listing_date": capiq_data.get('listing_date'),
                         "data_source": "CapIQ",
                         "last_updated": datetime.now().isoformat()
