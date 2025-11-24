@@ -28,7 +28,7 @@ limiter = Limiter(key_func=get_remote_address)
 # JWT Configuration
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 security = HTTPBearer(auto_error=False)
