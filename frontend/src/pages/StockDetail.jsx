@@ -327,9 +327,19 @@ function StockDetail() {
           <div className="stat-item">
             <span className="stat-label">Revenue (LTM)</span>
             <span className="stat-value">
-              {stockData.ttm_revenue ? `${stockData.ttm_revenue.toFixed(2)} mn` : 'N/A'}
+              {stockData.ttm_revenue
+                ? `${stockData.ttm_revenue.toFixed(2)} mn ${stockData.ttm_revenue_currency || ''}`
+                : 'N/A'}
             </span>
           </div>
+          {stockData.exchange_rate_used && (
+            <div className="stat-item">
+              <span className="stat-label">Exchange Rate</span>
+              <span className="stat-value">
+                1 {stockData.ttm_revenue_currency} = {stockData.exchange_rate_used.toFixed(4)} {stockData.market_cap_currency}
+              </span>
+            </div>
+          )}
           <div className="stat-item">
             <span className="stat-label">P/S Ratio</span>
             <span className="stat-value">
