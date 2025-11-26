@@ -1651,7 +1651,7 @@ async def get_stock_history(
         capiq_service = get_capiq_service()
 
         if capiq_service.available:
-            logger.info(f"Fetching historical data from CapIQ for {ticker}")
+            logger.info(f"Fetching historical data from CapIQ for {ticker} (market={market}, days={days})")
             try:
                 capiq_history = capiq_service.get_historical_prices(
                     ticker=ticker,
@@ -1660,7 +1660,9 @@ async def get_stock_history(
                 )
 
                 if capiq_history:
-                    logger.info(f"Retrieved {len(capiq_history)} records from CapIQ for {ticker}")
+                    logger.info(f"CapIQ returned {len(capiq_history)} records for {ticker} (requested {days} days)")
+                    if len(capiq_history) < days:
+                        logger.warning(f"CapIQ only has {len(capiq_history)} days of data for {ticker}, less than requested {days} days")
                     # Store CapIQ data in database for future use
                     for record in capiq_history:
                         try:
