@@ -1086,6 +1086,14 @@
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
+  gap: 12px;
+}
+
+.watchlist-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .watchlist-industry-tag {
@@ -1106,6 +1114,25 @@
 .watchlist-website-link:hover {
   opacity: 0.8;
   text-decoration: underline;
+}
+
+.watchlist-details-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.watchlist-details-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
 }
 
 /* Responsive Design for Watchlist Tab */
@@ -1130,6 +1157,19 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .watchlist-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .watchlist-footer-left {
+    justify-content: center;
+  }
+
+  .watchlist-details-button {
+    width: 100%;
   }
 }
 

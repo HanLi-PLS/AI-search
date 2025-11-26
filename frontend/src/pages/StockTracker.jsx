@@ -1429,19 +1429,27 @@ function StockTracker() {
                       )}
 
                       <div className="watchlist-card-footer">
-                        {company.industry && (
-                          <span className="watchlist-industry-tag">{company.industry}</span>
-                        )}
-                        {company.webpage && (
-                          <a
-                            href={`https://${company.webpage}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="watchlist-website-link"
-                          >
-                            🌐 Website
-                          </a>
-                        )}
+                        <div className="watchlist-footer-left">
+                          {company.industry && (
+                            <span className="watchlist-industry-tag">{company.industry}</span>
+                          )}
+                          {company.webpage && (
+                            <a
+                              href={`https://${company.webpage}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="watchlist-website-link"
+                            >
+                              🌐 Website
+                            </a>
+                          )}
+                        </div>
+                        <button
+                          className="watchlist-details-button"
+                          onClick={() => navigate(`/stock-tracker/${company.ticker}`)}
+                        >
+                          View Details →
+                        </button>
                       </div>
                     </div>
                   ))}
