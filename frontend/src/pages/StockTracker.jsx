@@ -391,7 +391,7 @@ function StockTracker() {
     setSearchParams({ tab });
 
     // Fetch watchlist when switching to watchlist tab
-    if (tab === 'watchlist' && watchlist.length === 0) {
+    if (tab === 'watchlist') {
       fetchWatchlist();
     }
   };
