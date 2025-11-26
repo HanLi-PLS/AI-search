@@ -1515,7 +1515,7 @@ async def get_stock_history(
     Get historical price data for a stock from database
 
     Args:
-        ticker: Stock ticker (e.g., "1801.HK")
+        ticker: Stock ticker (e.g., "1801.HK" or "9969")
         days: Number of days to retrieve (default: 90)
         start_date: Start date in YYYY-MM-DD format (optional)
         end_date: End date in YYYY-MM-DD format (optional)
@@ -1527,6 +1527,29 @@ async def get_stock_history(
     from datetime import datetime, date, timedelta
 
     service = StockDataService()
+
+    # Determine market for the ticker
+    market = None
+    if not ticker.endswith('.HK'):
+        # Check if it's in HKEX biotech list
+        companies = get_hkex_biotech_companies()
+        hkex_company = next((c for c in companies if c["ticker"] == ticker), None)
+        if hkex_company:
+            market = 'HK'
+        else:
+            # Check if it's in watchlist
+            from backend.app.models.watchlist import WatchlistItem
+            from backend.app.database import get_db
+
+            db = next(get_db())
+            try:
+                watchlist_stock = db.query(WatchlistItem).filter(
+                    WatchlistItem.ticker == ticker
+                ).first()
+                if watchlist_stock:
+                    market = watchlist_stock.market
+            finally:
+                db.close()
 
     # Parse date parameters
     if end_date:
@@ -1555,12 +1578,14 @@ async def get_stock_history(
     if not history:
         logger.info(f"No historical data found for {ticker}, fetching from Tushare...")
 
-        # Convert ticker to Tushare format
-        # HK stocks: ticker ends with .HK, format as 5-digit code + .HK (e.g., 02561.HK)
-        # US stocks: use ticker as-is (e.g., ZBIO, AAPL)
+        # Convert ticker to Tushare format based on market
         if ticker.endswith('.HK'):
+            # Already has .HK suffix
             stock_code = ticker.split('.')[0]
             ts_code = f"{stock_code.zfill(5)}.HK"
+        elif market == 'HK':
+            # Hong Kong stock without .HK suffix - add it
+            ts_code = f"{ticker.zfill(5)}.HK"
         else:
             # US stock - use ticker directly
             ts_code = ticker
