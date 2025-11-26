@@ -572,6 +572,35 @@ function StockTracker() {
     });
   };
 
+  // Calculate median value from an array of numbers
+  const calculateMedian = (values) => {
+    if (!values || values.length === 0) return null;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  };
+
+  // Calculate statistics for a list of stocks
+  const calculateStatistics = (stocks) => {
+    const marketCaps = stocks
+      .map(s => s.market_cap)
+      .filter(val => val !== null && val !== undefined && !isNaN(val));
+
+    const psRatios = stocks
+      .map(s => s.ps_ratio)
+      .filter(val => val !== null && val !== undefined && !isNaN(val));
+
+    return {
+      medianMarketCap: calculateMedian(marketCaps),
+      medianPsRatio: calculateMedian(psRatios),
+      companiesWithMarketCap: marketCaps.length,
+      companiesWithPsRatio: psRatios.length,
+      totalCompanies: stocks.length
+    };
+  };
+
   const formatLargeNumber = (value) => {
     if (value === null || value === undefined) return '-';
     if (value >= 1000000) {
@@ -785,6 +814,44 @@ function StockTracker() {
               </div>
             </div>
           )}
+
+          {/* Statistics Window */}
+          {filteredAndSortedStocks.length > 0 && (() => {
+            const stats = calculateStatistics(filteredAndSortedStocks);
+            return (
+              <div className="statistics-window">
+                <h3>📊 Selection Statistics</h3>
+                <div className="statistics-grid">
+                  <div className="stat-card">
+                    <div className="stat-card-label">Companies</div>
+                    <div className="stat-card-value">{stats.totalCompanies}</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-card-label">Median Market Cap</div>
+                    <div className="stat-card-value">
+                      {stats.medianMarketCap !== null
+                        ? `${stats.medianMarketCap.toFixed(2)} mn`
+                        : 'N/A'}
+                    </div>
+                    <div className="stat-card-subtitle">
+                      {stats.companiesWithMarketCap} with data
+                    </div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-card-label">Median P/S Ratio</div>
+                    <div className="stat-card-value">
+                      {stats.medianPsRatio !== null
+                        ? stats.medianPsRatio.toFixed(2)
+                        : 'N/A'}
+                    </div>
+                    <div className="stat-card-subtitle">
+                      {stats.companiesWithPsRatio} with data
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="stats-bar">
             <div className="stat">
@@ -1212,6 +1279,51 @@ function StockTracker() {
                   {watchlistRefreshing ? '🔄 Refreshing...' : '🔄 Refresh'}
                 </button>
               </div>
+
+              {/* Watchlist Statistics */}
+              {!watchlistLoading && !watchlistError && watchlist.length > 0 && (() => {
+                const watchlistStats = calculateStatistics(
+                  watchlist
+                    .filter(c => c.live_data && c.data_available)
+                    .map(c => ({
+                      market_cap: c.live_data.market_cap,
+                      ps_ratio: c.live_data.ps_ratio
+                    }))
+                );
+                return (
+                  <div className="statistics-window">
+                    <h3>📊 Watchlist Statistics</h3>
+                    <div className="statistics-grid">
+                      <div className="stat-card">
+                        <div className="stat-card-label">Companies</div>
+                        <div className="stat-card-value">{watchlist.length}</div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-card-label">Median Market Cap</div>
+                        <div className="stat-card-value">
+                          {watchlistStats.medianMarketCap !== null
+                            ? `${watchlistStats.medianMarketCap.toFixed(2)} mn`
+                            : 'N/A'}
+                        </div>
+                        <div className="stat-card-subtitle">
+                          {watchlistStats.companiesWithMarketCap} with data
+                        </div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-card-label">Median P/S Ratio</div>
+                        <div className="stat-card-value">
+                          {watchlistStats.medianPsRatio !== null
+                            ? watchlistStats.medianPsRatio.toFixed(2)
+                            : 'N/A'}
+                        </div>
+                        <div className="stat-card-subtitle">
+                          {watchlistStats.companiesWithPsRatio} with data
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {watchlistLoading && watchlist.length === 0 && (
                 <div className="loading-container">
