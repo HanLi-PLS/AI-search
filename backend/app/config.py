@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     AWS_S3_BUCKET: Optional[str] = os.getenv("AWS_S3_BUCKET")
     S3_UPLOAD_PREFIX: str = os.getenv("S3_UPLOAD_PREFIX", "uploads/")
 
+    # AWS Athena Configuration (for IPO data)
+    ATHENA_DATABASE: str = os.getenv("ATHENA_DATABASE", "capiq")
+    ATHENA_OUTPUT_LOCATION: Optional[str] = os.getenv("ATHENA_OUTPUT_LOCATION")  # s3://bucket-name/athena-results/
+
     # Qdrant Configuration
     QDRANT_HOST: str = os.getenv("QDRANT_HOST", "localhost")
     QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", "6333"))

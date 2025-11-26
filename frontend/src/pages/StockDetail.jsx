@@ -346,6 +346,22 @@ function StockDetail() {
               {stockData.ps_ratio ? stockData.ps_ratio.toFixed(2) : 'N/A'}
             </span>
           </div>
+          {stockData.ipo_listing_date && (
+            <div className="stat-item">
+              <span className="stat-label">IPO Listing Date</span>
+              <span className="stat-value">
+                {new Date(stockData.ipo_listing_date).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+          {stockData.ipo_price_original && (
+            <div className="stat-item">
+              <span className="stat-label">IPO Listing Price</span>
+              <span className="stat-value">
+                {stockData.ipo_price_original.toFixed(2)} {stockData.ipo_currency || ''}
+              </span>
+            </div>
+          )}
         </div>
 
         {stockData.data_source && (

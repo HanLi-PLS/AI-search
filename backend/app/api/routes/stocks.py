@@ -1160,6 +1160,22 @@ async def get_price(ticker: str):
         # Calculate daily change from database (last 2 records)
         stock_data = calculate_daily_change_from_db(ticker, stock_data)
 
+        # Fetch IPO data from Athena
+        try:
+            from backend.app.services.athena_ipo import get_athena_ipo_service
+            athena_service = get_athena_ipo_service()
+            if athena_service.available:
+                # Determine exchange symbol from market
+                exchange_symbol = 'SEHK' if portfolio_company['market'] == 'HKEX' else portfolio_company.get('exchange_symbol', 'NASDAQ')
+                ipo_data = athena_service.get_ipo_data(ticker, exchange_symbol)
+                if ipo_data:
+                    stock_data["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
+                    stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
+                    stock_data["ipo_currency"] = ipo_data.get("currency")
+                    stock_data["ipo_offering_size"] = ipo_data.get("offering_size")
+        except Exception as e:
+            logger.warning(f"Failed to fetch IPO data for {ticker}: {e}")
+
         # Note: News analysis is now fetched separately via /stocks/price/{ticker}/news-analysis
         # This allows the page to load quickly while analysis loads in background
 
@@ -1181,6 +1197,21 @@ async def get_price(ticker: str):
 
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
+    # Fetch IPO data from Athena
+    try:
+        from backend.app.services.athena_ipo import get_athena_ipo_service
+        athena_service = get_athena_ipo_service()
+        if athena_service.available:
+            # HKEX biotech companies use SEHK exchange
+            ipo_data = athena_service.get_ipo_data(ticker, 'SEHK')
+            if ipo_data:
+                stock_data["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
+                stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
+                stock_data["ipo_currency"] = ipo_data.get("currency")
+                stock_data["ipo_offering_size"] = ipo_data.get("offering_size")
+    except Exception as e:
+        logger.warning(f"Failed to fetch IPO data for {ticker}: {e}")
 
     # Note: News analysis is now fetched separately via /stocks/price/{ticker}/news-analysis
     # This allows the page to load quickly while analysis loads in background
