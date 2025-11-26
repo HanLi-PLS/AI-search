@@ -1064,6 +1064,28 @@ async def get_all_prices(force_refresh: bool = False):
                 except Exception as e:
                     logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
 
+                # Fetch IPO data from Athena
+                try:
+                    from backend.app.services.athena_ipo import get_athena_ipo_service
+                    athena_service = get_athena_ipo_service()
+                    if athena_service.available:
+                        # HKEX biotech companies use SEHK exchange
+                        ipo_data = athena_service.get_ipo_data(ticker, 'SEHK')
+                        if ipo_data:
+                            result["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
+                            result["ipo_price_original"] = ipo_data.get("ipo_price_original")
+                            result["ipo_currency"] = ipo_data.get("currency")
+                            result["ipo_offering_size"] = ipo_data.get("offering_size")
+
+                            # Calculate return since IPO
+                            ipo_price = ipo_data.get("ipo_price_original")
+                            current_price = result.get("current_price")
+                            if ipo_price and current_price and ipo_price > 0:
+                                ipo_return = ((current_price - ipo_price) / ipo_price) * 100
+                                result["ipo_return_percent"] = ipo_return
+                except Exception as e:
+                    logger.debug(f"Failed to fetch IPO data for {ticker}: {e}")
+
                 results.append(result)
             else:
                 # No CapIQ data found for this verified company - try fallback sources (Tushare, etc.)
@@ -1100,6 +1122,28 @@ async def get_all_prices(force_refresh: bool = False):
                         result = calculate_daily_change_from_db(ticker, result)
                     except Exception as e:
                         logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
+
+                    # Fetch IPO data from Athena
+                    try:
+                        from backend.app.services.athena_ipo import get_athena_ipo_service
+                        athena_service = get_athena_ipo_service()
+                        if athena_service.available:
+                            # HKEX biotech companies use SEHK exchange
+                            ipo_data = athena_service.get_ipo_data(ticker, 'SEHK')
+                            if ipo_data:
+                                result["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
+                                result["ipo_price_original"] = ipo_data.get("ipo_price_original")
+                                result["ipo_currency"] = ipo_data.get("currency")
+                                result["ipo_offering_size"] = ipo_data.get("offering_size")
+
+                                # Calculate return since IPO
+                                ipo_price = ipo_data.get("ipo_price_original")
+                                current_price = result.get("current_price")
+                                if ipo_price and current_price and ipo_price > 0:
+                                    ipo_return = ((current_price - ipo_price) / ipo_price) * 100
+                                    result["ipo_return_percent"] = ipo_return
+                    except Exception as e:
+                        logger.debug(f"Failed to fetch IPO data for {ticker}: {e}")
 
                     results.append(result)
                 else:
