@@ -1190,6 +1190,13 @@ async def get_price(ticker: str):
                     stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
                     stock_data["ipo_currency"] = ipo_data.get("currency")
                     stock_data["ipo_offering_size"] = ipo_data.get("offering_size")
+
+                    # Calculate return since IPO
+                    ipo_price = ipo_data.get("ipo_price_original")
+                    current_price = stock_data.get("current_price")
+                    if ipo_price and current_price and ipo_price > 0:
+                        ipo_return = ((current_price - ipo_price) / ipo_price) * 100
+                        stock_data["ipo_return_percent"] = ipo_return
                 else:
                     logger.debug(f"No IPO data found for {ticker} on any exchange: {exchange_symbols}")
         except Exception as e:
@@ -1229,6 +1236,13 @@ async def get_price(ticker: str):
                 stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
                 stock_data["ipo_currency"] = ipo_data.get("currency")
                 stock_data["ipo_offering_size"] = ipo_data.get("offering_size")
+
+                # Calculate return since IPO
+                ipo_price = ipo_data.get("ipo_price_original")
+                current_price = stock_data.get("current_price")
+                if ipo_price and current_price and ipo_price > 0:
+                    ipo_return = ((current_price - ipo_price) / ipo_price) * 100
+                    stock_data["ipo_return_percent"] = ipo_return
     except Exception as e:
         logger.warning(f"Failed to fetch IPO data for {ticker}: {e}")
 

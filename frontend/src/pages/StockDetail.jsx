@@ -362,6 +362,14 @@ function StockDetail() {
               </span>
             </div>
           )}
+          {stockData.ipo_return_percent !== undefined && (
+            <div className="stat-item">
+              <span className="stat-label">Return Since IPO</span>
+              <span className={`stat-value ${stockData.ipo_return_percent >= 0 ? 'positive' : 'negative'}`}>
+                {stockData.ipo_return_percent >= 0 ? '+' : ''}{stockData.ipo_return_percent.toFixed(2)}%
+              </span>
+            </div>
+          )}
         </div>
 
         {stockData.data_source && (
