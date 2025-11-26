@@ -10,6 +10,19 @@ from backend.app.config import settings
 logger = logging.getLogger(__name__)
 
 
+# Map currency names to standard codes
+CURRENCY_NAME_TO_CODE = {
+    'Hong Kong Dollar': 'HKD',
+    'US Dollar': 'USD',
+    'Chinese Yuan': 'CNY',
+    'Chinese Yuan Renminbi': 'CNY',
+    'Renminbi': 'CNY',
+    'Euro': 'EUR',
+    'British Pound': 'GBP',
+    'Japanese Yen': 'JPY',
+}
+
+
 class AthenaIPOService:
     """Service for querying IPO data from AWS Athena"""
 
@@ -119,6 +132,10 @@ class AthenaIPOService:
             # Parse data row (skip header)
             data_row = rows[1]['Data']
 
+            # Get currency and convert name to code if needed
+            currency_raw = data_row[8].get('VarCharValue')
+            currency_code = CURRENCY_NAME_TO_CODE.get(currency_raw, currency_raw) if currency_raw else None
+
             return {
                 'company': data_row[0].get('VarCharValue'),
                 'ticker': data_row[1].get('VarCharValue'),
@@ -128,7 +145,7 @@ class AthenaIPOService:
                 'ipo_price_original': float(data_row[5]['VarCharValue']) if data_row[5].get('VarCharValue') else None,
                 'exchange_rate': float(data_row[6]['VarCharValue']) if data_row[6].get('VarCharValue') else None,
                 'ipo_price_usd': float(data_row[7]['VarCharValue']) if data_row[7].get('VarCharValue') else None,
-                'currency': data_row[8].get('VarCharValue'),
+                'currency': currency_code,
             }
 
         except Exception as e:
