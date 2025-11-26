@@ -13,7 +13,7 @@ function StockDetail() {
   const [returnsData, setReturnsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [timeRange, setTimeRange] = useState('1M'); // 1W, 1M, 3M, 6M, 1Y
+  const [timeRange, setTimeRange] = useState('1Y'); // 1W, 1M, 3M, 6M, 1Y
   const [newsExpanded, setNewsExpanded] = useState(true); // Expanded by default
   const [newsAnalysis, setNewsAnalysis] = useState(null);
   const [newsLoading, setNewsLoading] = useState(true);
