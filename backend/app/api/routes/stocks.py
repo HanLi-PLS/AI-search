@@ -1266,15 +1266,22 @@ async def get_price(ticker: str):
     else:
         # Check if it's a watchlist stock
         from backend.app.models.watchlist import WatchlistItem
-        from backend.app.database import get_db_session
+        from backend.app.database import get_db
 
-        db = next(get_db_session())
-        watchlist_stock = db.query(WatchlistItem).filter(
-            WatchlistItem.ticker == ticker
-        ).first()
+        db = next(get_db())
+        try:
+            watchlist_stock = db.query(WatchlistItem).filter(
+                WatchlistItem.ticker == ticker
+            ).first()
 
-        if not watchlist_stock:
-            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in portfolio, HKEX, or watchlist")
+            if not watchlist_stock:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in portfolio, HKEX, or watchlist")
+
+            # Extract values before closing session to avoid detached instance issues
+            watchlist_market = watchlist_stock.market
+            watchlist_company_name = watchlist_stock.company_name
+        finally:
+            db.close()
 
         # Fetch data from CapIQ for watchlist stock
         from backend.app.services.capiq_data import get_capiq_service
@@ -1284,7 +1291,7 @@ async def get_price(ticker: str):
             raise HTTPException(status_code=503, detail="CapIQ service not available")
 
         # Get live data from CapIQ
-        market = watchlist_stock.market
+        market = watchlist_market
         capiq_data = capiq_service.get_company_data(ticker, market)
 
         if not capiq_data:
@@ -1299,7 +1306,7 @@ async def get_price(ticker: str):
 
         stock_data = {
             "ticker": ticker,
-            "name": watchlist_stock.company_name or ticker,
+            "name": watchlist_company_name or ticker,
             "current_price": capiq_data.get('price_close'),
             "open": capiq_data.get('price_open'),
             "day_high": capiq_data.get('price_high'),
@@ -1333,11 +1340,10 @@ async def get_price(ticker: str):
             # Determine exchange symbols to try based on stock type
             if company:  # HKEX biotech company
                 exchange_symbols = ['SEHK']
-            elif 'watchlist_stock' in locals():  # Watchlist stock
-                market = watchlist_stock.market
-                if market == 'US':
+            elif 'watchlist_market' in locals():  # Watchlist stock
+                if watchlist_market == 'US':
                     exchange_symbols = ['NasdaqGS', 'NASDAQ', 'NYSE']
-                elif market == 'HK':
+                elif watchlist_market == 'HK':
                     exchange_symbols = ['SEHK']
                 else:
                     exchange_symbols = ['SEHK', 'NasdaqGS', 'NASDAQ', 'NYSE']  # Try all
