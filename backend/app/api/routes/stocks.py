@@ -1435,15 +1435,83 @@ async def get_news_analysis(ticker: str, force_refresh: bool = False, general_ne
     companies = get_hkex_biotech_companies()
     company = next((c for c in companies if c["ticker"] == ticker), None)
 
-    if not company:
+    if company:
+        # It's an HKEX biotech company
+        stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
+
+        if not stock_data:
+            return {"news_analysis": None}
+
+        stock_data["name"] = company["name"]
+
+        # Calculate daily change from database (last 2 records)
+        stock_data = calculate_daily_change_from_db(ticker, stock_data)
+
+        # Get news analysis with force_refresh and general_news options
+        stock_data_with_analysis = await add_news_analysis_to_stock(
+            stock_data,
+            force_refresh=force_refresh,
+            general_news=general_news
+        )
+
+        return {
+            "news_analysis": stock_data_with_analysis.get("news_analysis")
+        }
+
+    # If not HKEX company, check watchlist
+    from backend.app.models.watchlist import WatchlistItem
+    from backend.app.database import get_db
+
+    db = next(get_db())
+    try:
+        watchlist_stock = db.query(WatchlistItem).filter(
+            WatchlistItem.ticker == ticker
+        ).first()
+
+        if not watchlist_stock:
+            return {"news_analysis": None}
+
+        # Extract values before closing session
+        watchlist_market = watchlist_stock.market
+        watchlist_company_name = watchlist_stock.company_name
+    finally:
+        db.close()
+
+    # Fetch data from CapIQ for watchlist stock
+    from backend.app.services.capiq_data import get_capiq_service
+    capiq_service = get_capiq_service()
+
+    if not capiq_service.available:
         return {"news_analysis": None}
 
-    stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
+    # Get live data from CapIQ
+    market = watchlist_market
+    capiq_data = capiq_service.get_company_data(ticker, market)
 
-    if not stock_data:
+    if not capiq_data:
         return {"news_analysis": None}
 
-    stock_data["name"] = company["name"]
+    # Build stock_data from CapIQ response
+    change = None
+    change_percent = None
+    if capiq_data.get('price_close') and capiq_data.get('price_open'):
+        change = capiq_data['price_close'] - capiq_data['price_open']
+        change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
+
+    stock_data = {
+        "ticker": ticker,
+        "name": watchlist_company_name or ticker,
+        "current_price": capiq_data.get('price_close'),
+        "open": capiq_data.get('price_open'),
+        "day_high": capiq_data.get('price_high'),
+        "day_low": capiq_data.get('price_low'),
+        "volume": capiq_data.get('volume'),
+        "market_cap": capiq_data.get('market_cap'),
+        "change": change,
+        "change_percent": change_percent,
+        "currency": "USD" if market == "US" else "HKD",
+        "data_source": "CapIQ",
+    }
 
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
