@@ -1255,15 +1255,72 @@ async def get_price(ticker: str):
     companies = get_hkex_biotech_companies()
     company = next((c for c in companies if c["ticker"] == ticker), None)
 
-    if not company:
-        raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+    if company:
+        # It's an HKEX biotech company
+        stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
 
-    stock_data = get_stock_data(ticker, code=company.get("code"), name=company["name"])
+        if not stock_data:
+            raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
 
-    if not stock_data:
-        raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker}")
+        stock_data["name"] = company["name"]
+    else:
+        # Check if it's a watchlist stock
+        from backend.app.models.watchlist import WatchlistItem
+        from backend.app.database import get_db_session
 
-    stock_data["name"] = company["name"]
+        db = next(get_db_session())
+        watchlist_stock = db.query(WatchlistItem).filter(
+            WatchlistItem.ticker == ticker
+        ).first()
+
+        if not watchlist_stock:
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found in portfolio, HKEX, or watchlist")
+
+        # Fetch data from CapIQ for watchlist stock
+        from backend.app.services.capiq_data import get_capiq_service
+        capiq_service = get_capiq_service()
+
+        if not capiq_service.available:
+            raise HTTPException(status_code=503, detail="CapIQ service not available")
+
+        # Get live data from CapIQ
+        market = watchlist_stock.market
+        capiq_data = capiq_service.get_company_data(ticker, market)
+
+        if not capiq_data:
+            raise HTTPException(status_code=500, detail=f"Unable to fetch data for {ticker} from CapIQ")
+
+        # Build stock_data from CapIQ response
+        change = None
+        change_percent = None
+        if capiq_data.get('price_close') and capiq_data.get('price_open'):
+            change = capiq_data['price_close'] - capiq_data['price_open']
+            change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
+
+        stock_data = {
+            "ticker": ticker,
+            "name": watchlist_stock.company_name or ticker,
+            "current_price": capiq_data.get('price_close'),
+            "open": capiq_data.get('price_open'),
+            "day_high": capiq_data.get('price_high'),
+            "day_low": capiq_data.get('price_low'),
+            "volume": capiq_data.get('volume'),
+            "market_cap": capiq_data.get('market_cap'),
+            "market_cap_currency": capiq_data.get('market_cap_currency'),
+            "change": change,
+            "change_percent": change_percent,
+            "industry": capiq_data.get('industry'),
+            "webpage": capiq_data.get('webpage'),
+            "exchange_name": capiq_data.get('exchange_name'),
+            "exchange_symbol": capiq_data.get('exchange_symbol'),
+            "pricing_date": capiq_data.get('pricing_date'),
+            "ttm_revenue": capiq_data.get('ttm_revenue'),
+            "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
+            "ps_ratio": capiq_data.get('ps_ratio'),
+            "currency": "USD" if market == "US" else "HKD",
+            "data_source": "CapIQ",
+            "last_updated": datetime.now().isoformat(),
+        }
 
     # Calculate daily change from database (last 2 records)
     stock_data = calculate_daily_change_from_db(ticker, stock_data)
@@ -1273,8 +1330,28 @@ async def get_price(ticker: str):
         from backend.app.services.athena_ipo import get_athena_ipo_service
         athena_service = get_athena_ipo_service()
         if athena_service.available:
-            # HKEX biotech companies use SEHK exchange
-            ipo_data = athena_service.get_ipo_data(ticker, 'SEHK')
+            # Determine exchange symbols to try based on stock type
+            if company:  # HKEX biotech company
+                exchange_symbols = ['SEHK']
+            elif 'watchlist_stock' in locals():  # Watchlist stock
+                market = watchlist_stock.market
+                if market == 'US':
+                    exchange_symbols = ['NasdaqGS', 'NASDAQ', 'NYSE']
+                elif market == 'HK':
+                    exchange_symbols = ['SEHK']
+                else:
+                    exchange_symbols = ['SEHK', 'NasdaqGS', 'NASDAQ', 'NYSE']  # Try all
+            else:
+                exchange_symbols = ['SEHK']  # Default to SEHK
+
+            # Try each exchange symbol until we find data
+            ipo_data = None
+            for exchange_symbol in exchange_symbols:
+                ipo_data = athena_service.get_ipo_data(ticker, exchange_symbol)
+                if ipo_data:
+                    logger.info(f"Found IPO data for {ticker} on exchange {exchange_symbol}")
+                    break
+
             if ipo_data:
                 stock_data["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
                 stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
