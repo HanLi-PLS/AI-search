@@ -19,6 +19,16 @@ function StockTracker() {
   const [searchTerm, setSearchTerm] = useState('');
   // Initialize sortBy from URL params, default to 'name'
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'name');
+
+  // Filter state for HKEX 18A tracker
+  const [showFilters, setShowFilters] = useState(false);
+  const [ipoDateFrom, setIpoDateFrom] = useState('');
+  const [ipoDateTo, setIpoDateTo] = useState('');
+  const [marketCapMin, setMarketCapMin] = useState('');
+  const [marketCapMax, setMarketCapMax] = useState('');
+  const [psRatioMin, setPsRatioMin] = useState('');
+  const [psRatioMax, setPsRatioMax] = useState('');
+
   const [upcomingIPOs, setUpcomingIPOs] = useState([]);
   const [ipoColumns, setIpoColumns] = useState([]);
   const [ipoMetadata, setIpoMetadata] = useState(null);
@@ -485,6 +495,59 @@ function StockTracker() {
         stock.ticker.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Apply IPO date range filter
+    if (ipoDateFrom) {
+      const fromDate = new Date(ipoDateFrom);
+      filtered = filtered.filter(stock => {
+        if (!stock.ipo_listing_date) return false;
+        const ipoDate = new Date(stock.ipo_listing_date);
+        return ipoDate >= fromDate;
+      });
+    }
+
+    if (ipoDateTo) {
+      const toDate = new Date(ipoDateTo);
+      filtered = filtered.filter(stock => {
+        if (!stock.ipo_listing_date) return false;
+        const ipoDate = new Date(stock.ipo_listing_date);
+        return ipoDate <= toDate;
+      });
+    }
+
+    // Apply market cap filter
+    if (marketCapMin) {
+      const minCap = parseFloat(marketCapMin);
+      filtered = filtered.filter(stock => {
+        if (!stock.market_cap) return false;
+        return stock.market_cap >= minCap;
+      });
+    }
+
+    if (marketCapMax) {
+      const maxCap = parseFloat(marketCapMax);
+      filtered = filtered.filter(stock => {
+        if (!stock.market_cap) return false;
+        return stock.market_cap <= maxCap;
+      });
+    }
+
+    // Apply P/S ratio filter
+    if (psRatioMin) {
+      const minPs = parseFloat(psRatioMin);
+      filtered = filtered.filter(stock => {
+        if (!stock.ps_ratio) return false;
+        return stock.ps_ratio >= minPs;
+      });
+    }
+
+    if (psRatioMax) {
+      const maxPs = parseFloat(psRatioMax);
+      filtered = filtered.filter(stock => {
+        if (!stock.ps_ratio) return false;
+        return stock.ps_ratio <= maxPs;
+      });
+    }
+
     // Sort stocks
     filtered.sort((a, b) => {
       if (sortBy === 'name') {
@@ -498,7 +561,7 @@ function StockTracker() {
     });
 
     return filtered;
-  }, [stockData, searchTerm, sortBy]);
+  }, [stockData, searchTerm, sortBy, ipoDateFrom, ipoDateTo, marketCapMin, marketCapMax, psRatioMin, psRatioMax]);
 
   // Watchlist helper functions
   const formatNumber = (value, decimals = 2) => {
@@ -597,6 +660,14 @@ function StockTracker() {
             </div>
 
             <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="refresh-button"
+              title="Toggle filters"
+            >
+              🔍 {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+
+            <button
               onClick={() => fetchStockData(true)}
               className="refresh-button"
               disabled={isRefreshing}
@@ -623,10 +694,110 @@ function StockTracker() {
             </button>
           </div>
 
+          {/* Filter Panel */}
+          {showFilters && (
+            <div className="filter-panel">
+              <div className="filter-section">
+                <h3>Filter Companies</h3>
+                <div className="filter-grid">
+                  <div className="filter-group">
+                    <label>IPO Date From:</label>
+                    <input
+                      type="date"
+                      value={ipoDateFrom}
+                      onChange={(e) => setIpoDateFrom(e.target.value)}
+                      className="filter-input"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>IPO Date To:</label>
+                    <input
+                      type="date"
+                      value={ipoDateTo}
+                      onChange={(e) => setIpoDateTo(e.target.value)}
+                      className="filter-input"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>Market Cap Min (mn):</label>
+                    <input
+                      type="number"
+                      value={marketCapMin}
+                      onChange={(e) => setMarketCapMin(e.target.value)}
+                      placeholder="e.g., 1000"
+                      className="filter-input"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>Market Cap Max (mn):</label>
+                    <input
+                      type="number"
+                      value={marketCapMax}
+                      onChange={(e) => setMarketCapMax(e.target.value)}
+                      placeholder="e.g., 50000"
+                      className="filter-input"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>P/S Ratio Min:</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={psRatioMin}
+                      onChange={(e) => setPsRatioMin(e.target.value)}
+                      placeholder="e.g., 0"
+                      className="filter-input"
+                    />
+                  </div>
+
+                  <div className="filter-group">
+                    <label>P/S Ratio Max:</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={psRatioMax}
+                      onChange={(e) => setPsRatioMax(e.target.value)}
+                      placeholder="e.g., 10"
+                      className="filter-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-actions">
+                  <button
+                    onClick={() => {
+                      setIpoDateFrom('');
+                      setIpoDateTo('');
+                      setMarketCapMin('');
+                      setMarketCapMax('');
+                      setPsRatioMin('');
+                      setPsRatioMax('');
+                    }}
+                    className="clear-filters-button"
+                  >
+                    Clear All Filters
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="stats-bar">
             <div className="stat">
-              <span className="stat-label">Total Companies:</span>
-              <span className="stat-value">{stockData.length}</span>
+              <span className="stat-label">
+                {(ipoDateFrom || ipoDateTo || marketCapMin || marketCapMax || psRatioMin || psRatioMax)
+                  ? 'Filtered / Total Companies:'
+                  : 'Total Companies:'}
+              </span>
+              <span className="stat-value">
+                {(ipoDateFrom || ipoDateTo || marketCapMin || marketCapMax || psRatioMin || psRatioMax)
+                  ? `${filteredAndSortedStocks.length} / ${stockData.length}`
+                  : stockData.length}
+              </span>
             </div>
             <div className="stat">
               <span className="stat-label">Market:</span>
