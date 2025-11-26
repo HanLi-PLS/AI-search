@@ -4,6 +4,20 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { stockAPI } from '../services/api';
 import './StockDetail.css';
 
+// Currency code to full name mapping
+const getCurrencyName = (code) => {
+  const currencyNames = {
+    'HKD': 'Hong Kong Dollar',
+    'USD': 'US Dollar',
+    'CNY': 'Chinese Yuan',
+    'RMB': 'Chinese Yuan',
+    'EUR': 'Euro',
+    'GBP': 'British Pound',
+    'JPY': 'Japanese Yen',
+  };
+  return currencyNames[code] || code;
+};
+
 function StockDetail() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -358,7 +372,7 @@ function StockDetail() {
             <div className="stat-item">
               <span className="stat-label">IPO Listing Price</span>
               <span className="stat-value">
-                {stockData.ipo_price_original.toFixed(2)} {stockData.ipo_currency || ''}
+                {stockData.ipo_price_original.toFixed(2)} {getCurrencyName(stockData.ipo_currency) || ''}
               </span>
             </div>
           )}

@@ -1165,14 +1165,33 @@ async def get_price(ticker: str):
             from backend.app.services.athena_ipo import get_athena_ipo_service
             athena_service = get_athena_ipo_service()
             if athena_service.available:
-                # Determine exchange symbol from market
-                exchange_symbol = 'SEHK' if portfolio_company['market'] == 'HKEX' else portfolio_company.get('exchange_symbol', 'NASDAQ')
-                ipo_data = athena_service.get_ipo_data(ticker, exchange_symbol)
+                # Determine exchange symbol(s) to try based on market
+                if portfolio_company['market'] == 'HKEX':
+                    exchange_symbols = ['SEHK']
+                elif portfolio_company['market'] == 'NASDAQ':
+                    # Try multiple NASDAQ exchange symbols
+                    exchange_symbols = ['NasdaqGS', 'NASDAQ', 'Nasdaq']
+                elif portfolio_company['market'] == 'NYSE':
+                    exchange_symbols = ['NYSE', 'New York Stock Exchange']
+                else:
+                    # Fallback for other US markets
+                    exchange_symbols = ['NasdaqGS', 'NASDAQ', 'NYSE']
+
+                # Try each exchange symbol until we find data
+                ipo_data = None
+                for exchange_symbol in exchange_symbols:
+                    ipo_data = athena_service.get_ipo_data(ticker, exchange_symbol)
+                    if ipo_data:
+                        logger.info(f"Found IPO data for {ticker} on exchange {exchange_symbol}")
+                        break
+
                 if ipo_data:
                     stock_data["ipo_listing_date"] = ipo_data.get("ipo_listing_date")
                     stock_data["ipo_price_original"] = ipo_data.get("ipo_price_original")
                     stock_data["ipo_currency"] = ipo_data.get("currency")
                     stock_data["ipo_offering_size"] = ipo_data.get("offering_size")
+                else:
+                    logger.debug(f"No IPO data found for {ticker} on any exchange: {exchange_symbols}")
         except Exception as e:
             logger.warning(f"Failed to fetch IPO data for {ticker}: {e}")
 
