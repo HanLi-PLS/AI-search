@@ -6,6 +6,11 @@
 # To view: crontab -l
 # To remove: crontab -r
 
+# Daily backend restart at 3 AM UTC (11 AM HKT) to clear cache
+# Prevents stale Tushare fallback data from persisting
+# Ensures fresh CapIQ data with currency and exchange rates
+0 3 * * * /usr/bin/pm2 restart ai-search-backend > /dev/null 2>&1
+
 # Update CapIQ historical data daily after HK market close
 # Runs Monday-Friday at 9:00 AM UTC (5:00 PM HKT)
 # Fetches last 5 days of data to ensure we have the latest prices
