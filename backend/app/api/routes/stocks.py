@@ -1661,8 +1661,8 @@ async def get_stock_history(
 
                 if capiq_history:
                     logger.info(f"CapIQ returned {len(capiq_history)} records for {ticker} (requested {days} days)")
-                    if len(capiq_history) < days:
-                        logger.warning(f"CapIQ only has {len(capiq_history)} days of data for {ticker}, less than requested {days} days")
+                    capiq_record_count = len(capiq_history)
+
                     # Store CapIQ data in database for future use
                     for record in capiq_history:
                         try:
@@ -1687,13 +1687,23 @@ async def get_stock_history(
 
                     if history:
                         logger.info(f"Successfully stored and retrieved {len(history)} records from CapIQ")
+
+                    # If CapIQ data is insufficient (less than 50% of requested), try Tushare to supplement
+                    if capiq_record_count < days * 0.5:
+                        logger.warning(f"CapIQ only has {capiq_record_count} days of data for {ticker}, trying Tushare to supplement")
+                        # Set history to None to trigger Tushare fallback
+                        tushare_needed = True
+                    else:
+                        tushare_needed = False
                 else:
                     logger.warning(f"CapIQ returned no data for {ticker}")
+                    tushare_needed = True
             except Exception as capiq_error:
                 logger.warning(f"CapIQ fetch failed for {ticker}: {capiq_error}")
+                tushare_needed = True
 
-        # If CapIQ failed or not available, fall back to Tushare
-        if not history:
+        # If CapIQ failed, not available, or returned insufficient data, fall back to Tushare
+        if not history or ('tushare_needed' in locals() and tushare_needed):
             logger.info(f"Falling back to Tushare for {ticker}")
 
             # Convert ticker to Tushare format based on market
