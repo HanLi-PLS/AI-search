@@ -1635,99 +1635,42 @@ async def get_stock_history(
     else:
         start = end - timedelta(days=days)
 
-    # Get data from database
-    history = service.get_historical_data(
-        ticker=ticker,
-        start_date=start,
-        end_date=end
-    )
+    # Try to fetch fresh data from CapIQ first (preferred source)
+    from backend.app.services.capiq_data import get_capiq_service
+    capiq_service = get_capiq_service()
 
-    # If no data found in database, fetch from external sources
-    if not history:
-        logger.info(f"No historical data found for {ticker} in database")
+    history = None
+    tushare_needed = False
 
-        # Try CapIQ first (preferred source for all markets)
-        from backend.app.services.capiq_data import get_capiq_service
-        capiq_service = get_capiq_service()
+    if capiq_service.available:
+        logger.info(f"Fetching historical data from CapIQ for {ticker} (market={market}, days={days})")
+        try:
+            capiq_history = capiq_service.get_historical_prices(
+                ticker=ticker,
+                market=market if market else 'US',
+                days=days
+            )
 
-        if capiq_service.available:
-            logger.info(f"Fetching historical data from CapIQ for {ticker} (market={market}, days={days})")
-            try:
-                capiq_history = capiq_service.get_historical_prices(
-                    ticker=ticker,
-                    market=market if market else 'US',
-                    days=days
-                )
+            if capiq_history:
+                logger.info(f"CapIQ returned {len(capiq_history)} records for {ticker} (requested {days} days)")
+                capiq_record_count = len(capiq_history)
 
-                if capiq_history:
-                    logger.info(f"CapIQ returned {len(capiq_history)} records for {ticker} (requested {days} days)")
-                    capiq_record_count = len(capiq_history)
+                # Store CapIQ data in database for future use
+                for record in capiq_history:
+                    try:
+                        service.store_price_data(
+                            ticker=ticker,
+                            trade_date=record['trade_date'],
+                            open_price=record['open'],
+                            high=record['high'],
+                            low=record['low'],
+                            close=record['close'],
+                            volume=record['volume']
+                        )
+                    except Exception as store_error:
+                        logger.warning(f"Failed to store CapIQ data for {ticker}: {store_error}")
 
-                    # Store CapIQ data in database for future use
-                    for record in capiq_history:
-                        try:
-                            service.store_price_data(
-                                ticker=ticker,
-                                trade_date=record['trade_date'],
-                                open_price=record['open'],
-                                high=record['high'],
-                                low=record['low'],
-                                close=record['close'],
-                                volume=record['volume']
-                            )
-                        except Exception as store_error:
-                            logger.warning(f"Failed to store CapIQ data for {ticker}: {store_error}")
-
-                    # Retrieve from database
-                    history = service.get_historical_data(
-                        ticker=ticker,
-                        start_date=start,
-                        end_date=end
-                    )
-
-                    if history:
-                        logger.info(f"Successfully stored and retrieved {len(history)} records from CapIQ")
-
-                    # If CapIQ data is insufficient (less than 50% of requested), try Tushare to supplement
-                    if capiq_record_count < days * 0.5:
-                        logger.warning(f"CapIQ only has {capiq_record_count} days of data for {ticker}, trying Tushare to supplement")
-                        # Set history to None to trigger Tushare fallback
-                        tushare_needed = True
-                    else:
-                        tushare_needed = False
-                else:
-                    logger.warning(f"CapIQ returned no data for {ticker}")
-                    tushare_needed = True
-            except Exception as capiq_error:
-                logger.warning(f"CapIQ fetch failed for {ticker}: {capiq_error}")
-                tushare_needed = True
-
-        # If CapIQ failed, not available, or returned insufficient data, fall back to Tushare
-        if not history or ('tushare_needed' in locals() and tushare_needed):
-            logger.info(f"Falling back to Tushare for {ticker}")
-
-            # Convert ticker to Tushare format based on market
-            if ticker.endswith('.HK'):
-                # Already has .HK suffix
-                stock_code = ticker.split('.')[0]
-                ts_code = f"{stock_code.zfill(5)}.HK"
-            elif market == 'HK':
-                # Hong Kong stock without .HK suffix - add it
-                ts_code = f"{ticker.zfill(5)}.HK"
-            else:
-                # US stock - use ticker directly
-                ts_code = ticker
-
-            # Fetch and store historical data from Tushare
-            try:
-                service.fetch_and_store_historical_data(
-                    ticker=ticker,
-                    ts_code=ts_code,
-                    start_date=start.strftime('%Y%m%d'),
-                    end_date=end.strftime('%Y%m%d')
-                )
-
-                # Retrieve again
+                # Retrieve from database
                 history = service.get_historical_data(
                     ticker=ticker,
                     start_date=start,
@@ -1735,9 +1678,72 @@ async def get_stock_history(
                 )
 
                 if history:
-                    logger.info(f"Successfully fetched {len(history)} records from Tushare for {ticker}")
-            except Exception as tushare_error:
-                logger.error(f"Tushare fetch also failed for {ticker}: {tushare_error}")
+                    logger.info(f"Successfully stored and retrieved {len(history)} records from CapIQ")
+
+                # If CapIQ data is insufficient (less than 50% of requested), try Tushare to supplement
+                if capiq_record_count < days * 0.5:
+                    logger.warning(f"CapIQ only has {capiq_record_count} days of data for {ticker}, trying Tushare to supplement")
+                    tushare_needed = True
+                else:
+                    tushare_needed = False
+            else:
+                logger.warning(f"CapIQ returned no data for {ticker}")
+                tushare_needed = True
+        except Exception as capiq_error:
+            logger.warning(f"CapIQ fetch failed for {ticker}: {capiq_error}")
+            tushare_needed = True
+    else:
+        # CapIQ not available, will try Tushare or use cache
+        logger.info(f"CapIQ not available, checking database cache for {ticker}")
+        tushare_needed = True
+
+    # If CapIQ failed, not available, or returned insufficient data, try Tushare or use cache
+    if not history or tushare_needed:
+        logger.info(f"Trying Tushare for {ticker}")
+
+        # Convert ticker to Tushare format based on market
+        if ticker.endswith('.HK'):
+            # Already has .HK suffix
+            stock_code = ticker.split('.')[0]
+            ts_code = f"{stock_code.zfill(5)}.HK"
+        elif market == 'HK':
+            # Hong Kong stock without .HK suffix - add it
+            ts_code = f"{ticker.zfill(5)}.HK"
+        else:
+            # US stock - use ticker directly
+            ts_code = ticker
+
+        # Fetch and store historical data from Tushare
+        try:
+            service.fetch_and_store_historical_data(
+                ticker=ticker,
+                ts_code=ts_code,
+                start_date=start.strftime('%Y%m%d'),
+                end_date=end.strftime('%Y%m%d')
+            )
+
+            # Retrieve again
+            history = service.get_historical_data(
+                ticker=ticker,
+                start_date=start,
+                end_date=end
+            )
+
+            if history:
+                logger.info(f"Successfully fetched {len(history)} records from Tushare for {ticker}")
+        except Exception as tushare_error:
+            logger.error(f"Tushare fetch failed for {ticker}: {tushare_error}")
+
+    # If both CapIQ and Tushare failed, try database cache as last resort
+    if not history:
+        logger.info(f"Checking database cache for {ticker} as last resort")
+        history = service.get_historical_data(
+            ticker=ticker,
+            start_date=start,
+            end_date=end
+        )
+        if history:
+            logger.info(f"Found {len(history)} cached records for {ticker}")
 
     return {
         "ticker": ticker,
