@@ -546,6 +546,32 @@ class StockDataService:
             if close_db:
                 db.close()
 
+    def get_latest_trade_date(self, ticker: str, db: Session = None) -> Optional[date]:
+        """
+        Get the latest trade date we have in the database for a ticker
+
+        Args:
+            ticker: Stock ticker
+            db: Database session (optional)
+
+        Returns:
+            Latest trade date or None if no data exists
+        """
+        close_db = False
+        if db is None:
+            db = self.get_db()
+            close_db = True
+
+        try:
+            latest = db.query(StockDaily).filter(
+                StockDaily.ticker == ticker
+            ).order_by(desc(StockDaily.trade_date)).first()
+
+            return latest.trade_date if latest else None
+        finally:
+            if close_db:
+                db.close()
+
     def fetch_and_store_capiq_history(
         self,
         ticker: str,
@@ -555,6 +581,9 @@ class StockDataService:
     ) -> int:
         """
         Fetch historical price data from CapIQ and store in database
+
+        Optimized for incremental updates: Only fetches missing recent days
+        if we already have historical data in the database.
 
         Args:
             ticker: Stock ticker (e.g., "2561.HK" or "6855")
@@ -577,6 +606,27 @@ class StockDataService:
             if market is None:
                 market = "HK" if ".HK" in ticker.upper() else "US"
 
+            # Check what data we already have
+            latest_date = self.get_latest_trade_date(ticker, db)
+            today = date.today()
+
+            # Calculate how many days we actually need to fetch
+            if latest_date:
+                days_missing = (today - latest_date).days
+
+                # If data is recent (within last 7 days), only fetch missing days + 2 buffer
+                if days_missing <= 7:
+                    days_to_fetch = min(days_missing + 2, days)
+                    logger.info(f"Incremental update for {ticker}: latest={latest_date}, fetching {days_to_fetch} days instead of {days}")
+                # If data is old (>7 days), do full fetch
+                else:
+                    days_to_fetch = days
+                    logger.info(f"Full update for {ticker}: latest={latest_date} is {days_missing} days old, fetching {days} days")
+            else:
+                # No existing data, do full fetch
+                days_to_fetch = days
+                logger.info(f"Initial fetch for {ticker}: no existing data, fetching {days} days")
+
             # Fetch historical data from CapIQ
             capiq_service = get_capiq_service()
             if not capiq_service.available:
@@ -586,7 +636,7 @@ class StockDataService:
             historical_data = capiq_service.get_historical_prices(
                 ticker=ticker,
                 market=market,
-                days=days
+                days=days_to_fetch
             )
 
             if not historical_data:
