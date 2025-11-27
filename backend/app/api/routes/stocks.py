@@ -1643,32 +1643,16 @@ async def get_stock_history(
     tushare_needed = False
 
     if capiq_service.available:
-        logger.info(f"Fetching historical data from CapIQ for {ticker} (market={market}, days={days})")
+        logger.info(f"Fetching and storing historical data from CapIQ for {ticker} (market={market}, days={days})")
         try:
-            capiq_history = capiq_service.get_historical_prices(
+            # Use the service method that properly stores CapIQ data with correct data_source
+            records_stored = service.fetch_and_store_capiq_history(
                 ticker=ticker,
-                market=market if market else 'US',
                 days=days
             )
 
-            if capiq_history:
-                logger.info(f"CapIQ returned {len(capiq_history)} records for {ticker} (requested {days} days)")
-                capiq_record_count = len(capiq_history)
-
-                # Store CapIQ data in database for future use
-                for record in capiq_history:
-                    try:
-                        service.store_price_data(
-                            ticker=ticker,
-                            trade_date=record['trade_date'],
-                            open_price=record['open'],
-                            high=record['high'],
-                            low=record['low'],
-                            close=record['close'],
-                            volume=record['volume']
-                        )
-                    except Exception as store_error:
-                        logger.warning(f"Failed to store CapIQ data for {ticker}: {store_error}")
+            if records_stored > 0:
+                logger.info(f"CapIQ stored {records_stored} records for {ticker}")
 
                 # Retrieve from database
                 history = service.get_historical_data(
@@ -1678,11 +1662,11 @@ async def get_stock_history(
                 )
 
                 if history:
-                    logger.info(f"Successfully stored and retrieved {len(history)} records from CapIQ")
+                    logger.info(f"Successfully retrieved {len(history)} CapIQ records for {ticker}")
 
                 # If CapIQ data is insufficient (less than 50% of requested), try Tushare to supplement
-                if capiq_record_count < days * 0.5:
-                    logger.warning(f"CapIQ only has {capiq_record_count} days of data for {ticker}, trying Tushare to supplement")
+                if records_stored < days * 0.5:
+                    logger.warning(f"CapIQ only has {records_stored} days of data for {ticker}, trying Tushare to supplement")
                     tushare_needed = True
                 else:
                     tushare_needed = False
