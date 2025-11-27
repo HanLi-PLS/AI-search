@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 // Simple in-memory cache for API responses (speeds up navigation)
+// Stock data updates daily after market close, so cache for 12 hours
 const apiCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours
 
 const getCached = (key) => {
   const cached = apiCache.get(key);
