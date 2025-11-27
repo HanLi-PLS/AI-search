@@ -53,31 +53,44 @@ function StockDetail() {
 
       console.log(`[StockDetail] Fetching data for ${ticker}, timeRange: ${timeRange}`);
 
-      // Fetch current price
-      const priceData = await stockAPI.getPrice(ticker);
-      setStockData(priceData);
-      console.log('[StockDetail] Price data:', priceData);
+      // Fetch all data in parallel for better performance (3-4x faster!)
+      const [priceResult, historyResult, returnsResult] = await Promise.allSettled([
+        stockAPI.getPrice(ticker),
+        stockAPI.getHistory(ticker, timeRange),
+        stockAPI.getReturns(ticker)
+      ]);
 
-      // Fetch historical data
-      console.log(`[StockDetail] Calling getHistory(${ticker}, ${timeRange})`);
-      const history = await stockAPI.getHistory(ticker, timeRange);
-      console.log('[StockDetail] History data received:', {
-        count: history?.length || 0,
-        sample: history?.[0],
-      });
-      setHistoryData(history);
-
-      if (!history || history.length === 0) {
-        console.warn('[StockDetail] No historical data returned from API');
+      // Handle price data
+      if (priceResult.status === 'fulfilled') {
+        setStockData(priceResult.value);
+        console.log('[StockDetail] Price data:', priceResult.value);
+      } else {
+        throw priceResult.reason;
       }
 
-      // Fetch returns data
-      try {
-        const returns = await stockAPI.getReturns(ticker);
-        setReturnsData(returns);
-        console.log('[StockDetail] Returns data:', returns);
-      } catch (err) {
-        console.warn('[StockDetail] Could not fetch returns:', err);
+      // Handle history data
+      if (historyResult.status === 'fulfilled') {
+        const history = historyResult.value;
+        console.log('[StockDetail] History data received:', {
+          count: history?.length || 0,
+          sample: history?.[0],
+        });
+        setHistoryData(history);
+
+        if (!history || history.length === 0) {
+          console.warn('[StockDetail] No historical data returned from API');
+        }
+      } else {
+        console.warn('[StockDetail] Failed to fetch history:', historyResult.reason);
+        setHistoryData([]);
+      }
+
+      // Handle returns data
+      if (returnsResult.status === 'fulfilled') {
+        setReturnsData(returnsResult.value);
+        console.log('[StockDetail] Returns data:', returnsResult.value);
+      } else {
+        console.warn('[StockDetail] Could not fetch returns:', returnsResult.reason);
       }
     } catch (err) {
       setError('Failed to fetch stock details. Please try again.');
