@@ -2209,11 +2209,8 @@ async def get_portfolio_companies(force_refresh: bool = False):
                     "last_updated": datetime.now().isoformat(),
                 }
 
-                # Try to calculate daily change from database history
-                try:
-                    result = calculate_daily_change_from_db(ticker, result)
-                except Exception as e:
-                    logger.debug(f"Could not calculate DB changes for {ticker}: {str(e)}")
+                # Don't call calculate_daily_change_from_db - use CapIQ data directly
+                # This ensures we use fresh CapIQ data instead of stale Tushare cache
 
                 results.append(result)
             else:
