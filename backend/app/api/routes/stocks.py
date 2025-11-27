@@ -1646,9 +1646,11 @@ async def get_stock_history(
         logger.info(f"Fetching and storing historical data from CapIQ for {ticker} (market={market}, days={days})")
         try:
             # Use the service method that properly stores CapIQ data with correct data_source
+            # This will automatically update old Tushare records with CapIQ data and change data_source
             records_stored = service.fetch_and_store_capiq_history(
                 ticker=ticker,
-                days=days
+                days=days,
+                market=market if market else "US"
             )
 
             if records_stored > 0:

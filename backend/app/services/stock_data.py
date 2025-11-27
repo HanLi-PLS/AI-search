@@ -550,14 +550,16 @@ class StockDataService:
         self,
         ticker: str,
         days: int = 365,
+        market: str = None,
         db: Session = None
     ) -> int:
         """
         Fetch historical price data from CapIQ and store in database
 
         Args:
-            ticker: Stock ticker (e.g., "2561.HK")
+            ticker: Stock ticker (e.g., "2561.HK" or "6855")
             days: Number of days of history to fetch (default 365 = 1 year)
+            market: Market identifier ("HK" or "US") - if None, determined from ticker format
             db: Database session (optional)
 
         Returns:
@@ -571,8 +573,9 @@ class StockDataService:
             close_db = True
 
         try:
-            # Determine market based on ticker
-            market = "HK" if ".HK" in ticker.upper() else "US"
+            # Determine market based on ticker format if not provided
+            if market is None:
+                market = "HK" if ".HK" in ticker.upper() else "US"
 
             # Fetch historical data from CapIQ
             capiq_service = get_capiq_service()
