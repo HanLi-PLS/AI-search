@@ -1,5 +1,26 @@
 import axios from 'axios';
 
+// Simple in-memory cache for API responses (speeds up navigation)
+const apiCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getCached = (key) => {
+  const cached = apiCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`[Cache HIT] ${key}`);
+    return cached.data;
+  }
+  if (cached) {
+    apiCache.delete(key); // Remove stale cache
+  }
+  return null;
+};
+
+const setCache = (key, data) => {
+  apiCache.set(key, { data, timestamp: Date.now() });
+  console.log(`[Cache SET] ${key}`);
+};
+
 // Use relative URLs - Nginx proxies /api requests to backend
 // This works with both HTTP and HTTPS
 const api = axios.create({
@@ -96,12 +117,21 @@ export const stockAPI = {
 
   // Get price for specific ticker
   getPrice: async (ticker) => {
+    const cacheKey = `price:${ticker}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/api/stocks/price/${ticker}`);
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
   // Get historical data from database
   getHistory: async (ticker, timeRange = '1M') => {
+    const cacheKey = `history:${ticker}:${timeRange}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached.data; // Return the array directly
+
     // Convert time range to days
     const daysMap = {
       '1W': 7,
@@ -121,6 +151,7 @@ export const stockAPI = {
     });
 
     console.log('[API] Raw response:', response.data);
+    setCache(cacheKey, response.data);
 
     // Transform the response to match the expected format for the chart
     if (response.data && response.data.data) {
@@ -175,7 +206,12 @@ export const stockAPI = {
 
   // Get returns (% gain/loss) for different time periods
   getReturns: async (ticker) => {
+    const cacheKey = `returns:${ticker}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get(`/api/stocks/${ticker}/returns`);
+    setCache(cacheKey, response.data);
     return response.data;
   },
 

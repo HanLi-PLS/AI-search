@@ -228,12 +228,9 @@ function StockDetail() {
 
   // Handle back navigation with preserved sort parameter
   const handleBackToTracker = () => {
-    const returnSort = location.state?.returnSort;
-    if (returnSort) {
-      navigate(`/stock-tracker?sort=${returnSort}`);
-    } else {
-      navigate('/stock-tracker');
-    }
+    // Use browser back button to return to cached state (faster!)
+    // This preserves the previous page state without reloading
+    navigate(-1);
   };
 
   if (loading) {
