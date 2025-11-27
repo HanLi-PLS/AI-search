@@ -22,6 +22,11 @@ const setCache = (key, data) => {
   console.log(`[Cache SET] ${key}`);
 };
 
+const clearCache = (key) => {
+  apiCache.delete(key);
+  console.log(`[Cache CLEAR] ${key}`);
+};
+
 // Use relative URLs - Nginx proxies /api requests to backend
 // This works with both HTTP and HTTPS
 const api = axios.create({
@@ -110,9 +115,16 @@ export const stockAPI = {
 
   // Get all stock prices
   getAllPrices: async (forceRefresh = false) => {
+    const cacheKey = 'allPrices';
+    if (!forceRefresh) {
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
+    }
+
     const response = await api.get('/api/stocks/prices', {
       params: { force_refresh: forceRefresh }
     });
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
@@ -187,21 +199,38 @@ export const stockAPI = {
 
   // Get database statistics
   getHistoryStats: async () => {
+    const cacheKey = 'historyStats';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get('/api/stocks/history/stats');
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
   // Get upcoming IPOs
   getUpcomingIPOs: async () => {
+    const cacheKey = 'upcomingIPOs';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get('/api/stocks/upcoming-ipos');
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
   // Get portfolio companies
   getPortfolioCompanies: async (forceRefresh = false) => {
+    const cacheKey = 'portfolioCompanies';
+    if (!forceRefresh) {
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
+    }
+
     const response = await api.get('/api/stocks/portfolio', {
       params: { force_refresh: forceRefresh }
     });
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
@@ -243,6 +272,8 @@ export const watchlistAPI = {
     const response = await api.post('/api/watchlist/add', null, {
       params: { ticker, market }
     });
+    // Clear watchlist cache so next fetch gets updated data
+    clearCache('watchlist');
     return response.data;
   },
 
@@ -251,12 +282,19 @@ export const watchlistAPI = {
     const response = await api.delete('/api/watchlist/remove', {
       params: { ticker, market }
     });
+    // Clear watchlist cache so next fetch gets updated data
+    clearCache('watchlist');
     return response.data;
   },
 
   // Get user's watchlist with live data
   getWatchlist: async () => {
+    const cacheKey = 'watchlist';
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const response = await api.get('/api/watchlist/list');
+    setCache(cacheKey, response.data);
     return response.data;
   },
 
