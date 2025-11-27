@@ -657,9 +657,19 @@ async def get_watchlist(
                         exchange_name=item.exchange_name
                     )
                     if live_data:
+                        # Calculate intraday change from CapIQ open/close prices
+                        change = None
+                        change_percent = None
+                        if live_data.get('price_close') and live_data.get('price_open'):
+                            change = live_data['price_close'] - live_data['price_open']
+                            change_percent = (change / live_data['price_open'] * 100) if live_data['price_open'] != 0 else 0
+
                         # Merge stored data with live data
                         company_dict['live_data'] = {
                             'price_close': live_data.get('price_close'),
+                            'price_open': live_data.get('price_open'),
+                            'price_high': live_data.get('price_high'),
+                            'price_low': live_data.get('price_low'),
                             'volume': live_data.get('volume'),
                             'market_cap': live_data.get('market_cap'),
                             'market_cap_currency': live_data.get('market_cap_currency'),
@@ -671,6 +681,8 @@ async def get_watchlist(
                             'ps_ratio': live_data.get('ps_ratio'),
                             'ps_ratio_note': live_data.get('ps_ratio_note'),
                             'listing_date': live_data.get('listing_date'),
+                            'change': change,
+                            'change_percent': change_percent,
                         }
                         company_dict['data_available'] = True
                     else:

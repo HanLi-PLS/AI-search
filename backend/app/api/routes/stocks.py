@@ -2176,11 +2176,12 @@ async def get_portfolio_companies(force_refresh: bool = False):
             )
 
             if capiq_data:
-                # Calculate change and change_percent if available
+                # Calculate intraday change from CapIQ open/close prices
                 change = None
                 change_percent = None
-                # CapIQ get_company_data only returns price_close
-                # Change will be calculated from database history if available
+                if capiq_data.get('price_close') and capiq_data.get('price_open'):
+                    change = capiq_data['price_close'] - capiq_data['price_open']
+                    change_percent = (change / capiq_data['price_open'] * 100) if capiq_data['price_open'] != 0 else 0
 
                 result = {
                     "ticker": ticker,
@@ -2188,11 +2189,12 @@ async def get_portfolio_companies(force_refresh: bool = False):
                     "market": market,
                     "currency": company['currency'],
                     "current_price": capiq_data.get('price_close'),
-                    "open": None,  # CapIQ get_company_data doesn't return open
-                    "day_high": None,
-                    "day_low": None,
+                    "open": capiq_data.get('price_open'),
+                    "day_high": capiq_data.get('price_high'),
+                    "day_low": capiq_data.get('price_low'),
                     "volume": capiq_data.get('volume'),
                     "market_cap": capiq_data.get('market_cap'),
+                    "market_cap_currency": capiq_data.get('market_cap_currency'),
                     "change": change,
                     "change_percent": change_percent,
                     "industry": capiq_data.get('industry'),
@@ -2200,6 +2202,9 @@ async def get_portfolio_companies(force_refresh: bool = False):
                     "exchange_name": capiq_data.get('exchange_name'),
                     "exchange_symbol": capiq_data.get('exchange_symbol'),
                     "pricing_date": capiq_data.get('pricing_date'),
+                    "ttm_revenue": capiq_data.get('ttm_revenue'),
+                    "ttm_revenue_currency": capiq_data.get('ttm_revenue_currency'),
+                    "ps_ratio": capiq_data.get('ps_ratio'),
                     "data_source": "CapIQ",
                     "last_updated": datetime.now().isoformat(),
                 }
