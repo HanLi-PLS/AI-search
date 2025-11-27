@@ -136,6 +136,12 @@ function StockCard({ stock }) {
               {stock.currency} {formatMarketCap(stock.market_cap)}
             </span>
           </div>
+          {stock.ps_ratio !== null && stock.ps_ratio !== undefined && (
+            <div className="detail-row">
+              <span className="detail-label">P/S Ratio:</span>
+              <span className="detail-value">{formatNumber(stock.ps_ratio)}</span>
+            </div>
+          )}
         </div>
       )}
 

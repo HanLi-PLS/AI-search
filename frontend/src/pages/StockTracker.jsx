@@ -556,6 +556,11 @@ function StockTracker() {
         return (b.current_price || 0) - (a.current_price || 0);
       } else if (sortBy === 'change') {
         return (b.change_percent || 0) - (a.change_percent || 0);
+      } else if (sortBy === 'ps') {
+        // Sort by P/S ratio (high to low), put null/undefined at the end
+        const aPs = a.ps_ratio ?? -Infinity;
+        const bPs = b.ps_ratio ?? -Infinity;
+        return bPs - aPs;
       }
       return 0;
     });
@@ -685,6 +690,7 @@ function StockTracker() {
                 <option value="name">Company Name</option>
                 <option value="price">Price (High to Low)</option>
                 <option value="change">Change % (High to Low)</option>
+                <option value="ps">P/S Ratio (High to Low)</option>
               </select>
             </div>
 
