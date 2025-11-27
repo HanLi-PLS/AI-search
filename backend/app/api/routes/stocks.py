@@ -52,6 +52,10 @@ router = APIRouter()
 _stock_cache = {}
 _cache_ttl = timedelta(hours=12)  # Cache for 12 hours (refreshed at 12 AM and 12 PM)
 
+# Bulk prices cache (12 hour TTL) - for /stocks/prices endpoint
+_bulk_prices_cache = None
+_bulk_prices_cache_time = None
+
 # Company list cache (24 hour TTL)
 _company_list_cache = None
 _company_list_cache_time = None
@@ -928,7 +932,18 @@ async def get_all_prices(force_refresh: bool = False):
     Returns:
         List of stock data for all HKEX 18A biotech companies with CapIQ pricing
     """
+    global _bulk_prices_cache, _bulk_prices_cache_time
+
     from backend.app.services.capiq_data import get_capiq_service
+
+    # Check cache first (unless force_refresh is True)
+    if not force_refresh and _bulk_prices_cache is not None and _bulk_prices_cache_time is not None:
+        cache_age = datetime.now() - _bulk_prices_cache_time
+        if cache_age < _cache_ttl:
+            logger.info(f"Returning cached bulk prices (age: {cache_age}, expires in: {_cache_ttl - cache_age})")
+            return _bulk_prices_cache
+
+    logger.info(f"Fetching fresh bulk prices data (force_refresh={force_refresh})")
 
     try:
         # Step 1: Get the verified HKEX 18A company list (our 66 companies)
@@ -1160,6 +1175,12 @@ async def get_all_prices(force_refresh: bool = False):
 
         matched_count = len([r for r in results if r.get('current_price')])
         logger.info(f"Matched {matched_count} / {len(verified_companies)} verified companies with CapIQ data")
+
+        # Cache the results before returning
+        _bulk_prices_cache = results
+        _bulk_prices_cache_time = datetime.now()
+        logger.info(f"Cached bulk prices data for 12 hours")
+
         return results
 
     except Exception as e:
