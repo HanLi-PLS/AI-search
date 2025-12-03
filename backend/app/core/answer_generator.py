@@ -263,7 +263,6 @@ Analyze the query now:"""
             logger.info(f"[QUERY ANALYSIS] Analyzing query for extraction plan...")
             response = self.client.responses.create(
                 model="gpt-5.1",  # Use advanced model for query analysis
-                temperature=0,
                 input=analysis_prompt,
                 service_tier="priority"
             )
@@ -461,7 +460,6 @@ If this is a follow-up question referring to previous conversation, use the cont
             try:
                 response = self.client.responses.create(
                     model=self.model,
-                    temperature=self.temperature,
                     input=prompt,
                     service_tier="priority"
                 )
@@ -539,7 +537,6 @@ If this is a follow-up question referring to previous conversation, use the cont
                 logger.info(f"[SEQUENTIAL] Step 1: Extracting info from files using {self.model} with guided analysis...")
                 extraction_response = self.client.responses.create(
                     model=self.model,
-                    temperature=self.temperature,
                     input=extraction_prompt,
                     service_tier="priority"
                 )
@@ -617,7 +614,6 @@ For **custom**: Structure based on the specific question
                 logger.info(f"[SEQUENTIAL] Step 3: Generating final answer using {self.model}...")
                 final_response = self.client.responses.create(
                     model=self.model,
-                    temperature=self.temperature,
                     input=final_prompt,
                     service_tier="priority"
                 )
@@ -712,7 +708,6 @@ If this is a follow-up question referring to previous conversation, use the cont
             try:
                 response = self.client.responses.create(
                     model=self.model,
-                    temperature=self.temperature,
                     input=prompt,
                     service_tier="priority"
                 )
