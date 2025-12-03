@@ -874,7 +874,7 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                               turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
                               turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
                               turn.search_params.search_mode}</strong></span>
-                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Non-Reasoning (gpt-4.1)' :
+                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Non-Reasoning (gpt-5.1)' :
                               turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (o4-mini)' :
                               turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
                               turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
