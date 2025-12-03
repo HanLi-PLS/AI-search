@@ -60,19 +60,24 @@ class AnswerGenerator:
    - Use when: Query needs information from both sources but they can be processed independently
    - Examples: "What does my document say and what's the current status?", "Compare my data with industry standards"
 
-4. **sequential_analysis**: Extract from files first, then search online using extracted info
+4. **sequential_analysis**: Extract from files first, then search online using extracted info (basic)
    - Use when: Query requires extracting specific information from files first, then using that to search for comparative/competitive data online
    - Examples: "What's our drug efficacy and how does it compare to competitors?", "Extract our metrics and benchmark against industry", "Get our performance data and compare with others"
 
+5. **smart**: Intelligent mode with automatic query analysis (uses gpt-5.1 for planning)
+   - Use when: Query is complex and would benefit from intelligent extraction planning, competitor analysis, KOL follow-ups, market assessments, or multi-dimensional research
+   - Examples: "Who are our competitors?", "Generate follow-up questions from call notes", "Market opportunity analysis", "Risk assessment"
+
 **Instructions**:
 Analyze the query carefully and select the most appropriate mode. Consider:
-- Does the query mention personal documents/files? (suggests files_only or sequential)
-- Does it require current/external information? (suggests online_only or both/sequential)
-- Does it need extraction followed by comparison? (suggests sequential_analysis)
+- Does the query mention personal documents/files? (suggests files_only or sequential/smart)
+- Does it require current/external information? (suggests online_only or both/sequential/smart)
+- Does it need extraction followed by comparison? (suggests sequential_analysis or smart)
+- Is it a complex analysis query? (suggests smart)
 - Can both sources be processed in parallel? (suggests both)
 
 **Response Format** (you must respond in exactly this format):
-MODE: [files_only|online_only|both|sequential_analysis]
+MODE: [files_only|online_only|both|sequential_analysis|smart]
 REASONING: [Brief explanation in 1-2 sentences why this mode was chosen]
 
 Example responses:
@@ -81,6 +86,9 @@ REASONING: The query asks to extract drug efficacy from the user's files and the
 
 MODE: online_only
 REASONING: The query asks for current market trends which requires up-to-date online information not available in personal documents.
+
+MODE: smart
+REASONING: The query requires complex competitor analysis with intelligent extraction of company assets followed by targeted online searches, which benefits from gpt-5.1's planning capabilities.
 
 Now classify the user's query."""
 
@@ -101,7 +109,9 @@ Now classify the user's query."""
                 if line.startswith("MODE:"):
                     mode_text = line.replace("MODE:", "").strip().lower()
                     # Extract just the mode name (in case there's extra text)
-                    if "files_only" in mode_text:
+                    if "smart" in mode_text:
+                        mode = "smart"
+                    elif "files_only" in mode_text:
                         mode = "files_only"
                     elif "online_only" in mode_text:
                         mode = "online_only"
@@ -187,7 +197,7 @@ Now classify the user's query."""
         Args:
             query: User's question
             search_results: List of search results with content and metadata
-            search_mode: "files_only", "online_only", "both", or "sequential_analysis"
+            search_mode: "files_only", "online_only", "both", "sequential_analysis", or "smart"
             reasoning_mode: "non_reasoning" (gpt-4.1), "reasoning" (o4-mini), "reasoning_gpt5" (gpt-5-pro), or "deep_research" (o3-deep-research)
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             conversation_history: Previous conversation turns for context
@@ -404,6 +414,179 @@ If this is a follow-up question referring to previous conversation, use the cont
                 return final_response.output_text, online_search_response, extracted_info
             except Exception as e:
                 logger.error(f"[SEQUENTIAL] Step 3 FAILED: {str(e)}")
+                return f"Error generating final answer: {str(e)}", online_search_response, extracted_info
+
+        # Handle smart mode - intelligent query analysis with gpt-5.1
+        if search_mode == "smart":
+            import time
+            import json
+            smart_start_time = time.time()
+            logger.info(f"[SMART] Starting smart mode with gpt-5.1 query analysis for: {query[:50]}...")
+
+            if not search_results:
+                return "I couldn't find any relevant information in your files to analyze.", None, None
+
+            # Step 1: Use gpt-5.1 to analyze query and create extraction plan
+            files_context_parts = []
+            current_length = 0
+            for idx, result in enumerate(search_results, 1):
+                content = result.get("content", "")
+                metadata = result.get("metadata", {})
+                source = metadata.get("source", "Unknown")
+                chunk = f"[Source {idx}: {source}]\n{content}\n"
+                chunk_length = len(chunk)
+                if current_length + chunk_length > max_context_length:
+                    break
+                files_context_parts.append(chunk)
+                current_length += chunk_length
+            files_context = "\n".join(files_context_parts)
+
+            # Create intelligent planning prompt with few-shot examples
+            planning_prompt = f"""You are an expert query analyzer for bioventure investing. Analyze the user's query and the available documents to create an intelligent extraction and search plan.
+
+**User Query**: {query}
+
+**Available Documents**:
+{files_context[:3000]}...
+
+**Your Task**: Create a structured plan for answering this query. Determine:
+1. What specific information to extract from the documents
+2. What online searches to perform using the extracted information
+3. How to combine the results
+
+**Few-Shot Examples**:
+
+Example 1 - Competitor Analysis:
+Query: "Who are our competitors?"
+Plan: {{
+    "query_type": "competitor_analysis",
+    "extraction_focus": "Extract company name, drug/product names, therapeutic targets, and indications",
+    "search_strategy": "For each drug/target, search online for: 'Companies developing [target] inhibitors for [indication]'",
+    "combination_approach": "Compare our pipeline with competitors, highlight differentiators"
+}}
+
+Example 2 - KOL Follow-up:
+Query: "Generate follow-up questions from this call"
+Plan: {{
+    "query_type": "kol_followup",
+    "extraction_focus": "Extract topics discussed, concerns raised, and unexplored areas",
+    "search_strategy": "Research background for each concern and unexplored area",
+    "combination_approach": "Create prioritized follow-up questions with rationale and background"
+}}
+
+Example 3 - Market Assessment:
+Query: "What's the market opportunity?"
+Plan: {{
+    "query_type": "market_assessment",
+    "extraction_focus": "Extract target indications and therapeutic areas",
+    "search_strategy": "Search market size, growth, competitive landscape, and regulatory environment",
+    "combination_approach": "Synthesize into investment thesis with TAM, competition, and risks"
+}}
+
+Now create a plan for the user's query. Respond in JSON format only:"""
+
+            try:
+                step1_start = time.time()
+                logger.info(f"[SMART] Step 1: Analyzing query with gpt-5.1...")
+                plan_response = self.client.responses.create(
+                    model="gpt-5.1",
+                    temperature=0.3,
+                    input=planning_prompt
+                )
+                plan_text = plan_response.output_text
+
+                # Extract JSON from response
+                if "```json" in plan_text:
+                    plan_text = plan_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in plan_text:
+                    plan_text = plan_text.split("```")[1].split("```")[0].strip()
+
+                plan = json.loads(plan_text)
+                step1_duration = time.time() - step1_start
+                logger.info(f"[SMART] Step 1 complete in {step1_duration:.1f}s. Query type: {plan.get('query_type', 'unknown')}")
+            except Exception as e:
+                logger.error(f"[SMART] Step 1 (Planning) FAILED: {str(e)}")
+                return f"Error analyzing query: {str(e)}", None, None
+
+            # Step 2: Extract information based on the intelligent plan
+            extraction_prompt = f"""You are an expert in bioventure investing.{conversation_context}
+
+**Question**: {query}
+
+**Documents**:
+{files_context}
+
+**Extraction Focus**: {plan.get('extraction_focus', 'Extract all relevant information')}
+
+Extract the requested information in a clear, structured format. Be concise and factual."""
+
+            try:
+                step2_start = time.time()
+                logger.info(f"[SMART] Step 2: Extracting info based on plan using {self.model}...")
+                extraction_response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=extraction_prompt
+                )
+                extracted_info = extraction_response.output_text
+                step2_duration = time.time() - step2_start
+                logger.info(f"[SMART] Step 2 complete in {step2_duration:.1f}s. Extracted {len(extracted_info)} chars")
+            except Exception as e:
+                logger.error(f"[SMART] Step 2 (Extraction) FAILED: {str(e)}")
+                return f"Error extracting information: {str(e)}", None, None
+
+            # Step 3: Perform intelligent online search based on plan
+            search_strategy = plan.get('search_strategy', 'Search for related information online')
+            online_search_prompt = f"""Based on the extracted information, {search_strategy}
+
+**Extracted Information**:
+{extracted_info}
+
+**Original Question**: {query}
+
+Search online for comprehensive information."""
+
+            try:
+                step3_start = time.time()
+                logger.info(f"[SMART] Step 3: Performing intelligent online search with {search_model}...")
+                online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
+                step3_duration = time.time() - step3_start
+                logger.info(f"[SMART] Step 3 complete in {step3_duration:.1f}s")
+            except Exception as e:
+                logger.error(f"[SMART] Step 3 (Search) FAILED: {str(e)}")
+                online_search_response = f"Error performing online search: {str(e)}"
+
+            # Step 4: Combine results using intelligent combination strategy
+            combination_approach = plan.get('combination_approach', 'Synthesize all information into a comprehensive answer')
+            final_prompt = f"""You are an expert in bioventure investing.{conversation_context}
+
+**Question**: {query}
+
+**Information from User's Documents**:
+{extracted_info}
+
+**Online Research Results**:
+{online_search_response}
+
+**Combination Strategy**: {combination_approach}
+
+Provide a comprehensive, well-structured answer. Bold key facts and insights. Be objective and factual."""
+
+            try:
+                step4_start = time.time()
+                logger.info(f"[SMART] Step 4: Generating final answer using {self.model}...")
+                final_response = self.client.responses.create(
+                    model=self.model,
+                    temperature=self.temperature,
+                    input=final_prompt
+                )
+                step4_duration = time.time() - step4_start
+                total_duration = time.time() - smart_start_time
+                logger.info(f"[SMART] Step 4 complete in {step4_duration:.1f}s")
+                logger.info(f"[SMART] Total smart mode completed in {total_duration:.1f}s")
+                return final_response.output_text, online_search_response, extracted_info
+            except Exception as e:
+                logger.error(f"[SMART] Step 4 (Synthesis) FAILED: {str(e)}")
                 return f"Error generating final answer: {str(e)}", online_search_response, extracted_info
 
         # Handle both mode with priority ordering

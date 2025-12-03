@@ -579,6 +579,7 @@ function AISearch() {
                 <option value="auto">Intelligent (Auto-select)</option><option value="files_only">Files Only</option>
                 <option value="online_only">Online Only</option><option value="both">Both (Files + Online)</option>
                 <option value="sequential_analysis">Sequential Analysis (Extract → Compare)</option>
+                <option value="smart">Smart (AI Planning with gpt-5.1)</option>
               </select></label>
             {searchMode === 'both' && (
               <label>Priority: <select value={priorityOrder} onChange={(e) => setPriorityOrder(e.target.value)} className="filter-select">
@@ -695,6 +696,7 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                               turn.search_params.search_mode === 'online_only' ? 'Online Only' :
                               turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
                               turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
+                              turn.search_params.search_mode === 'smart' ? 'Smart (AI Planning)' :
                               turn.search_params.search_mode}</strong></span>
                             <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Non-Reasoning (gpt-4.1)' :
                               turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (o4-mini)' :
