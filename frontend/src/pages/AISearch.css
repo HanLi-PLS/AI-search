@@ -1368,3 +1368,76 @@ body.sidebar-collapsed .chat-history-sidebar,
 body.sidebar-collapsed .open-sidebar-floating-button {
     display: flex;
 }
+
+/* Search Job Progress Indicator */
+.search-job-progress {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(0, 61, 165, 0.05), rgba(0, 61, 165, 0.02));
+    border: 2px solid var(--pantone-295u);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+}
+
+.search-job-progress .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.search-job-progress .progress-query {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--pantone-295u);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.search-job-progress .cancel-button {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.search-job-progress .cancel-button:hover {
+    background: #dc2626;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.search-job-progress .progress-bar-container {
+    width: 100%;
+    height: 24px;
+    background-color: rgba(0, 61, 165, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.search-job-progress .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--pantone-295u), #0052d9);
+    border-radius: 12px;
+    transition: width 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 61, 165, 0.3);
+}
+
+.search-job-progress .progress-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--pantone-295u);
+    font-weight: 500;
+}

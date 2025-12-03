@@ -324,4 +324,23 @@ export const cancelJob = async (jobId) => {
   }
 };
 
+// Search Job API (for long-running searches with reasoning_gpt5 and deep_research)
+export const getSearchJobStatus = async (jobId) => {
+  try {
+    const response = await api.get(`/api/search-jobs/${jobId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch search job status');
+  }
+};
+
+export const cancelSearchJob = async (jobId) => {
+  try {
+    const response = await api.post(`/api/search-jobs/${jobId}/cancel`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to cancel search job');
+  }
+};
+
 export default api;
