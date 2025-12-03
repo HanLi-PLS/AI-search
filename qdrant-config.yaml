@@ -1,0 +1,27 @@
+service:
+  # Maximum number of threads for search operations
+  max_search_threads: 4
+
+storage:
+  # Store payload on disk instead of RAM for better scalability
+  on_disk_payload: true
+
+  # Optimize for large collections
+  performance:
+    # Maximum number of segments
+    max_segment_size_kb: 100000
+
+  # Enable Write-Ahead Log (WAL) for durability
+  wal:
+    # WAL capacity in MB
+    wal_capacity_mb: 32
+    # Flush interval in seconds
+    wal_segments_ahead: 0
+
+# Optional: Enable scalar quantization (reduces vector memory by 4x)
+# Uncomment when you want to trade slight accuracy for 4x memory savings
+# quantization:
+#   scalar:
+#     type: int8
+#     quantile: 0.99
+#     always_ram: false

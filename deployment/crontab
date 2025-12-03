@@ -1,0 +1,21 @@
+# AI-Search Stock Tracker - Automated Tasks
+#
+# This crontab file contains scheduled tasks for the stock tracker application
+#
+# To install: crontab deployment/crontab
+# To view: crontab -l
+# To remove: crontab -r
+
+# Daily backend restart at 6 PM UTC (2 AM HKT) to clear cache
+# Prevents stale Tushare fallback data from persisting
+# Ensures fresh CapIQ data with currency and exchange rates
+0 18 * * * /usr/bin/pm2 restart ai-search-backend > /dev/null 2>&1
+
+# Update CapIQ historical data daily after HK market close
+# Runs Monday-Friday at 9:00 AM UTC (5:00 PM HKT)
+# Fetches last 5 days of data to ensure we have the latest prices
+0 9 * * 1-5 curl -X POST http://localhost:8000/api/stocks/update-capiq-history?days=5 >> /opt/ai-search/logs/capiq-update.log 2>&1
+
+# Weekly full refresh on Sunday at 2:00 AM UTC
+# Fetches 365 days (1 year) to backfill any gaps from weekends/holidays
+0 2 * * 0 curl -X POST http://localhost:8000/api/stocks/update-capiq-history?days=365 >> /opt/ai-search/logs/capiq-update-weekly.log 2>&1
