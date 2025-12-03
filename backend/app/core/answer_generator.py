@@ -395,7 +395,7 @@ Analyze the query now:"""
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:  # non_reasoning
-            search_model = "gpt-4.1"
+            search_model = "gpt-5.1"
 
         logger.info(f"Using reasoning mode '{reasoning_mode}' with model '{search_model}'")
 

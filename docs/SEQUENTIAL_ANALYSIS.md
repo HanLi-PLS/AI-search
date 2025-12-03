@@ -117,10 +117,12 @@ POST /api/search
 
 ### Reasoning Modes
 
-- `non_reasoning` - Fast, uses GPT-4.1 (default)
+- `non_reasoning` - Fast, uses GPT-5.1 (default)
 - `reasoning` - More thorough, uses o4-mini
 - `reasoning_gpt5` - Advanced reasoning, uses GPT-5-pro
 - `deep_research` - Comprehensive research, uses o3-deep-research
+
+**Note:** All reasoning modes use `service_tier="priority"` for faster response times and better reliability.
 
 ### Response Structure
 
@@ -240,13 +242,19 @@ The sequential analysis feature uses these models (configurable in `backend/app/
 
 ```python
 # Query Analysis (Step 0)
-QUERY_ANALYSIS_MODEL = "gpt-5.1"
+# Always uses gpt-5.1 for query analysis
 
 # Extraction and Synthesis (Steps 1 & 3)
-ANSWER_MODEL = "gpt-4.1"
+ANSWER_MODEL = "gpt-5.1"  # Default model for extraction and synthesis
 
 # Online Search (Step 2)
-ONLINE_SEARCH_MODEL = "o4-mini"  # Can be overridden by reasoning_mode
+ONLINE_SEARCH_MODEL = "o4-mini"  # Default, can be overridden by reasoning_mode
+
+# Reasoning Mode Model Mapping (all use service_tier="priority"):
+# - non_reasoning: gpt-5.1 (fast, default)
+# - reasoning: o4-mini (more thorough reasoning)
+# - reasoning_gpt5: gpt-5-pro (advanced reasoning)
+# - deep_research: o3-deep-research (comprehensive research)
 ```
 
 ## Error Handling
