@@ -364,13 +364,21 @@ function AISearch() {
 
     try {
       const priority = priorityOrder === 'online_first' ? ['online_search', 'files'] : ['files', 'online_search'];
+
+      // Only send query and answer in conversation history (not results/sources)
+      // to avoid bloating the API request with source chunks
+      const conversationHistoryForAPI = conversationHistory.map(turn => ({
+        query: turn.query,
+        answer: turn.answer
+      }));
+
       const result = await searchDocuments({
         query: searchQuery.trim(),
         top_k: topK,
         search_mode: searchMode,
         reasoning_mode: reasoningMode,
         priority_order: priority,
-        conversation_history: conversationHistory,
+        conversation_history: conversationHistoryForAPI,
         conversation_id: currentConversationId
       });
 
