@@ -208,6 +208,7 @@ For non-chart content, extract all text, tables, and other information as usual.
                         ],
                     }
                 ],
+                extra_body={"service_tier": "priority"}
             )
             return response.choices[0].message.content
 
@@ -270,6 +271,7 @@ For non-chart content, extract all text, tables, and other information as usual.
                         ],
                     }
                 ],
+                extra_body={"service_tier": "priority"}
             )
             return response.choices[0].message.content
 

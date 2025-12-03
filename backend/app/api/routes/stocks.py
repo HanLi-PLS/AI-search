@@ -646,7 +646,8 @@ If you cannot find reliable data, return null. Do not include explanations, only
                 }
             ],
             max_tokens=300,
-            temperature=0
+            temperature=0,
+            extra_body={"service_tier": "priority"}
         )
 
         result_text = response.choices[0].message.content.strip()
