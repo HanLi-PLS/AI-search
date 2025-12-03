@@ -259,11 +259,16 @@ export const uploadFile = async (file, conversationId = null, relativePath = nul
   }
 };
 
-export const searchDocuments = async (searchRequest) => {
+export const searchDocuments = async (searchRequest, abortSignal = null) => {
   try {
-    const response = await api.post('/api/search', searchRequest);
+    const response = await api.post('/api/search', searchRequest, {
+      signal: abortSignal
+    });
     return response.data;
   } catch (error) {
+    if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+      throw new Error('Search cancelled by user');
+    }
     throw new Error(error.response?.data?.detail || 'Search failed');
   }
 };

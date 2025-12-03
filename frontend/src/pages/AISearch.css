@@ -345,6 +345,38 @@ section h2 {
     height: 20px;
 }
 
+.cancel-search-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: white;
+    background-color: var(--danger-color);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    animation: fadeIn 0.3s ease;
+}
+
+.cancel-search-button:hover {
+    background-color: #dc2626;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .new-conversation-button {
     display: flex;
     align-items: center;
@@ -998,6 +1030,16 @@ section h2 {
     }
 
     .search-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .cancel-search-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .new-conversation-button {
         width: 100%;
         justify-content: center;
     }

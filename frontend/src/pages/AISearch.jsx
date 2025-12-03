@@ -39,6 +39,7 @@ function AISearch() {
   const pollingTimersRef = useRef(new Map()); // Track active polling timers
   const abortControllersRef = useRef(new Map()); // Track abort controllers for uploads
   const searchJobTimerRef = useRef(null); // Track search job polling timer
+  const searchAbortControllerRef = useRef(null); // Track abort controller for current search
 
   useEffect(() => {
     const history = getCurrentHistory();
@@ -65,6 +66,12 @@ function AISearch() {
       if (searchJobTimerRef.current) {
         clearTimeout(searchJobTimerRef.current);
         searchJobTimerRef.current = null;
+      }
+
+      // Abort ongoing search
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+        searchAbortControllerRef.current = null;
       }
 
       // Abort all ongoing uploads
@@ -208,6 +215,13 @@ function AISearch() {
 
   const handleCancelSearchJob = useCallback(async () => {
     if (!searchJobStatus?.jobId) return;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this search?\n\nThis will stop the current search process and save API token usage.'
+    );
+
+    if (!confirmed) return;
 
     try {
       await cancelSearchJob(searchJobStatus.jobId);
@@ -500,10 +514,36 @@ function AISearch() {
     }
   }, [handleFileSelect]);
 
+  const handleCancelSearch = useCallback(() => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this search?\n\nThis will stop the current search process and save API token usage.'
+    );
+
+    if (!confirmed) return;
+
+    // Cancel synchronous search (if in progress)
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+      searchAbortControllerRef.current = null;
+      setLoading(false);
+      console.log('Synchronous search cancelled by user');
+    }
+
+    // Cancel async search job (if in progress)
+    if (searchJobStatus?.jobId) {
+      handleCancelSearchJob();
+    }
+  }, [searchJobStatus, handleCancelSearchJob]);
+
   const handleSearch = useCallback(async (e) => {
     e.preventDefault();
     if (!searchQuery.trim() || loading) return;
     setLoading(true);
+
+    // Create abort controller for this search
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
 
     try {
       const priority = priorityOrder === 'online_first' ? ['online_search', 'files'] : ['files', 'online_search'];
@@ -524,7 +564,10 @@ function AISearch() {
         priority_order: priority,
         conversation_history: conversationHistoryForAPI,
         conversation_id: currentConversationId
-      });
+      }, abortController.signal);
+
+      // Clear abort controller after successful request
+      searchAbortControllerRef.current = null;
 
       // Check if this is an async search job (long-running search)
       if (result.is_async && result.job_id) {
@@ -563,8 +606,16 @@ function AISearch() {
         }, 100);
       }
     } catch (error) {
+      // Clear abort controller on error
+      searchAbortControllerRef.current = null;
+
       console.error('Search error:', error);
-      alert('Search failed: ' + error.message);
+
+      // Don't show alert for user-cancelled searches
+      if (error.message !== 'Search cancelled by user') {
+        alert('Search failed: ' + error.message);
+      }
+
       setLoading(false);
     }
   }, [searchQuery, loading, topK, searchMode, reasoningMode, priorityOrder, conversationHistory, currentConversationId, updateCurrentConversation, searchResultsRef, pollSearchJobStatus]);
@@ -725,6 +776,11 @@ function AISearch() {
             <button type="submit" className="search-button" disabled={loading || !searchQuery.trim()}>
               {loading ? '⏳ Searching...' : '🔍 Search'}
             </button>
+            {loading && (
+              <button type="button" className="cancel-search-button" onClick={handleCancelSearch} title="Cancel search">
+                ✕ Cancel
+              </button>
+            )}
             <button type="button" className="new-conversation-button" onClick={handleNewConversation} title="Start a new conversation">
               ➕ New Chat
             </button>
