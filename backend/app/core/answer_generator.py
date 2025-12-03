@@ -121,6 +121,191 @@ Now classify the user's query."""
             logger.error(f"Error classifying query: {str(e)}")
             return "files_only", f"Error during classification, defaulting to files_only mode: {str(e)}"
 
+    def analyze_query_for_extraction(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Analyze the query to determine what information needs to be extracted from documents.
+        Uses few-shot prompting to guide the LLM in understanding different use case patterns.
+
+        Args:
+            query: User's original question
+            conversation_history: Previous conversation context
+
+        Returns:
+            Dictionary with extraction_plan, use_case_type, and reasoning
+        """
+        try:
+            conversation_context = self.format_conversation_history(conversation_history)
+
+            analysis_prompt = f"""You are an expert query analyzer for a document search and information extraction system. Your task is to analyze user queries and determine what specific information needs to be extracted from their documents BEFORE performing online searches.
+
+{conversation_context}
+
+**User Query**: "{query}"
+
+**Your Task**: Analyze this query and determine:
+1. What specific information needs to be extracted from the user's documents
+2. What use case pattern this query follows
+3. How the extracted information will be used for online search
+
+**Few-Shot Examples**:
+
+---
+**Example 1: Competitive Analysis Pattern**
+
+Query: "What are the competitors of PPInnova?"
+
+Analysis:
+- Use Case Type: competitive_analysis
+- Information to Extract from Documents:
+  1. Identify PPInnova's assets/products (drug names, compound IDs)
+  2. For each asset, extract:
+     - Indication (disease/condition being treated)
+     - Target (biological target, mechanism of action)
+     - Stage of development (if mentioned)
+     - Key efficacy metrics (if available)
+- Online Search Strategy:
+  - Search for companies with assets targeting the same indications and targets
+  - Search for clinical trials in the same indication
+  - Search for competitive landscape in the therapeutic area
+- Reasoning: To find competitors, we first need to know what PPInnova is developing. Only after extracting their assets, indications, and targets can we meaningfully search for companies working on similar treatments.
+
+---
+**Example 2: Follow-up Questions Pattern**
+
+Query: "Based on this KOL call note, what follow-up questions should we ask besides the ones already discussed?"
+
+Analysis:
+- Use Case Type: follow_up_questions
+- Information to Extract from Documents:
+  1. Identify all questions already asked in the call notes
+  2. Extract key topics discussed
+  3. Extract the KOL's responses and any gaps or ambiguities
+  4. Extract context about the therapeutic area, drug, or study being discussed
+  5. Note any concerns, objections, or areas of uncertainty raised by the KOL
+- Online Search Strategy:
+  - Search for best practices in KOL engagement for this therapeutic area
+  - Search for recent developments in the field that weren't addressed
+  - Search for common follow-up questions in similar contexts
+- Reasoning: To generate meaningful follow-up questions, we need to know what was already asked and what context exists. This prevents redundancy and ensures questions are relevant and build on the existing conversation.
+
+---
+**Example 3: Benchmarking Pattern**
+
+Query: "How does our product's efficacy compare to industry standards?"
+
+Analysis:
+- Use Case Type: benchmarking
+- Information to Extract from Documents:
+  1. Identify the product name and type
+  2. Extract efficacy metrics (response rates, endpoints, statistical significance)
+  3. Extract study design details (phase, patient population, dosing)
+  4. Extract any internal benchmarks or comparisons already mentioned
+- Online Search Strategy:
+  - Search for industry standard efficacy rates for similar products
+  - Search for competitor products' clinical trial results
+  - Search for meta-analyses or systematic reviews in the indication
+- Reasoning: To benchmark effectively, we need our own product's data first. The specific metrics, study design, and patient population will guide what online comparisons are relevant.
+
+---
+**Example 4: Market Intelligence Pattern**
+
+Query: "What partnerships or collaborations should we explore based on our pipeline?"
+
+Analysis:
+- Use Case Type: market_intelligence
+- Information to Extract from Documents:
+  1. Identify all assets in the pipeline
+  2. Extract development stage for each asset
+  3. Extract therapeutic areas and indications
+  4. Extract current capabilities and gaps (if mentioned)
+  5. Extract geographic focus or limitations
+- Online Search Strategy:
+  - Search for companies with complementary capabilities in those therapeutic areas
+  - Search for recent partnerships or deals in similar indications
+  - Search for companies with geographic strengths where needed
+- Reasoning: Partnership opportunities depend on understanding our own pipeline, capabilities, and gaps. Only with this context can we search for complementary partners online.
+
+---
+
+**Now analyze the user's query above and provide:**
+
+1. **Use Case Type**: [competitive_analysis | follow_up_questions | benchmarking | market_intelligence | custom]
+   - If "custom", briefly name the pattern
+
+2. **Information to Extract from Documents**:
+   - Provide a structured, numbered list of specific information items to extract
+   - Be concrete and actionable (what exactly to look for)
+
+3. **Online Search Strategy**:
+   - How will the extracted information guide the online search?
+   - What specific searches will be performed?
+
+4. **Reasoning**:
+   - Why does this query require sequential analysis (files first, then online)?
+   - What would go wrong if we searched online without extracting from documents first?
+
+**Format your response as JSON**:
+```json
+{{
+  "use_case_type": "...",
+  "information_to_extract": [
+    "Item 1: ...",
+    "Item 2: ..."
+  ],
+  "online_search_strategy": "...",
+  "reasoning": "..."
+}}
+```
+
+Analyze the query now:"""
+
+            logger.info(f"[QUERY ANALYSIS] Analyzing query for extraction plan...")
+            response = self.client.responses.create(
+                model="gpt-5.1",  # Use advanced model for query analysis
+                temperature=0,
+                input=analysis_prompt
+            )
+
+            analysis_text = response.output_text
+            logger.info(f"[QUERY ANALYSIS] Raw response: {analysis_text[:500]}...")
+
+            # Parse JSON response
+            import json
+            import re
+
+            # Extract JSON from response (handle markdown code blocks)
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # Try to find JSON without code blocks
+                json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    raise ValueError("Could not extract JSON from response")
+
+            analysis_result = json.loads(json_str)
+            logger.info(f"[QUERY ANALYSIS] Use case type: {analysis_result.get('use_case_type')}")
+            logger.info(f"[QUERY ANALYSIS] Items to extract: {len(analysis_result.get('information_to_extract', []))}")
+
+            return analysis_result
+
+        except Exception as e:
+            logger.error(f"[QUERY ANALYSIS] Error analyzing query: {str(e)}")
+            # Return default analysis
+            return {
+                "use_case_type": "custom",
+                "information_to_extract": [
+                    "Key facts, data, and metrics from documents",
+                    "Product names, compounds, or entities mentioned",
+                    "Quantitative data and statistics",
+                    "Key findings or conclusions"
+                ],
+                "online_search_strategy": "Use extracted information to search for comparative or supplementary data online",
+                "reasoning": f"Error during analysis, using default extraction plan: {str(e)}"
+            }
+
     def answer_online_search(self, prompt: str, model: Optional[str] = None) -> str:
         """
         Perform online search using OpenAI's web_search tool
@@ -291,7 +476,16 @@ If this is a follow-up question referring to previous conversation, use the cont
             if not search_results:
                 return "I couldn't find any relevant information in your files to extract.", None, None
 
-            # Step 1: Extract key information from files
+            # Step 0: Analyze query to determine what to extract (NEW)
+            step0_start = time.time()
+            logger.info(f"[SEQUENTIAL] Step 0: Analyzing query to determine extraction requirements...")
+            query_analysis = self.analyze_query_for_extraction(query, conversation_history)
+            step0_duration = time.time() - step0_start
+            logger.info(f"[SEQUENTIAL] Step 0 complete in {step0_duration:.1f}s")
+            logger.info(f"[SEQUENTIAL] Use case type: {query_analysis['use_case_type']}")
+            logger.info(f"[SEQUENTIAL] Extraction items: {len(query_analysis['information_to_extract'])}")
+
+            # Build files context
             files_context_parts = []
             current_length = 0
 
@@ -311,28 +505,34 @@ If this is a follow-up question referring to previous conversation, use the cont
 
             files_context = "\n".join(files_context_parts)
 
-            # Extract structured information from files
+            # Step 1: Extract information guided by Step 0 analysis
+            extraction_items_formatted = "\n".join([f"   {item}" for item in query_analysis['information_to_extract']])
+
             extraction_prompt = f"""You are an expert in bioventure investing.{conversation_context}
 
-**Question**: {query}
+**Original Question**: {query}
+
+**Use Case Type**: {query_analysis['use_case_type']}
 
 **Documents**:
 {files_context}
 
-**Task**: Extract and summarize ONLY the key facts, data, and conclusions from the documents. Focus on:
-- Drug names, compounds, or products mentioned
-- Efficacy rates, success rates, or performance metrics
-- Clinical trial results or study outcomes
-- Any quantitative data or statistics
-- Key findings or conclusions
+**Your Task**: Extract the following specific information from the documents:
+{extraction_items_formatted}
 
-Be concise and factual. Only include information explicitly stated in the documents.
+**Extraction Guidelines**:
+- Be systematic and thorough in extracting the requested information
+- Only include information explicitly stated in the documents
+- For each piece of information, organize it clearly and concisely
+- If certain information is not available in the documents, explicitly state what's missing
+- Format the extracted information in a structured way (bullet points, numbered lists, or short sections)
+- Do NOT make assumptions or infer information not present in the documents
 
-**Format your response as structured data** (e.g., bullet points or short paragraphs) that can be used for online comparison."""
+**Output Format**: Structure your extraction clearly so it can be used to guide an online search. Use headings or numbered sections for each major category of information."""
 
             try:
                 step1_start = time.time()
-                logger.info(f"[SEQUENTIAL] Step 1: Extracting info from files using {self.model}...")
+                logger.info(f"[SEQUENTIAL] Step 1: Extracting info from files using {self.model} with guided analysis...")
                 extraction_response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
@@ -345,15 +545,25 @@ Be concise and factual. Only include information explicitly stated in the docume
                 logger.error(f"[SEQUENTIAL] Step 1 FAILED: {str(e)}")
                 return f"Error extracting information from files: {str(e)}", None, None
 
-            # Step 2: Use extracted info to formulate enhanced online search query
-            online_search_prompt = f"""Based on the following information extracted from documents, search for comparable or competitive information online:
+            # Step 2: Use extracted info to formulate enhanced online search query guided by analysis
+            online_search_prompt = f"""Based on the following information extracted from the user's documents, perform an online search following the strategy below:
 
 **Extracted Information from User's Documents**:
 {extracted_info}
 
 **Original Question**: {query}
 
-Search online for competitor data, industry benchmarks, or comparative information that relates to the extracted data above."""
+**Use Case Type**: {query_analysis['use_case_type']}
+
+**Online Search Strategy**: {query_analysis['online_search_strategy']}
+
+**Task**: Execute the online search strategy using the extracted information. Be comprehensive and search for:
+- Specific entities, companies, or products that match the criteria from extracted info
+- Comparative data, benchmarks, or competitive intelligence
+- Recent developments, news, or updates related to the extracted information
+- Any gaps or missing information that needs to be filled with online data
+
+Provide detailed, factual results from your online search."""
 
             try:
                 step2_start = time.time()
@@ -368,7 +578,11 @@ Search online for competitor data, industry benchmarks, or comparative informati
             # Step 3: Combine extracted info and online results into final answer
             final_prompt = f"""You are an expert in bioventure investing.{conversation_context}
 
-**Question**: {query}
+**Original Question**: {query}
+
+**Analysis Context**:
+- Use Case Type: {query_analysis['use_case_type']}
+- Analysis Reasoning: {query_analysis['reasoning']}
 
 **Step 1 - Information Extracted from User's Documents**:
 {extracted_info}
@@ -376,18 +590,22 @@ Search online for competitor data, industry benchmarks, or comparative informati
 **Step 2 - Online Search Results**:
 {online_search_response}
 
-**Task**: Provide a comprehensive comparison and analysis. Structure your answer as follows:
-1. **Summary of User's Document Data**: Briefly summarize the key findings from the user's files
-2. **Comparative Analysis**: Compare with online findings (competitors, industry standards, etc.)
-3. **Key Insights**: Provide actionable insights from the comparison
-4. **Conclusion**: Synthesize the information
+**Task**: Provide a comprehensive answer that addresses the original question. Structure your answer appropriately based on the use case type:
+
+For **competitive_analysis**: Focus on identifying competitors and comparing capabilities
+For **follow_up_questions**: Provide thoughtful follow-up questions with rationale
+For **benchmarking**: Compare user's data with industry standards
+For **market_intelligence**: Identify opportunities and strategic insights
+For **custom**: Structure based on the specific question
 
 **Response Requirements**:
-Do not fabricate any information. Be objective and factual.
-Bold the most important facts or conclusions.
-If there are discrepancies between file data and online data, point them out.
-Do not include reference filenames in the answer.
-If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about."""
+- Synthesize information from both documents and online sources
+- Be objective and factual - do not fabricate any information
+- Bold the most important facts, conclusions, or recommendations
+- If there are discrepancies between file data and online data, point them out
+- Provide actionable insights where appropriate
+- Do not include reference filenames in the answer
+- If this is a follow-up question referring to previous conversation, use the context to understand what the user is asking about"""
 
             try:
                 step3_start = time.time()
@@ -401,6 +619,9 @@ If this is a follow-up question referring to previous conversation, use the cont
                 total_duration = time.time() - seq_start_time
                 logger.info(f"[SEQUENTIAL] Step 3 complete in {step3_duration:.1f}s")
                 logger.info(f"[SEQUENTIAL] Total sequential_analysis completed in {total_duration:.1f}s")
+                logger.info(f"[SEQUENTIAL] Performance breakdown: Step0={step0_duration:.1f}s, Step1={step1_duration:.1f}s, Step2={step2_duration:.1f}s, Step3={step3_duration:.1f}s")
+
+                # Return answer with query analysis metadata
                 return final_response.output_text, online_search_response, extracted_info
             except Exception as e:
                 logger.error(f"[SEQUENTIAL] Step 3 FAILED: {str(e)}")
