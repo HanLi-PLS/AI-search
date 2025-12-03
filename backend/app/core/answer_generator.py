@@ -86,7 +86,8 @@ Now classify the user's query."""
 
             response = self.client.responses.create(
                 model="gpt-5-nano",  # Use fast, efficient model for classification
-                input=classification_prompt
+                input=classification_prompt,
+                service_tier="priority"
             )
 
             classification_text = response.output_text
@@ -263,7 +264,8 @@ Analyze the query now:"""
             response = self.client.responses.create(
                 model="gpt-5.1",  # Use advanced model for query analysis
                 temperature=0,
-                input=analysis_prompt
+                input=analysis_prompt,
+                service_tier="priority"
             )
 
             analysis_text = response.output_text
@@ -325,7 +327,8 @@ Analyze the query now:"""
                 tools=[{
                     "type": "web_search",
                 }],
-                input=f"{prompt}"
+                input=f"{prompt}",
+                service_tier="priority"
             )
             logger.info("Online search completed successfully")
             return response.output_text
@@ -459,7 +462,8 @@ If this is a follow-up question referring to previous conversation, use the cont
                 response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=prompt
+                    input=prompt,
+                    service_tier="priority"
                 )
                 return response.output_text, None, None
             except Exception as e:
@@ -536,7 +540,8 @@ If this is a follow-up question referring to previous conversation, use the cont
                 extraction_response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=extraction_prompt
+                    input=extraction_prompt,
+                    service_tier="priority"
                 )
                 extracted_info = extraction_response.output_text
                 step1_duration = time.time() - step1_start
@@ -613,7 +618,8 @@ For **custom**: Structure based on the specific question
                 final_response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=final_prompt
+                    input=final_prompt,
+                    service_tier="priority"
                 )
                 step3_duration = time.time() - step3_start
                 total_duration = time.time() - seq_start_time
@@ -707,7 +713,8 @@ If this is a follow-up question referring to previous conversation, use the cont
                 response = self.client.responses.create(
                     model=self.model,
                     temperature=self.temperature,
-                    input=prompt
+                    input=prompt,
+                    service_tier="priority"
                 )
                 return response.output_text, online_search_response, None
             except Exception as e:
