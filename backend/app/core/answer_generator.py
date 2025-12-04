@@ -85,7 +85,7 @@ REASONING: The query asks for current market trends which requires up-to-date on
 Now classify the user's query."""
 
             response = self.client.responses.create(
-                model="gpt-5-nano",  # Use fast, efficient model for classification
+                model="gpt-5.1",  # Use gpt-5.1 for intelligent classification
                 input=classification_prompt,
                 service_tier="priority"
             )
