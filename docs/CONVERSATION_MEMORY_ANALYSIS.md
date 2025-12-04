@@ -64,10 +64,10 @@ def format_conversation_history(self, conversation_history: Optional[List[Dict[s
         return ""
 
     formatted = "\n**Previous Conversation**:\n"
-    for i, turn in enumerate(conversation_history[-5:], 1):  # Last 5 turns only
+    for i, turn in enumerate(conversation_history[-10:], 1):  # Last 10 turns
         formatted += f"\nTurn {i}:\n"
         formatted += f"User: {turn.get('query', '')}\n"
-        formatted += f"Assistant: {turn.get('answer', '')[:500]}...\n"  # Truncate to 500 chars
+        formatted += f"Assistant: {turn.get('answer', '')[:2000]}...\n"  # Truncate to 2000 chars
 
     formatted += "\n**Current Question** (use the context above to understand references like 'it', 'that', 'them'):\n"
     return formatted
@@ -75,8 +75,8 @@ def format_conversation_history(self, conversation_history: Optional[List[Dict[s
 
 **Key Features**:
 - ✅ Only uses `query` and `answer` from each turn
-- ✅ Limits to last 5 turns (to avoid token limits)
-- ✅ Truncates long answers to 500 characters
+- ✅ Limits to last 10 turns (sufficient for 200k token models)
+- ✅ Truncates long answers to 2000 characters
 - ✅ Does NOT include results, sources, or raw chunks
 - ✅ Provides context instruction for follow-up questions
 
@@ -198,8 +198,8 @@ final_prompt = f"""You are an expert in bioventure investing.{conversation_conte
 ### ✅ What IS Remembered (Included in Memory)
 - User's questions (query)
 - AI's final answers (answer)
-- Last 5 conversation turns
-- Truncated to 500 characters per answer
+- Last 10 conversation turns
+- Truncated to 2000 characters per answer
 
 ### ❌ What is NOT Remembered (Excluded from Memory)
 - Raw file chunks (`results`)
@@ -243,7 +243,7 @@ API receives:
 conversation_history: [
   {
     query: "What are the assets of PPInnova?",
-    answer: "PPInnova has the following assets: Drug A (Phase 2)..."  // Truncated to 500 chars
+    answer: "PPInnova has the following assets: Drug A (Phase 2)..."  // Truncated to 2000 chars if longer
   }
 ]
 
@@ -272,8 +272,8 @@ AI now knows:
 ### 1. **Token Efficiency** 💰
 - Only sends essential context (Q&A)
 - Avoids sending thousands of tokens of raw chunks
-- Truncates long answers to 500 chars
-- Limits to last 5 turns
+- Truncates long answers to 2000 chars
+- Limits to last 10 turns (~5,500 tokens, only 2.75% of 200k limit)
 
 ### 2. **Maintains Context** 🧠
 - Understands follow-up questions
@@ -357,7 +357,8 @@ grep "Previous Conversation" /opt/ai-search/logs/backend-out.log
 
 ✅ **All search modes properly maintain conversation memory**
 ✅ **Only questions and answers are stored, NOT raw chunks**
-✅ **Token-efficient design (last 5 turns, 500 char limit per answer)**
+✅ **Token-efficient design (last 10 turns, 2000 char limit per answer)**
+✅ **Optimized for 200k token models (~5,500 tokens = 2.75% of capacity)**
 ✅ **Consistent across all modes: files_only, online_only, both, sequential_analysis**
 
 The system is working as designed and optimized for both performance and user experience.

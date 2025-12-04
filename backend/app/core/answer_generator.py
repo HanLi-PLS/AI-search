@@ -354,10 +354,10 @@ Analyze the query now:"""
             return ""
 
         formatted = "\n**Previous Conversation**:\n"
-        for i, turn in enumerate(conversation_history[-5:], 1):  # Only use last 5 turns to avoid token limits
+        for i, turn in enumerate(conversation_history[-10:], 1):  # Use last 10 turns (sufficient for 200k token models)
             formatted += f"\nTurn {i}:\n"
             formatted += f"User: {turn.get('query', '')}\n"
-            formatted += f"Assistant: {turn.get('answer', '')[:500]}...\n"  # Truncate long answers
+            formatted += f"Assistant: {turn.get('answer', '')[:2000]}...\n"  # Truncate answers at 2000 chars
 
         formatted += "\n**Current Question** (use the context above to understand references like 'it', 'that', 'them'):\n"
         return formatted
