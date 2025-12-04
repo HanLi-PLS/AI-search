@@ -307,13 +307,14 @@ Analyze the query now:"""
                 "reasoning": f"Error during analysis, using default extraction plan: {str(e)}"
             }
 
-    def answer_online_search(self, prompt: str, model: Optional[str] = None) -> str:
+    def answer_online_search(self, prompt: str, model: Optional[str] = None, conversation_context: str = "") -> str:
         """
         Perform online search using OpenAI's web_search tool
 
         Args:
             prompt: Search query/prompt
             model: Optional model to use (defaults to self.online_search_model)
+            conversation_context: Formatted conversation history for context
 
         Returns:
             Search results as text
@@ -321,12 +322,16 @@ Analyze the query now:"""
         try:
             search_model = model or self.online_search_model
             logger.info(f"Performing online search with model {search_model} for: {prompt[:50]}...")
+
+            # Build full prompt with conversation context
+            full_prompt = f"{conversation_context}{prompt}" if conversation_context else prompt
+
             response = self.client.responses.create(
                 model=search_model,
                 tools=[{
                     "type": "web_search",
                 }],
-                input=f"{prompt}",
+                input=full_prompt,
                 service_tier="priority"
             )
             logger.info("Online search completed successfully")
@@ -406,7 +411,7 @@ Analyze the query now:"""
         # Handle online_only mode - just return online search result directly
         if search_mode == "online_only":
             logger.info(f"Using online_only mode for query: {query[:50]}...")
-            online_search_response = self.answer_online_search(query, model=search_model)
+            online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
             # Return online search response as the answer directly (no duplicate processing)
             return online_search_response, None, None
 
@@ -570,7 +575,7 @@ Provide detailed, factual results from your online search."""
             try:
                 step2_start = time.time()
                 logger.info(f"[SEQUENTIAL] Step 2: Performing online search with {search_model}...")
-                online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
+                online_search_response = self.answer_online_search(online_search_prompt, model=search_model, conversation_context=conversation_context)
                 step2_duration = time.time() - step2_start
                 logger.info(f"[SEQUENTIAL] Step 2 complete in {step2_duration:.1f}s. Response: {len(online_search_response) if online_search_response else 0} chars")
             except Exception as e:
@@ -635,7 +640,7 @@ For **custom**: Structure based on the specific question
 
             # Get online search response if included in priority
             if 'online_search' in priority_order:
-                online_search_response = self.answer_online_search(query, model=search_model)
+                online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
 
             # Build context from files
             files_context = ""
