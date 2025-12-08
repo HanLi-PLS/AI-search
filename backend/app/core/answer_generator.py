@@ -9,16 +9,16 @@ import logging
 from backend.app.config import settings
 from backend.app.utils.aws_secrets import get_key
 
+logger = logging.getLogger(__name__)
+
 # Gemini imports
 try:
     from google import genai
     from google.genai import types
     GEMINI_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     GEMINI_AVAILABLE = False
-    logger.warning("Google GenAI library not available. Install with: pip install google-genai")
-
-logger = logging.getLogger(__name__)
+    logger.warning(f"Google GenAI library not available: {e}. Install with: pip install google-genai")
 
 
 class AnswerGenerator:
