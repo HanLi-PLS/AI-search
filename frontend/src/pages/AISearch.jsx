@@ -805,6 +805,7 @@ function AISearch() {
               <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
                   <option value="non_reasoning">Default (gpt-5.1)</option>
                   <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
+                  <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
                   <option value="deep_research">Deep Research (o3-deep-research)</option>
                 </select></label>
             )}
@@ -932,6 +933,7 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                               turn.search_params.search_mode}</strong></span>
                             <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.1)' :
                               turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
+                              turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
                               turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
                               turn.search_params.reasoning_mode}</strong></span>
                             {turn.search_params.search_mode === 'both' && (

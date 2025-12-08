@@ -7,6 +7,16 @@ from typing import List, Dict, Any, Optional, Tuple
 import logging
 
 from backend.app.config import settings
+from backend.app.utils.aws_secrets import get_key
+
+# Gemini imports
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logger.warning("Google GenAI library not available. Install with: pip install google-genai")
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +39,16 @@ class AnswerGenerator:
         self.temperature = settings.ANSWER_TEMPERATURE
         logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
         logger.info(f"AnswerGenerator using online search model: {self.online_search_model}")
+
+        # Initialize Gemini client
+        self.gemini_client = None
+        if GEMINI_AVAILABLE:
+            try:
+                gemini_api_key = get_key("googleai-api-key", "us-west-2")
+                self.gemini_client = genai.Client(api_key=gemini_api_key)
+                logger.info("Gemini client initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gemini client: {e}")
 
     def classify_query(self, query: str) -> Tuple[str, str]:
         """
@@ -340,6 +360,43 @@ Analyze the query now:"""
             logger.error(f"Error performing online search: {str(e)}")
             return f"Error performing online search: {str(e)}"
 
+    def answer_with_gemini(self, prompt: str, conversation_context: str = "") -> str:
+        """
+        Perform search using Google Gemini with Google Search tool
+
+        Args:
+            prompt: Search query/prompt
+            conversation_context: Formatted conversation history for context
+
+        Returns:
+            Search results as text
+        """
+        try:
+            if not self.gemini_client:
+                logger.error("Gemini client not initialized")
+                return "Error: Gemini API is not available. Please check your API key configuration."
+
+            logger.info(f"Performing Gemini search for: {prompt[:50]}...")
+
+            # Build full prompt with conversation context
+            full_prompt = f"{conversation_context}{prompt}" if conversation_context else prompt
+
+            # Call Gemini with Google Search tool
+            response = self.gemini_client.models.generate_content(
+                model="gemini-3-pro-preview",
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    response_modalities=["TEXT"],
+                )
+            )
+
+            logger.info("Gemini search completed successfully")
+            return response.text
+        except Exception as e:
+            logger.error(f"Error performing Gemini search: {str(e)}")
+            return f"Error performing Gemini search: {str(e)}"
+
     def format_conversation_history(self, conversation_history: Optional[List[Dict[str, Any]]]) -> str:
         """
         Format conversation history for inclusion in prompts
@@ -380,7 +437,7 @@ Analyze the query now:"""
             query: User's question
             search_results: List of search results with content and metadata
             search_mode: "files_only", "online_only", "both", or "sequential_analysis"
-            reasoning_mode: "non_reasoning" (gpt-4.1), "reasoning" (o4-mini), "reasoning_gpt5" (gpt-5-pro), or "deep_research" (o3-deep-research)
+            reasoning_mode: "non_reasoning" (gpt-5.1), "reasoning" (o4-mini), "reasoning_gpt5" (gpt-5-pro), "reasoning_gemini" (gemini-3-pro), or "deep_research" (o3-deep-research)
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             conversation_history: Previous conversation turns for context
             max_context_length: Maximum characters to include in context
@@ -396,6 +453,8 @@ Analyze the query now:"""
             search_model = "o4-mini"
         elif reasoning_mode == "reasoning_gpt5":
             search_model = "gpt-5-pro"
+        elif reasoning_mode == "reasoning_gemini":
+            search_model = "gemini-3-pro-preview"
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:  # non_reasoning
@@ -411,7 +470,10 @@ Analyze the query now:"""
         # Handle online_only mode - just return online search result directly
         if search_mode == "online_only":
             logger.info(f"Using online_only mode for query: {query[:50]}...")
-            online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
+            if reasoning_mode == "reasoning_gemini":
+                online_search_response = self.answer_with_gemini(query, conversation_context=conversation_context)
+            else:
+                online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
             # Return online search response as the answer directly (no duplicate processing)
             return online_search_response, None, None
 
@@ -575,7 +637,10 @@ Provide detailed, factual results from your online search."""
             try:
                 step2_start = time.time()
                 logger.info(f"[SEQUENTIAL] Step 2: Performing online search with {search_model}...")
-                online_search_response = self.answer_online_search(online_search_prompt, model=search_model, conversation_context=conversation_context)
+                if reasoning_mode == "reasoning_gemini":
+                    online_search_response = self.answer_with_gemini(online_search_prompt, conversation_context=conversation_context)
+                else:
+                    online_search_response = self.answer_online_search(online_search_prompt, model=search_model, conversation_context=conversation_context)
                 step2_duration = time.time() - step2_start
                 logger.info(f"[SEQUENTIAL] Step 2 complete in {step2_duration:.1f}s. Response: {len(online_search_response) if online_search_response else 0} chars")
             except Exception as e:
@@ -640,7 +705,10 @@ For **custom**: Structure based on the specific question
 
             # Get online search response if included in priority
             if 'online_search' in priority_order:
-                online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
+                if reasoning_mode == "reasoning_gemini":
+                    online_search_response = self.answer_with_gemini(query, conversation_context=conversation_context)
+                else:
+                    online_search_response = self.answer_online_search(query, model=search_model, conversation_context=conversation_context)
 
             # Build context from files
             files_context = ""

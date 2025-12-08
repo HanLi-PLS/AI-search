@@ -29,7 +29,7 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 # Modes that require background processing (long-running)
-ASYNC_SEARCH_MODES = ["reasoning_gpt5", "deep_research"]
+ASYNC_SEARCH_MODES = ["reasoning_gpt5", "reasoning_gemini", "deep_research"]
 
 
 def process_search_job(job_id: str, search_request_dict: dict):
