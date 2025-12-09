@@ -36,6 +36,7 @@ function AISearch() {
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const searchResultsRef = useRef(null);
+  const searchInputRef = useRef(null);
   const pollingTimersRef = useRef(new Map()); // Track active polling timers
   const abortControllersRef = useRef(new Map()); // Track abort controllers for uploads
   const searchJobTimerRef = useRef(null); // Track search job polling timer
@@ -45,6 +46,15 @@ function AISearch() {
     const history = getCurrentHistory();
     setConversationHistory(history);
   }, [currentConversationId]);
+
+  // Auto-resize search input textarea based on content
+  useEffect(() => {
+    const textarea = searchInputRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  }, [searchQuery]);
 
   useEffect(() => {
     // Only load documents when we have a valid conversation ID
@@ -771,8 +781,19 @@ function AISearch() {
         <section className="search-section">
           <h2>Search Documents</h2>
           <form onSubmit={handleSearch} className="search-box">
-            <input type="text" className="search-input" placeholder="Enter your search query..." value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} disabled={loading} />
+            <textarea ref={searchInputRef} className="search-input" placeholder="Enter your search query..." value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (searchQuery.trim() && !loading) {
+                    handleSearch(e);
+                  }
+                }
+              }}
+              disabled={loading}
+              rows={1}
+            />
             <button type="submit" className="search-button" disabled={loading || !searchQuery.trim()}>
               {loading ? '⏳ Searching...' : '🔍 Search'}
             </button>

@@ -315,6 +315,14 @@ section h2 {
     border-radius: 8px;
     outline: none;
     transition: border-color 0.3s ease;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 44px;
+    max-height: 200px;
+    line-height: 1.5;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .search-input:focus {
