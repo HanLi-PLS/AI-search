@@ -38,7 +38,7 @@ function Home() {
           <p>Intelligent search across documents and web with multi-model reasoning</p>
           <ul className="tracker-features">
             <li>• Multi-source search (Files + Online)</li>
-            <li>• Multi-model reasoning (GPT-5, Gemini, O3)</li>
+            <li>• Multi-model reasoning (GPT-5 Pro, Gemini 3 Pro)</li>
             <li>• Sequential analysis & extraction</li>
           </ul>
           <button
