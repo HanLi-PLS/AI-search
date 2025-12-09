@@ -34,13 +34,13 @@ function Home() {
 
       <div className="features-section">
         <div className="feature-card highlight">
-          <h2>🔍 AI Document Search</h2>
-          <p>Search your documents using advanced RAG and AI models</p>
+          <h2>🔍 Unified AI Search</h2>
+          <p>Intelligent search across documents and web with multi-model reasoning</p>
           <button
             className="tracker-button"
             onClick={() => navigate('/ai-search')}
           >
-            AI Search
+            Launch Search
           </button>
         </div>
 

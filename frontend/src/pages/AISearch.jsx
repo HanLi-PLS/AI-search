@@ -688,8 +688,8 @@ function AISearch() {
           <button className="back-home-button" onClick={() => navigate('/')}>
             ← Back to Home
           </button>
-          <h1>🔍 AI Document Search</h1>
-          <p className="subtitle">Upload documents and search with AI-powered semantic search</p>
+          <h1>🔍 Unified AI Search</h1>
+          <p className="subtitle">Intelligent search across your documents and the web with multi-model reasoning</p>
         </header>
 
         <section className="upload-section">

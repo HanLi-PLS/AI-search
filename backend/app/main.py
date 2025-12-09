@@ -27,8 +27,8 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIM
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Search Tool",
-    description="Internal AI-powered document search with file upload capabilities",
+    title="Unified AI Search",
+    description="Intelligent unified search across documents and web with multi-model reasoning and sequential analysis",
     version="1.0.0"
 )
 
