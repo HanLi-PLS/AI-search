@@ -346,18 +346,26 @@ Analyze the query now:"""
             # Build full prompt with conversation context
             full_prompt = f"{conversation_context}{prompt}" if conversation_context else prompt
 
-            response = self.client.responses.create(
-                model=search_model,
-                tools=[{
+            # Build request parameters
+            request_params = {
+                "model": search_model,
+                "tools": [{
                     "type": "web_search",
                 }],
-                input=full_prompt,
-                service_tier="priority"
-            )
+                "input": full_prompt
+            }
+
+            # Only add service_tier for o-series models that support it
+            # gpt-5-pro and other models may not support this parameter
+            if search_model.startswith("o"):
+                request_params["service_tier"] = "priority"
+                logger.info(f"Using priority service tier for {search_model}")
+
+            response = self.client.responses.create(**request_params)
             logger.info("Online search completed successfully")
             return response.output_text
         except Exception as e:
-            logger.error(f"Error performing online search: {str(e)}")
+            logger.error(f"Error performing online search: {str(e)}", exc_info=True)
             return f"Error performing online search: {str(e)}"
 
     def answer_with_gemini(self, prompt: str, conversation_context: str = "") -> str:
