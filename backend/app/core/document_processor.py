@@ -174,16 +174,17 @@ async def _process_image_with_ai_helper_async(image_base64: str, model: str, api
 
     while attempt < max_retries:
         try:
-            client = AsyncOpenAI(api_key=api_key)
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": """Please extract information from the following image in detail and precisely.
+            # Use async context manager to ensure proper cleanup
+            async with AsyncOpenAI(api_key=api_key) as client:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": """Please extract information from the following image in detail and precisely.
 
 **Special Instructions for Charts, Graphs, and Plots**:
 If the image contains any curves, plots, charts, graphs, or data visualizations:
@@ -198,19 +199,19 @@ If the image contains any curves, plots, charts, graphs, or data visualizations:
 4. Include any numerical values visible in the chart
 
 For non-chart content, extract all text, tables, and other information as usual.""",
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/png;base64,{image_base64}",
                                 },
-                            },
-                        ],
-                    }
-                ],
-                extra_body={"service_tier": "priority"}
-            )
-            return response.choices[0].message.content
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{image_base64}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    extra_body={"service_tier": "priority"}
+                )
+                return response.choices[0].message.content
 
         except Exception as e:
             attempt += 1
