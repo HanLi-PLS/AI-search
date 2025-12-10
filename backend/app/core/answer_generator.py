@@ -346,16 +346,36 @@ Analyze the query now:"""
             # Build full prompt with conversation context
             full_prompt = f"{conversation_context}{prompt}" if conversation_context else prompt
 
-            response = self.client.responses.create(
-                model=search_model,
-                tools=[{
-                    "type": "web_search",
-                }],
-                input=full_prompt,
-                service_tier="priority"
-            )
-            logger.info("Online search completed successfully")
-            return response.output_text
+            # GPT-series models (gpt-4, gpt-5, gpt-5-pro, etc.) use Chat Completions API
+            # O-series models (o1, o3, o4-mini, etc.) use Responses API
+            if search_model.startswith("gpt-"):
+                logger.info(f"Using Chat Completions API for GPT-series model: {search_model}")
+                response = self.client.chat.completions.create(
+                    model=search_model,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant with access to web search. Use web search to find accurate, up-to-date information to answer the user's question."},
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    tools=[{
+                        "type": "web_search",
+                    }],
+                    temperature=0
+                )
+                logger.info("Online search completed successfully with Chat Completions API")
+                return response.choices[0].message.content
+            else:
+                # O-series models use Responses API
+                logger.info(f"Using Responses API for O-series model: {search_model}")
+                response = self.client.responses.create(
+                    model=search_model,
+                    tools=[{
+                        "type": "web_search",
+                    }],
+                    input=full_prompt,
+                    service_tier="priority"
+                )
+                logger.info("Online search completed successfully with Responses API")
+                return response.output_text
         except Exception as e:
             logger.error(f"Error performing online search: {str(e)}")
             return f"Error performing online search: {str(e)}"
