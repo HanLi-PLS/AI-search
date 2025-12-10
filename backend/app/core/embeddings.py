@@ -38,6 +38,11 @@ class EmbeddingGenerator:
             device=device
         )
 
+        # Enable FP16 for faster computation (2x speedup with minimal accuracy loss)
+        if device == "cuda":
+            self.model.half()  # Use FP16 on GPU
+            logger.info("Enabled FP16 precision for faster GPU inference")
+
         self.embedding_dim = self.model.get_sentence_embedding_dimension()
         logger.info(f"Embedding dimension: {self.embedding_dim}")
 
@@ -67,13 +72,19 @@ class EmbeddingGenerator:
         """
         # Balanced batch size: reduces overhead while maintaining memory safety
         # With 3 workers: 64 batch_size = ~6GB RAM usage (46% of 13GB total)
+
+        # Determine optimal number of workers for data loading
+        # Use 4 workers to parallelize tokenization/preprocessing
+        num_workers = 4 if len(texts) > 100 else 0
+
         embeddings = self.model.encode(
             texts,
             batch_size=batch_size,
             convert_to_numpy=True,
             show_progress_bar=len(texts) > 100,
             normalize_embeddings=False,
-            convert_to_tensor=False
+            convert_to_tensor=False,
+            num_workers=num_workers  # Parallel data loading/tokenization
         )
         return embeddings.tolist()
 
