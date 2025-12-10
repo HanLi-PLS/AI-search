@@ -337,6 +337,7 @@ async def list_documents(conversation_id: str = None):
 async def delete_document(file_id: str):
     """
     Delete a document and all its chunks
+    Backs up the file to S3 before deleting from EC2
 
     Args:
         file_id: File identifier
@@ -345,15 +346,61 @@ async def delete_document(file_id: str):
         Delete confirmation
     """
     try:
+        from pathlib import Path
+        import os
+        from backend.app.utils.s3_storage import S3Storage
+        from datetime import datetime
+
         vector_store = get_vector_store()
-        deleted_count = vector_store.delete_by_file_id(file_id)
+        deleted_count, file_metadata = vector_store.delete_by_file_id(file_id)
 
         if deleted_count == 0:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        # Backup file to S3 before deleting from EC2
+        if file_metadata and file_metadata.get("file_name"):
+            file_name = file_metadata["file_name"]
+
+            # Find the file in uploads directory (format: {file_id}_{filename})
+            upload_dir = Path(settings.UPLOAD_DIR)
+            file_pattern = f"{file_id}_*"
+            matching_files = list(upload_dir.glob(file_pattern))
+
+            if matching_files:
+                local_file = matching_files[0]
+                logger.info(f"Found file to backup: {local_file}")
+
+                try:
+                    # Initialize S3 client
+                    s3_storage = S3Storage(
+                        bucket_name=settings.AWS_S3_BUCKET or "ai-search-deleted-files",
+                        region_name="us-west-2"
+                    )
+
+                    # Create S3 key with timestamp for archival
+                    upload_date = file_metadata.get("upload_date", datetime.now().isoformat())
+                    s3_key = f"deleted-documents/{upload_date[:10]}/{file_id}_{file_name}"
+
+                    # Backup to S3
+                    success = s3_storage.upload_file(local_file, s3_key)
+
+                    if success:
+                        logger.info(f"File backed up to S3: s3://{s3_storage.bucket_name}/{s3_key}")
+
+                        # Delete from EC2 after successful S3 backup
+                        os.remove(local_file)
+                        logger.info(f"File deleted from EC2: {local_file}")
+                    else:
+                        logger.warning(f"Failed to backup file to S3, keeping on EC2: {local_file}")
+
+                except Exception as s3_error:
+                    logger.error(f"Error backing up to S3: {str(s3_error)}, keeping file on EC2")
+            else:
+                logger.warning(f"File not found in uploads directory: {file_pattern}")
+
         return DeleteResponse(
             success=True,
-            message=f"Document deleted successfully",
+            message=f"Document deleted successfully and backed up to S3",
             deleted_count=deleted_count
         )
 
