@@ -371,9 +371,9 @@ async def delete_document(file_id: str):
                 logger.info(f"Found file to backup: {local_file}")
 
                 try:
-                    # Initialize S3 client
+                    # Initialize S3 client (using same bucket as stock data)
                     s3_storage = S3Storage(
-                        bucket_name=settings.AWS_S3_BUCKET or "ai-search-deleted-files",
+                        bucket_name="plfs-han-ai-search",
                         region_name="us-west-2"
                     )
 
