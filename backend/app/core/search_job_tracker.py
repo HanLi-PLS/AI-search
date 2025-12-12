@@ -205,7 +205,12 @@ class SearchJobTracker:
             SearchJobInfo object or None if not found
         """
         with sqlite3.connect(str(self.db_path)) as conn:
-            row = conn.execute("SELECT * FROM search_jobs WHERE job_id = ?", (job_id,)).fetchone()
+            row = conn.execute("""
+                SELECT job_id, query, search_mode, reasoning_mode, conversation_id, user_id,
+                       status, created_at, updated_at, progress, current_step, error_message,
+                       answer, extracted_info, online_search_response, results, total_results, processing_time
+                FROM search_jobs WHERE job_id = ?
+            """, (job_id,)).fetchone()
             if row:
                 return self._job_from_row(row)
             return None
