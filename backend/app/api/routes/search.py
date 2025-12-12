@@ -1,9 +1,9 @@
 """
 Search API endpoints
 """
-from fastapi import APIRouter, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, BackgroundTasks, Depends
 import time
-from typing import List
+from typing import List, Optional
 import uuid
 import asyncio
 
@@ -19,6 +19,8 @@ from backend.app.core.vector_store import get_vector_store
 from backend.app.core.answer_generator import get_answer_generator
 from backend.app.core.search_job_tracker import get_search_job_tracker, SearchJobStatus
 from backend.app.config import settings
+from backend.app.models.user import User
+from backend.app.api.routes.auth import get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -153,7 +155,12 @@ def process_search_job(job_id: str, search_request_dict: dict):
 
 @router.post("/search")
 @limiter.limit(settings.RATE_LIMIT_SEARCH)
-async def search_documents(request: Request, search_request: SearchRequest, background_tasks: BackgroundTasks):
+async def search_documents(
+    request: Request,
+    search_request: SearchRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user)
+):
     """
     Search documents using semantic similarity and/or online search, then generate answer
 
@@ -164,6 +171,7 @@ async def search_documents(request: Request, search_request: SearchRequest, back
         request: FastAPI Request object (required for rate limiting)
         search_request: Search request with query, search_mode, and filters
         background_tasks: FastAPI BackgroundTasks for async processing
+        current_user: Authenticated user (from JWT token)
 
     Returns:
         Search results with GPT-generated answer (sync mode) or job_id (async mode)
@@ -184,7 +192,8 @@ async def search_documents(request: Request, search_request: SearchRequest, back
             query=search_request.query,
             search_mode=search_request.search_mode,
             reasoning_mode=search_request.reasoning_mode,
-            conversation_id=search_request.conversation_id
+            conversation_id=search_request.conversation_id,
+            user_id=current_user.id
         )
 
         # Convert SearchRequest to dict for background processing
@@ -483,19 +492,23 @@ async def cancel_search_job(job_id: str):
 
 
 @router.get("/conversations")
-async def get_conversations(limit: int = 100):
+async def get_conversations(
+    current_user: User = Depends(get_current_user),
+    limit: int = 100
+):
     """
-    Get all conversations with metadata
+    Get all conversations for the current user
 
     Args:
+        current_user: Authenticated user (from JWT token)
         limit: Maximum number of conversations to return
 
     Returns:
-        List of conversations
+        List of conversations for this user
     """
     try:
         job_tracker = get_search_job_tracker()
-        conversations = job_tracker.get_conversations(limit=limit)
+        conversations = job_tracker.get_conversations(user_id=current_user.id, limit=limit)
 
         return {
             "success": True,
@@ -509,19 +522,23 @@ async def get_conversations(limit: int = 100):
 
 
 @router.get("/conversations/{conversation_id}")
-async def get_conversation_history(conversation_id: str):
+async def get_conversation_history(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user)
+):
     """
-    Get full history for a specific conversation
+    Get full history for a specific conversation (user must own it)
 
     Args:
         conversation_id: Conversation identifier
+        current_user: Authenticated user (from JWT token)
 
     Returns:
         Conversation history with all searches
     """
     try:
         job_tracker = get_search_job_tracker()
-        history = job_tracker.get_conversation_history(conversation_id)
+        history = job_tracker.get_conversation_history(conversation_id, user_id=current_user.id)
 
         if not history:
             raise HTTPException(status_code=404, detail="Conversation not found or has no completed searches")

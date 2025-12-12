@@ -26,12 +26,13 @@ class SearchJobStatus(str, Enum):
 class SearchJobInfo:
     """Search job information container"""
 
-    def __init__(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None):
+    def __init__(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None):
         self.job_id = job_id
         self.query = query
         self.search_mode = search_mode
         self.reasoning_mode = reasoning_mode
         self.conversation_id = conversation_id
+        self.user_id = user_id
         self.status = SearchJobStatus.PENDING
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
@@ -101,6 +102,7 @@ class SearchJobTracker:
                     search_mode TEXT NOT NULL,
                     reasoning_mode TEXT NOT NULL,
                     conversation_id TEXT,
+                    user_id INTEGER,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -115,7 +117,14 @@ class SearchJobTracker:
                     processing_time REAL DEFAULT 0.0
                 )
             """)
-            conn.commit()
+
+            # Add user_id column if it doesn't exist (migration for existing databases)
+            try:
+                conn.execute("ALTER TABLE search_jobs ADD COLUMN user_id INTEGER")
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
 
     def _job_from_row(self, row) -> SearchJobInfo:
         """Convert database row to SearchJobInfo object"""
@@ -125,21 +134,22 @@ class SearchJobTracker:
         job.search_mode = row[2]
         job.reasoning_mode = row[3]
         job.conversation_id = row[4]
-        job.status = SearchJobStatus(row[5])
-        job.created_at = datetime.fromisoformat(row[6])
-        job.updated_at = datetime.fromisoformat(row[7])
-        job.progress = row[8]
-        job.current_step = row[9]
-        job.error_message = row[10]
-        job.answer = row[11]
-        job.extracted_info = row[12]
-        job.online_search_response = row[13]
-        job.results = json.loads(row[14]) if row[14] else None
-        job.total_results = row[15]
-        job.processing_time = row[16]
+        job.user_id = row[5]
+        job.status = SearchJobStatus(row[6])
+        job.created_at = datetime.fromisoformat(row[7])
+        job.updated_at = datetime.fromisoformat(row[8])
+        job.progress = row[9]
+        job.current_step = row[10]
+        job.error_message = row[11]
+        job.answer = row[12]
+        job.extracted_info = row[13]
+        job.online_search_response = row[14]
+        job.results = json.loads(row[15]) if row[15] else None
+        job.total_results = row[16]
+        job.processing_time = row[17]
         return job
 
-    def create_job(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None) -> SearchJobInfo:
+    def create_job(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None) -> SearchJobInfo:
         """
         Create a new search job
 
@@ -149,6 +159,7 @@ class SearchJobTracker:
             search_mode: Search mode (files_only, online_only, both, sequential_analysis)
             reasoning_mode: Reasoning mode (non_reasoning, reasoning, reasoning_gpt5, deep_research)
             conversation_id: Optional conversation ID
+            user_id: Optional user ID for filtering
 
         Returns:
             Created SearchJobInfo object
@@ -166,15 +177,15 @@ class SearchJobTracker:
                     logger.info("Removed oldest search job to make space")
 
                 # Create new job
-                job = SearchJobInfo(job_id, query, search_mode, reasoning_mode, conversation_id)
+                job = SearchJobInfo(job_id, query, search_mode, reasoning_mode, conversation_id, user_id)
                 conn.execute("""
                     INSERT INTO search_jobs (
-                        job_id, query, search_mode, reasoning_mode, conversation_id, status, created_at, updated_at,
+                        job_id, query, search_mode, reasoning_mode, conversation_id, user_id, status, created_at, updated_at,
                         progress, current_step, error_message, answer, extracted_info, online_search_response,
                         results, total_results, processing_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    job.job_id, job.query, job.search_mode, job.reasoning_mode, job.conversation_id, job.status.value,
+                    job.job_id, job.query, job.search_mode, job.reasoning_mode, job.conversation_id, job.user_id, job.status.value,
                     job.created_at.isoformat(), job.updated_at.isoformat(),
                     job.progress, job.current_step, job.error_message, job.answer, job.extracted_info,
                     job.online_search_response, None, job.total_results, job.processing_time
@@ -324,11 +335,12 @@ class SearchJobTracker:
                 return SearchJobStatus(row[0]) == SearchJobStatus.CANCELLED
             return False
 
-    def get_conversations(self, limit: int = 100) -> list:
+    def get_conversations(self, user_id: Optional[int] = None, limit: int = 100) -> list:
         """
-        Get all conversations with their search history
+        Get all conversations with their search history, optionally filtered by user
 
         Args:
+            user_id: Optional user ID to filter conversations
             limit: Maximum number of conversations to return
 
         Returns:
@@ -336,19 +348,36 @@ class SearchJobTracker:
         """
         with sqlite3.connect(str(self.db_path)) as conn:
             # Get conversations grouped by conversation_id
-            rows = conn.execute("""
-                SELECT
-                    conversation_id,
-                    MIN(created_at) as first_search,
-                    MAX(updated_at) as last_updated,
-                    COUNT(*) as search_count,
-                    MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
-                FROM search_jobs
-                WHERE conversation_id IS NOT NULL
-                GROUP BY conversation_id
-                ORDER BY MAX(updated_at) DESC
-                LIMIT ?
-            """, (limit,)).fetchall()
+            if user_id is not None:
+                query = """
+                    SELECT
+                        conversation_id,
+                        MIN(created_at) as first_search,
+                        MAX(updated_at) as last_updated,
+                        COUNT(*) as search_count,
+                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
+                    FROM search_jobs
+                    WHERE conversation_id IS NOT NULL AND user_id = ?
+                    GROUP BY conversation_id
+                    ORDER BY MAX(updated_at) DESC
+                    LIMIT ?
+                """
+                rows = conn.execute(query, (user_id, limit)).fetchall()
+            else:
+                query = """
+                    SELECT
+                        conversation_id,
+                        MIN(created_at) as first_search,
+                        MAX(updated_at) as last_updated,
+                        COUNT(*) as search_count,
+                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
+                    FROM search_jobs
+                    WHERE conversation_id IS NOT NULL
+                    GROUP BY conversation_id
+                    ORDER BY MAX(updated_at) DESC
+                    LIMIT ?
+                """
+                rows = conn.execute(query, (limit,)).fetchall()
 
             conversations = []
             for row in rows:
@@ -363,23 +392,34 @@ class SearchJobTracker:
 
             return conversations
 
-    def get_conversation_history(self, conversation_id: str) -> list:
+    def get_conversation_history(self, conversation_id: str, user_id: Optional[int] = None) -> list:
         """
-        Get all searches for a specific conversation
+        Get all searches for a specific conversation, optionally filtered by user
 
         Args:
             conversation_id: Conversation identifier
+            user_id: Optional user ID to verify ownership
 
         Returns:
             List of searches in chronological order
         """
         with sqlite3.connect(str(self.db_path)) as conn:
-            rows = conn.execute("""
-                SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
-                FROM search_jobs
-                WHERE conversation_id = ?
-                ORDER BY created_at ASC
-            """, (conversation_id,)).fetchall()
+            if user_id is not None:
+                query = """
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
+                    FROM search_jobs
+                    WHERE conversation_id = ? AND user_id = ?
+                    ORDER BY created_at ASC
+                """
+                rows = conn.execute(query, (conversation_id, user_id)).fetchall()
+            else:
+                query = """
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
+                    FROM search_jobs
+                    WHERE conversation_id = ?
+                    ORDER BY created_at ASC
+                """
+                rows = conn.execute(query, (conversation_id,)).fetchall()
 
             history = []
             for row in rows:

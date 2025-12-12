@@ -14,8 +14,18 @@ export const useChatHistory = () => {
   useEffect(() => {
     const initializeConversations = async () => {
       try {
-        // Fetch conversations from backend
-        const response = await fetch(`${API_BASE_URL}/conversations`);
+        // Fetch conversations from backend with auth token
+        const token = localStorage.getItem('authToken');
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/conversations`, {
+          headers
+        });
         const data = await response.json();
 
         let backendConversations = [];
@@ -115,7 +125,17 @@ export const useChatHistory = () => {
 
   const loadConversationHistory = async (conversationId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`);
+      const token = localStorage.getItem('authToken');
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+        headers
+      });
       const data = await response.json();
 
       if (data.success && data.history) {
