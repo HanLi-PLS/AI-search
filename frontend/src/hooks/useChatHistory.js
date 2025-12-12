@@ -171,7 +171,12 @@ export const useChatHistory = () => {
                 answer: item.answer,
                 timestamp: item.timestamp,
                 reasoning_mode: item.reasoning_mode,
-                search_mode: item.search_mode
+                search_mode: item.search_mode,
+                // Add search_params object for UI display
+                search_params: {
+                  search_mode: item.search_mode,
+                  reasoning_mode: item.reasoning_mode
+                }
               }))
             };
           }
