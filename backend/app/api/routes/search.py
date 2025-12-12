@@ -512,6 +512,7 @@ async def get_conversations(
 
         return {
             "success": True,
+            "user_id": current_user.id,
             "conversations": conversations,
             "total_count": len(conversations)
         }

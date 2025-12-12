@@ -28,6 +28,25 @@ export const useChatHistory = () => {
         });
         const data = await response.json();
 
+        // Get current user info from backend response
+        let currentUserId = null;
+        if (data.user_id) {
+          currentUserId = data.user_id;
+        }
+
+        // Check if localStorage belongs to a different user
+        const storedUserId = localStorage.getItem('chatHistory_userId');
+        if (storedUserId && currentUserId && storedUserId !== String(currentUserId)) {
+          // Different user logged in - clear old localStorage data
+          console.log('Different user detected, clearing old chat history');
+          localStorage.removeItem('chatHistory');
+          localStorage.removeItem('currentConversationId');
+          localStorage.setItem('chatHistory_userId', String(currentUserId));
+        } else if (currentUserId && !storedUserId) {
+          // First time storing user ID
+          localStorage.setItem('chatHistory_userId', String(currentUserId));
+        }
+
         let backendConversations = [];
         if (data.success && data.conversations && data.conversations.length > 0) {
           // Convert backend format to frontend format
@@ -42,7 +61,7 @@ export const useChatHistory = () => {
           }));
         }
 
-        // Get localStorage conversations (safe to show - they're per-browser)
+        // Get localStorage conversations (only if same user)
         const saved = localStorage.getItem('chatHistory');
         const localConversations = saved ? JSON.parse(saved) : [];
         const savedCurrentId = localStorage.getItem('currentConversationId');
