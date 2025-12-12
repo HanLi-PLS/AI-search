@@ -645,8 +645,7 @@ If you cannot find reliable data, return null. Do not include explanations, only
                     "content": f"Search the web for current stock price of {ticker} ({company_info}HKEX biotech company). Find data from HKEX, AAStocks, or financial news sites. Return the data as JSON."
                 }
             ],
-            max_tokens=300,
-            temperature=0
+            extra_body={"service_tier": "priority"}
         )
 
         result_text = response.choices[0].message.content.strip()

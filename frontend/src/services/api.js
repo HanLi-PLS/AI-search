@@ -259,11 +259,16 @@ export const uploadFile = async (file, conversationId = null, relativePath = nul
   }
 };
 
-export const searchDocuments = async (searchRequest) => {
+export const searchDocuments = async (searchRequest, abortSignal = null) => {
   try {
-    const response = await api.post('/api/search', searchRequest);
+    const response = await api.post('/api/search', searchRequest, {
+      signal: abortSignal
+    });
     return response.data;
   } catch (error) {
+    if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+      throw new Error('Search cancelled by user');
+    }
     throw new Error(error.response?.data?.detail || 'Search failed');
   }
 };
@@ -321,6 +326,25 @@ export const cancelJob = async (jobId) => {
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.detail || 'Failed to cancel job');
+  }
+};
+
+// Search Job API (for long-running searches with reasoning_gpt5 and deep_research)
+export const getSearchJobStatus = async (jobId) => {
+  try {
+    const response = await api.get(`/api/search-jobs/${jobId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch search job status');
+  }
+};
+
+export const cancelSearchJob = async (jobId) => {
+  try {
+    const response = await api.post(`/api/search-jobs/${jobId}/cancel`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to cancel search job');
   }
 };
 

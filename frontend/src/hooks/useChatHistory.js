@@ -1,35 +1,227 @@
 import { useState, useEffect } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 /**
- * Custom hook for managing conversation history with localStorage persistence
+ * Custom hook for managing conversation history with localStorage persistence and backend sync
  */
 export const useChatHistory = () => {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Initialize from localStorage
+  // Initialize from backend and localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('chatHistory');
-    const savedConversations = saved ? JSON.parse(saved) : [];
-    const savedCurrentId = localStorage.getItem('currentConversationId');
+    const initializeConversations = async () => {
+      try {
+        // Fetch conversations from backend with auth token
+        const token = localStorage.getItem('authToken');
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
 
-    if (savedConversations.length === 0) {
-      // Create initial conversation
-      const initialConv = {
-        id: generateId(),
-        title: 'New Conversation',
-        history: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      setConversations([initialConv]);
-      setCurrentConversationId(initialConv.id);
-      saveToLocalStorage([initialConv], initialConv.id);
-    } else {
-      setConversations(savedConversations);
-      setCurrentConversationId(savedCurrentId || savedConversations[0].id);
-    }
+        const response = await fetch(`${API_BASE_URL}/conversations`, {
+          headers
+        });
+        const data = await response.json();
+
+        // Get current user info from backend response
+        let currentUserId = null;
+        if (data.user_id) {
+          currentUserId = data.user_id;
+        }
+
+        // Check if localStorage belongs to a different user
+        const storedUserId = localStorage.getItem('chatHistory_userId');
+        if (storedUserId && currentUserId && storedUserId !== String(currentUserId)) {
+          // Different user logged in - clear old localStorage data
+          console.log('Different user detected, clearing old chat history');
+          localStorage.removeItem('chatHistory');
+          localStorage.removeItem('currentConversationId');
+          localStorage.setItem('chatHistory_userId', String(currentUserId));
+        } else if (currentUserId && !storedUserId) {
+          // First time storing user ID
+          localStorage.setItem('chatHistory_userId', String(currentUserId));
+        }
+
+        let backendConversations = [];
+        if (data.success && data.conversations && data.conversations.length > 0) {
+          // Convert backend format to frontend format
+          backendConversations = data.conversations.map(conv => ({
+            id: conv.id,
+            title: conv.title,
+            history: [], // Will be loaded lazily when conversation is opened
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt,
+            searchCount: conv.searchCount,
+            fromBackend: true
+          }));
+        }
+
+        // Get localStorage conversations (only if same user)
+        const saved = localStorage.getItem('chatHistory');
+        const localConversations = saved ? JSON.parse(saved) : [];
+        const savedCurrentId = localStorage.getItem('currentConversationId');
+
+        // Safely merge backend and localStorage conversations
+        // - Backend conversations: Filtered by user_id (secure)
+        // - localStorage conversations: Per-browser, safe to show
+        // - After DB reset, old contaminated backend data won't appear
+        // - localStorage preserves history for non-incognito users
+        const conversationMap = new Map();
+
+        // First, create a map of localStorage conversations for quick lookup
+        const localConvMap = new Map();
+        localConversations.forEach(conv => {
+          localConvMap.set(conv.id, conv);
+        });
+
+        // Add backend conversations, but preserve localStorage history if available
+        backendConversations.forEach(conv => {
+          const localConv = localConvMap.get(conv.id);
+          conversationMap.set(conv.id, {
+            ...conv,
+            // Preserve localStorage history for backend conversations
+            // This prevents losing localStorage searches when backend doesn't have them
+            history: localConv?.history || []
+          });
+        });
+
+        // Add localStorage-only conversations (not in backend)
+        localConversations.forEach(conv => {
+          if (!conversationMap.has(conv.id)) {
+            conversationMap.set(conv.id, { ...conv, fromBackend: false });
+          }
+        });
+
+        const mergedConversations = Array.from(conversationMap.values())
+          .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+
+        if (mergedConversations.length === 0) {
+          // Create initial conversation if none exist
+          const initialConv = {
+            id: generateId(),
+            title: 'New Conversation',
+            history: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            fromBackend: false
+          };
+          setConversations([initialConv]);
+          setCurrentConversationId(initialConv.id);
+          saveToLocalStorage([initialConv], initialConv.id);
+        } else {
+          setConversations(mergedConversations);
+          // Set current conversation to saved ID or first available
+          const currentId = savedCurrentId && conversationMap.has(savedCurrentId)
+            ? savedCurrentId
+            : mergedConversations[0].id;
+          setCurrentConversationId(currentId);
+
+          // Always load from backend to ensure complete history
+          // localStorage may have incomplete data (e.g., 1 search when backend has 3)
+          loadConversationHistory(currentId);
+        }
+      } catch (error) {
+        console.error('Error loading conversations from backend:', error);
+
+        // Fallback to localStorage only
+        const saved = localStorage.getItem('chatHistory');
+        const savedConversations = saved ? JSON.parse(saved) : [];
+        const savedCurrentId = localStorage.getItem('currentConversationId');
+
+        if (savedConversations.length === 0) {
+          const initialConv = {
+            id: generateId(),
+            title: 'New Conversation',
+            history: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          setConversations([initialConv]);
+          setCurrentConversationId(initialConv.id);
+          saveToLocalStorage([initialConv], initialConv.id);
+        } else {
+          setConversations(savedConversations);
+          setCurrentConversationId(savedCurrentId || savedConversations[0].id);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeConversations();
   }, []);
+
+  const loadConversationHistory = async (conversationId) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+        headers
+      });
+      const data = await response.json();
+
+      if (data.success && data.history) {
+        // Update conversation with loaded history from backend
+        setConversations(prev => prev.map(conv => {
+          if (conv.id === conversationId) {
+            // MERGE backend history with existing localStorage history
+            // This prevents losing localStorage-only searches when backend has incomplete data
+            const backendHistory = data.history.map(item => ({
+              query: item.query,
+              answer: item.answer,
+              timestamp: item.timestamp,
+              reasoning_mode: item.reasoning_mode,
+              search_mode: item.search_mode,
+              // Add search_params object for UI display
+              search_params: {
+                search_mode: item.search_mode,
+                reasoning_mode: item.reasoning_mode,
+                top_k: item.top_k || 10,
+                priority_order: item.priority_order
+              },
+              fromBackend: true
+            }));
+
+            // Get existing localStorage history
+            const existingHistory = conv.history || [];
+
+            // Merge: backend searches + localStorage-only searches
+            const mergedHistory = [...backendHistory];
+            const backendQueries = new Set(backendHistory.map(h => h.query));
+
+            // Add localStorage searches that aren't in backend
+            existingHistory.forEach(localSearch => {
+              if (!backendQueries.has(localSearch.query)) {
+                mergedHistory.push({ ...localSearch, fromBackend: false });
+              }
+            });
+
+            // Sort by timestamp
+            mergedHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            return {
+              ...conv,
+              history: mergedHistory
+            };
+          }
+          return conv;
+        }));
+      }
+    } catch (error) {
+      console.error(`Error loading history for conversation ${conversationId}:`, error);
+    }
+  };
 
   const saveToLocalStorage = (convs, currentId) => {
     localStorage.setItem('chatHistory', JSON.stringify(convs));
@@ -91,9 +283,13 @@ export const useChatHistory = () => {
     saveToLocalStorage(updated, currentConversationId);
   };
 
-  const switchConversation = (conversationId) => {
+  const switchConversation = async (conversationId) => {
     setCurrentConversationId(conversationId);
     saveToLocalStorage(conversations, conversationId);
+
+    // Always load from backend to ensure we have complete history
+    // localStorage may have incomplete data (e.g., 1 search when backend has 3)
+    await loadConversationHistory(conversationId);
   };
 
   const deleteConversation = (conversationId) => {
@@ -126,6 +322,7 @@ export const useChatHistory = () => {
   return {
     conversations,
     currentConversationId,
+    loading,
     getCurrentHistory,
     createNewConversation,
     updateCurrentConversation,

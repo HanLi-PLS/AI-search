@@ -34,13 +34,18 @@ function Home() {
 
       <div className="features-section">
         <div className="feature-card highlight">
-          <h2>🔍 AI Document Search</h2>
-          <p>Search your documents using advanced RAG and AI models</p>
+          <h2>🔍 Unified AI Search</h2>
+          <p>Intelligent search across documents and web with multi-model reasoning</p>
+          <ul className="tracker-features">
+            <li>• Multi-source search (Files + Online)</li>
+            <li>• Multi-model reasoning (GPT-5 Pro, Gemini 3 Pro)</li>
+            <li>• Sequential analysis & extraction</li>
+          </ul>
           <button
             className="tracker-button"
             onClick={() => navigate('/ai-search')}
           >
-            AI Search
+            Launch Search
           </button>
         </div>
 
@@ -57,33 +62,6 @@ function Home() {
             onClick={() => navigate('/stock-tracker')}
           >
             Public Market Tracker
-          </button>
-        </div>
-
-        <div className="feature-card highlight">
-          <h2>💼 Watchlist</h2>
-          <p>Track your portfolio companies across US and HK markets with real-time CapIQ data</p>
-          <ul className="tracker-features">
-            <li>• Search US & HK companies</li>
-            <li>• Real-time pricing data</li>
-            <li>• Custom watchlist management</li>
-          </ul>
-          <button
-            className="tracker-button"
-            onClick={() => navigate('/stock-tracker?tab=watchlist')}
-          >
-            Watchlist
-          </button>
-        </div>
-
-        <div className="feature-card">
-          <h2>🧬 Company Intelligence</h2>
-          <p>Extract drug pipelines, competitors, and market analysis from documents</p>
-          <button
-            className="tracker-button"
-            onClick={() => navigate('/ai-search')}
-          >
-            Explore Features
           </button>
         </div>
       </div>

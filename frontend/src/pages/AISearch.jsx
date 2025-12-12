@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus, cancelJob } from '../services/api';
+import { uploadFile, searchDocuments, getDocuments, deleteDocument, getJobStatus, cancelJob, getSearchJobStatus, cancelSearchJob } from '../services/api';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { parseMarkdownToHTML, formatFileSize, formatDate } from '../utils/markdown';
 import './AISearch.css';
@@ -30,16 +30,31 @@ function AISearch() {
   const [uploadProgress, setUploadProgress] = useState({});
   const [dragOver, setDragOver] = useState(false);
 
+  // Search job tracking for long-running searches
+  const [searchJobStatus, setSearchJobStatus] = useState(null); // { jobId, progress, currentStep, status }
+
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const searchResultsRef = useRef(null);
+  const searchInputRef = useRef(null);
   const pollingTimersRef = useRef(new Map()); // Track active polling timers
   const abortControllersRef = useRef(new Map()); // Track abort controllers for uploads
+  const searchJobTimerRef = useRef(null); // Track search job polling timer
+  const searchAbortControllerRef = useRef(null); // Track abort controller for current search
 
   useEffect(() => {
     const history = getCurrentHistory();
     setConversationHistory(history);
-  }, [currentConversationId]);
+  }, [currentConversationId, conversations]); // Also trigger when conversations change
+
+  // Auto-resize search input textarea based on content
+  useEffect(() => {
+    const textarea = searchInputRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  }, [searchQuery]);
 
   useEffect(() => {
     // Only load documents when we have a valid conversation ID
@@ -56,6 +71,18 @@ function AISearch() {
         clearTimeout(timerId);
       });
       pollingTimersRef.current.clear();
+
+      // Clear search job timer
+      if (searchJobTimerRef.current) {
+        clearTimeout(searchJobTimerRef.current);
+        searchJobTimerRef.current = null;
+      }
+
+      // Abort ongoing search
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+        searchAbortControllerRef.current = null;
+      }
 
       // Abort all ongoing uploads
       abortControllersRef.current.forEach((controller) => {
@@ -82,6 +109,146 @@ function AISearch() {
       console.error('Failed to load documents:', error);
     }
   };
+
+  const pollSearchJobStatus = useCallback(async (jobId, queryText) => {
+    let retryCount = 0;
+    const maxRetries = 4;
+    const retryDelays = [2000, 4000, 8000, 16000]; // Exponential backoff
+
+    const poll = async () => {
+      try {
+        const status = await getSearchJobStatus(jobId);
+
+        if (status.status === 'pending' || status.status === 'processing') {
+          // Update progress
+          setSearchJobStatus({
+            jobId,
+            query: queryText,
+            progress: status.progress || 0,
+            currentStep: status.current_step || 'Processing...',
+            status: status.status
+          });
+
+          // Reset retry count on successful request
+          retryCount = 0;
+
+          // Continue polling every 2 seconds
+          searchJobTimerRef.current = setTimeout(poll, 2000);
+        } else if (status.status === 'completed') {
+          // Clear polling timer
+          if (searchJobTimerRef.current) {
+            clearTimeout(searchJobTimerRef.current);
+            searchJobTimerRef.current = null;
+          }
+
+          // Clear search job status
+          setSearchJobStatus(null);
+
+          // Add result to conversation history
+          const newTurn = {
+            query: queryText,
+            answer: status.answer || 'No answer provided',
+            extracted_info: status.extracted_info || null,
+            online_search_response: status.online_search_response || null,
+            selected_mode: null,
+            mode_reasoning: null,
+            results: status.results || [],
+            search_params: {
+              search_mode: status.search_mode,
+              reasoning_mode: status.reasoning_mode
+            }
+          };
+
+          const updated = [...conversationHistory, newTurn];
+          setConversationHistory(updated);
+          updateCurrentConversation(updated);
+          setLoading(false);
+
+          // Scroll to bottom
+          setTimeout(() => {
+            if (searchResultsRef.current) {
+              searchResultsRef.current.scrollTop = searchResultsRef.current.scrollHeight;
+            }
+          }, 100);
+        } else if (status.status === 'failed') {
+          // Clear polling timer
+          if (searchJobTimerRef.current) {
+            clearTimeout(searchJobTimerRef.current);
+            searchJobTimerRef.current = null;
+          }
+
+          setSearchJobStatus(null);
+          setLoading(false);
+          alert('Search failed: ' + (status.error_message || 'Unknown error'));
+        } else if (status.status === 'cancelled') {
+          // Clear polling timer
+          if (searchJobTimerRef.current) {
+            clearTimeout(searchJobTimerRef.current);
+            searchJobTimerRef.current = null;
+          }
+
+          setSearchJobStatus(null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error polling search job status:', error);
+
+        // Network resilience: Retry with exponential backoff
+        if (retryCount < maxRetries) {
+          const delay = retryDelays[retryCount];
+          console.log(`Network error, retrying in ${delay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+
+          // Update status to show reconnecting
+          setSearchJobStatus(prev => ({
+            ...prev,
+            currentStep: `Reconnecting... (attempt ${retryCount + 1}/${maxRetries})`
+          }));
+
+          retryCount++;
+          searchJobTimerRef.current = setTimeout(poll, delay);
+        } else {
+          // Max retries exceeded
+          if (searchJobTimerRef.current) {
+            clearTimeout(searchJobTimerRef.current);
+            searchJobTimerRef.current = null;
+          }
+
+          setSearchJobStatus(null);
+          setLoading(false);
+          alert('Search failed: Network error. Please check your connection and try again.');
+        }
+      }
+    };
+
+    poll();
+  }, [conversationHistory, updateCurrentConversation, searchResultsRef]);
+
+  const handleCancelSearchJob = useCallback(async () => {
+    if (!searchJobStatus?.jobId) return;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this search?\n\nThis will stop the current search process and save API token usage.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await cancelSearchJob(searchJobStatus.jobId);
+
+      // Clear polling timer
+      if (searchJobTimerRef.current) {
+        clearTimeout(searchJobTimerRef.current);
+        searchJobTimerRef.current = null;
+      }
+
+      setSearchJobStatus(null);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error cancelling search job:', error);
+      alert('Failed to cancel search: ' + error.message);
+    }
+  }, [searchJobStatus]);
 
   const handleCancelJob = useCallback(async (jobId, fileId) => {
     try {
@@ -357,26 +524,72 @@ function AISearch() {
     }
   }, [handleFileSelect]);
 
+  const handleCancelSearch = useCallback(() => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      'Are you sure you want to cancel this search?\n\nThis will stop the current search process and save API token usage.'
+    );
+
+    if (!confirmed) return;
+
+    // Cancel synchronous search (if in progress)
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+      searchAbortControllerRef.current = null;
+      setLoading(false);
+      console.log('Synchronous search cancelled by user');
+    }
+
+    // Cancel async search job (if in progress)
+    if (searchJobStatus?.jobId) {
+      handleCancelSearchJob();
+    }
+  }, [searchJobStatus, handleCancelSearchJob]);
+
   const handleSearch = useCallback(async (e) => {
     e.preventDefault();
     if (!searchQuery.trim() || loading) return;
     setLoading(true);
 
+    // Create abort controller for this search
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
     try {
       const priority = priorityOrder === 'online_first' ? ['online_search', 'files'] : ['files', 'online_search'];
+
+      // Only send query and answer in conversation history (not results/sources)
+      // to avoid bloating the API request with source chunks
+      const conversationHistoryForAPI = conversationHistory.map(turn => ({
+        query: turn.query,
+        answer: turn.answer
+      }));
+
+      const queryText = searchQuery.trim();
       const result = await searchDocuments({
-        query: searchQuery.trim(),
+        query: queryText,
         top_k: topK,
         search_mode: searchMode,
         reasoning_mode: reasoningMode,
         priority_order: priority,
-        conversation_history: conversationHistory,
+        conversation_history: conversationHistoryForAPI,
         conversation_id: currentConversationId
-      });
+      }, abortController.signal);
 
-      if (result.success) {
+      // Clear abort controller after successful request
+      searchAbortControllerRef.current = null;
+
+      // Check if this is an async search job (long-running search)
+      if (result.is_async && result.job_id) {
+        // Start polling for results
+        console.log(`Starting background search job ${result.job_id} for query: ${queryText}`);
+        setSearchQuery(''); // Clear search box
+        pollSearchJobStatus(result.job_id, queryText);
+        // Note: setLoading(false) will be called when job completes or fails
+      } else if (result.success) {
+        // Synchronous search completed immediately
         const newTurn = {
-          query: searchQuery,
+          query: queryText,
           answer: result.answer || 'No answer provided',
           extracted_info: result.extracted_info || null,
           online_search_response: result.online_search_response || null,
@@ -395,6 +608,7 @@ function AISearch() {
         setConversationHistory(updated);
         updateCurrentConversation(updated);
         setSearchQuery('');
+        setLoading(false);
         setTimeout(() => {
           if (searchResultsRef.current) {
             searchResultsRef.current.scrollTop = searchResultsRef.current.scrollHeight;
@@ -402,12 +616,19 @@ function AISearch() {
         }, 100);
       }
     } catch (error) {
+      // Clear abort controller on error
+      searchAbortControllerRef.current = null;
+
       console.error('Search error:', error);
-      alert('Search failed: ' + error.message);
-    } finally {
+
+      // Don't show alert for user-cancelled searches
+      if (error.message !== 'Search cancelled by user') {
+        alert('Search failed: ' + error.message);
+      }
+
       setLoading(false);
     }
-  }, [searchQuery, loading, topK, searchMode, reasoningMode, priorityOrder, conversationHistory, currentConversationId, updateCurrentConversation, searchResultsRef]);
+  }, [searchQuery, loading, topK, searchMode, reasoningMode, priorityOrder, conversationHistory, currentConversationId, updateCurrentConversation, searchResultsRef, pollSearchJobStatus]);
 
   const handleNewConversation = useCallback(() => {
     createNewConversation();
@@ -467,8 +688,8 @@ function AISearch() {
           <button className="back-home-button" onClick={() => navigate('/')}>
             ← Back to Home
           </button>
-          <h1>🔍 AI Document Search</h1>
-          <p className="subtitle">Upload documents and search with AI-powered semantic search</p>
+          <h1>🔍 Unified AI Search</h1>
+          <p className="subtitle">Intelligent search across your documents and the web with multi-model reasoning</p>
         </header>
 
         <section className="upload-section">
@@ -560,11 +781,27 @@ function AISearch() {
         <section className="search-section">
           <h2>Search Documents</h2>
           <form onSubmit={handleSearch} className="search-box">
-            <input type="text" className="search-input" placeholder="Enter your search query..." value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} disabled={loading} />
+            <textarea ref={searchInputRef} className="search-input" placeholder="Enter your search query..." value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (searchQuery.trim() && !loading) {
+                    handleSearch(e);
+                  }
+                }
+              }}
+              disabled={loading}
+              rows={1}
+            />
             <button type="submit" className="search-button" disabled={loading || !searchQuery.trim()}>
               {loading ? '⏳ Searching...' : '🔍 Search'}
             </button>
+            {loading && (
+              <button type="button" className="cancel-search-button" onClick={handleCancelSearch} title="Cancel search">
+                ✕ Cancel
+              </button>
+            )}
             <button type="button" className="new-conversation-button" onClick={handleNewConversation} title="Start a new conversation">
               ➕ New Chat
             </button>
@@ -587,12 +824,31 @@ function AISearch() {
             )}
             {searchMode !== 'files_only' && (
               <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
-                  <option value="non_reasoning">Non-Reasoning (gpt-4.1)</option><option value="reasoning">Reasoning (o4-mini)</option>
+                  <option value="non_reasoning">Default (gpt-5.1)</option>
                   <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
+                  <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
                   <option value="deep_research">Deep Research (o3-deep-research)</option>
                 </select></label>
             )}
           </div>
+
+          {/* Search Job Progress Indicator */}
+          {searchJobStatus && (
+            <div className="search-job-progress">
+              <div className="progress-header">
+                <span className="progress-query">🔍 {searchJobStatus.query}</span>
+                <button className="cancel-button" onClick={handleCancelSearchJob} title="Cancel search">
+                  ✕
+                </button>
+              </div>
+              <div className="progress-bar-container">
+                <div className="progress-bar" style={{ width: `${searchJobStatus.progress}%` }}></div>
+              </div>
+              <div className="progress-status">
+                <span>{searchJobStatus.progress}% - {searchJobStatus.currentStep}</span>
+              </div>
+            </div>
+          )}
 
           <div ref={searchResultsRef} className="search-results">
             {conversationHistory.length === 0 ? (
@@ -696,9 +952,9 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                               turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
                               turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
                               turn.search_params.search_mode}</strong></span>
-                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Non-Reasoning (gpt-4.1)' :
-                              turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (o4-mini)' :
+                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.1)' :
                               turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
+                              turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
                               turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
                               turn.search_params.reasoning_mode}</strong></span>
                             {turn.search_params.search_mode === 'both' && (

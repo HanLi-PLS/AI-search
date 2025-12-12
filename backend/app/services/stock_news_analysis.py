@@ -254,7 +254,8 @@ Focus on factual information from credible sources from the specified time perio
                     "type": "web_search",
                     "search_context_size": "high"
                 }],
-                input=prompt
+                input=prompt,
+                service_tier="priority"
             )
 
             analysis_text = response.output_text.strip()
@@ -321,7 +322,8 @@ Provide a brief summary (2-3 sentences) of the most relevant news from the past 
                     "type": "web_search",
                     "search_context_size": "high"
                 }],
-                input=prompt
+                input=prompt,
+                service_tier="priority"
             )
 
             analysis_text = response.output_text.strip()

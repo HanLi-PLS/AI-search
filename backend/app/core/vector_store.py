@@ -1,7 +1,7 @@
 """
 Qdrant vector store integration with hybrid search
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import uuid
 from qdrant_client import QdrantClient
@@ -359,7 +359,7 @@ class VectorStore:
 
         return results
 
-    def delete_by_file_id(self, file_id: str) -> int:
+    def delete_by_file_id(self, file_id: str) -> Tuple[int, Optional[Dict[str, Any]]]:
         """
         Delete all documents associated with a file
 
@@ -367,9 +367,12 @@ class VectorStore:
             file_id: File identifier
 
         Returns:
-            Number of documents deleted
+            Tuple of (number of documents deleted, file metadata dict or None)
         """
         logger.info(f"Starting deletion for file_id: {file_id}")
+
+        # Get file metadata from the first point
+        file_metadata = None
 
         # Get ALL points with this file_id using pagination
         all_points = []
@@ -388,7 +391,7 @@ class VectorStore:
                 ),
                 limit=100,  # Get 100 at a time
                 offset=offset,
-                with_payload=False,  # We only need IDs
+                with_payload=True if offset is None else False,  # Get payload only on first batch
                 with_vectors=False
             )
 
@@ -397,6 +400,17 @@ class VectorStore:
 
             if not points:
                 break
+
+            # Extract file metadata from first point
+            if file_metadata is None and points:
+                payload = points[0].payload
+                file_metadata = {
+                    "file_name": payload.get("file_name"),
+                    "file_type": payload.get("file_type"),
+                    "file_size": payload.get("file_size"),
+                    "upload_date": payload.get("upload_date"),
+                    "conversation_id": payload.get("conversation_id")
+                }
 
             all_points.extend(points)
             logger.info(f"Retrieved {len(points)} points (total so far: {len(all_points)})")
@@ -421,7 +435,7 @@ class VectorStore:
         else:
             logger.warning(f"No points found for file_id: {file_id}")
 
-        return len(point_ids)
+        return len(point_ids), file_metadata
 
     def get_documents_count(self) -> int:
         """Get total number of documents in the collection"""

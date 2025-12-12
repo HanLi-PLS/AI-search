@@ -1,0 +1,87 @@
+#!/bin/bash
+
+# Deploy conversation history security fix
+# This script deploys the localStorage contamination fix
+
+set -e  # Exit on error
+
+echo "=========================================="
+echo "Deploying Conversation History Security Fix"
+echo "=========================================="
+echo ""
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# Step 1: Pull latest code
+echo "1. Pulling latest code..."
+cd /opt/ai-search
+git fetch origin
+git pull origin claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
+echo -e "${GREEN}✓ Code updated${NC}"
+echo ""
+
+# Step 1.5: Reset old conversations to NULL
+echo "1.5. Resetting old conversations to NULL (clearing incorrect backfill)..."
+./reset_old_conversations.sh
+echo -e "${GREEN}✓ Database reset complete${NC}"
+echo ""
+
+# Step 2: Rebuild frontend with cache busting
+echo "2. Rebuilding frontend (with cache clear)..."
+cd frontend
+rm -rf node_modules/.vite  # Clear Vite cache
+rm -rf dist  # Clear old build
+npm run build
+echo -e "${GREEN}✓ Frontend rebuilt${NC}"
+echo ""
+
+# Step 3: Restart nginx to clear any caching
+echo "3. Restarting nginx..."
+sudo systemctl restart nginx
+echo -e "${GREEN}✓ Nginx restarted${NC}"
+echo ""
+
+# Step 4: Verify backend is running with latest code
+echo "4. Checking backend status..."
+cd /opt/ai-search
+pm2 restart ai-search-backend
+sleep 3
+pm2 status
+echo -e "${GREEN}✓ Backend restarted${NC}"
+echo ""
+
+# Step 5: Test API endpoint
+echo "5. Testing API endpoint (should return user-filtered conversations)..."
+TOKEN=$(cat .env | grep -v "^#" | grep "TEST_AUTH_TOKEN" | cut -d'=' -f2 || echo "")
+if [ -z "$TOKEN" ]; then
+    echo -e "${YELLOW}Note: No TEST_AUTH_TOKEN found. Get your token from browser localStorage.${NC}"
+else
+    echo "Testing with token..."
+    curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/conversations | jq '.conversations | length'
+fi
+echo ""
+
+echo "=========================================="
+echo -e "${GREEN}Deployment Complete!${NC}"
+echo "=========================================="
+echo ""
+echo "What was deployed:"
+echo "1. Database reset - All old user_ids set to NULL (incorrect backfill cleared)"
+echo "2. Frontend updated - Safely merges backend + localStorage conversations"
+echo "3. Security enforced - Backend conversations filtered by user_id"
+echo ""
+echo "What users will see:"
+echo "- Backend conversations: Only their own (filtered by user_id)"
+echo "- localStorage conversations: Their browser history (safe, per-browser)"
+echo "- No mixing of different users' data"
+echo ""
+echo "Next steps for users:"
+echo "1. Open browser and hard refresh: Ctrl+Shift+R (or Cmd+Shift+R on Mac)"
+echo "2. Users NOT in incognito mode will see their localStorage history"
+echo "3. Users in incognito mode will start fresh with new conversations"
+echo "4. All new searches will be saved with correct user_id"
+echo ""

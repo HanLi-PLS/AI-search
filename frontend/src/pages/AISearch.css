@@ -315,6 +315,14 @@ section h2 {
     border-radius: 8px;
     outline: none;
     transition: border-color 0.3s ease;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 44px;
+    max-height: 200px;
+    line-height: 1.5;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .search-input:focus {
@@ -343,6 +351,38 @@ section h2 {
 .search-button svg {
     width: 20px;
     height: 20px;
+}
+
+.cancel-search-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: white;
+    background-color: var(--danger-color);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    animation: fadeIn 0.3s ease;
+}
+
+.cancel-search-button:hover {
+    background-color: #dc2626;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .new-conversation-button {
@@ -1002,6 +1042,16 @@ section h2 {
         justify-content: center;
     }
 
+    .cancel-search-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .new-conversation-button {
+        width: 100%;
+        justify-content: center;
+    }
+
     .document-item {
         flex-direction: column;
         align-items: flex-start;
@@ -1367,4 +1417,77 @@ body.sidebar-collapsed .chat-history-sidebar,
 /* Show floating button when sidebar is collapsed */
 body.sidebar-collapsed .open-sidebar-floating-button {
     display: flex;
+}
+
+/* Search Job Progress Indicator */
+.search-job-progress {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(0, 61, 165, 0.05), rgba(0, 61, 165, 0.02));
+    border: 2px solid var(--pantone-295u);
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+}
+
+.search-job-progress .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.search-job-progress .progress-query {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--pantone-295u);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.search-job-progress .cancel-button {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.search-job-progress .cancel-button:hover {
+    background: #dc2626;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.search-job-progress .progress-bar-container {
+    width: 100%;
+    height: 24px;
+    background-color: rgba(0, 61, 165, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.search-job-progress .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--pantone-295u), #0052d9);
+    border-radius: 12px;
+    transition: width 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0, 61, 165, 0.3);
+}
+
+.search-job-progress .progress-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--pantone-295u);
+    font-weight: 500;
 }
