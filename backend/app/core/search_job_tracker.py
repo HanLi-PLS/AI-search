@@ -324,6 +324,78 @@ class SearchJobTracker:
                 return SearchJobStatus(row[0]) == SearchJobStatus.CANCELLED
             return False
 
+    def get_conversations(self, limit: int = 100) -> list:
+        """
+        Get all conversations with their search history
+
+        Args:
+            limit: Maximum number of conversations to return
+
+        Returns:
+            List of conversations with metadata and search count
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            # Get conversations grouped by conversation_id
+            rows = conn.execute("""
+                SELECT
+                    conversation_id,
+                    MIN(created_at) as first_search,
+                    MAX(updated_at) as last_updated,
+                    COUNT(*) as search_count,
+                    MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
+                FROM search_jobs
+                WHERE conversation_id IS NOT NULL
+                GROUP BY conversation_id
+                ORDER BY MAX(updated_at) DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+            conversations = []
+            for row in rows:
+                conversation_id, first_search, last_updated, search_count, last_query = row
+                conversations.append({
+                    'id': conversation_id,
+                    'title': (last_query[:50] + '...') if last_query and len(last_query) > 50 else (last_query or 'Conversation'),
+                    'createdAt': first_search,
+                    'updatedAt': last_updated,
+                    'searchCount': search_count
+                })
+
+            return conversations
+
+    def get_conversation_history(self, conversation_id: str) -> list:
+        """
+        Get all searches for a specific conversation
+
+        Args:
+            conversation_id: Conversation identifier
+
+        Returns:
+            List of searches in chronological order
+        """
+        with sqlite3.connect(str(self.db_path)) as conn:
+            rows = conn.execute("""
+                SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
+                FROM search_jobs
+                WHERE conversation_id = ?
+                ORDER BY created_at ASC
+            """, (conversation_id,)).fetchall()
+
+            history = []
+            for row in rows:
+                job_id, query, answer, created_at, status, reasoning_mode, search_mode = row
+                # Only include completed searches
+                if status == 'completed' and query and answer:
+                    history.append({
+                        'query': query,
+                        'answer': answer,
+                        'timestamp': created_at,
+                        'reasoning_mode': reasoning_mode,
+                        'search_mode': search_mode
+                    })
+
+            return history
+
 
 # Global search job tracker instance
 _search_job_tracker = None

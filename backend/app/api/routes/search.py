@@ -482,6 +482,64 @@ async def cancel_search_job(job_id: str):
         raise HTTPException(status_code=500, detail=f"Error cancelling job: {str(e)}")
 
 
+@router.get("/conversations")
+async def get_conversations(limit: int = 100):
+    """
+    Get all conversations with metadata
+
+    Args:
+        limit: Maximum number of conversations to return
+
+    Returns:
+        List of conversations
+    """
+    try:
+        job_tracker = get_search_job_tracker()
+        conversations = job_tracker.get_conversations(limit=limit)
+
+        return {
+            "success": True,
+            "conversations": conversations,
+            "total_count": len(conversations)
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching conversations: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching conversations: {str(e)}")
+
+
+@router.get("/conversations/{conversation_id}")
+async def get_conversation_history(conversation_id: str):
+    """
+    Get full history for a specific conversation
+
+    Args:
+        conversation_id: Conversation identifier
+
+    Returns:
+        Conversation history with all searches
+    """
+    try:
+        job_tracker = get_search_job_tracker()
+        history = job_tracker.get_conversation_history(conversation_id)
+
+        if not history:
+            raise HTTPException(status_code=404, detail="Conversation not found or has no completed searches")
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "history": history,
+            "search_count": len(history)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching conversation history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching conversation history: {str(e)}")
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """
