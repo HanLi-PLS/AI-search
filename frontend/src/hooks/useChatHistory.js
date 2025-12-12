@@ -175,7 +175,9 @@ export const useChatHistory = () => {
                 // Add search_params object for UI display
                 search_params: {
                   search_mode: item.search_mode,
-                  reasoning_mode: item.reasoning_mode
+                  reasoning_mode: item.reasoning_mode,
+                  top_k: item.top_k || 10,
+                  priority_order: item.priority_order
                 }
               }))
             };

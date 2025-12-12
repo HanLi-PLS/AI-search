@@ -193,7 +193,9 @@ async def search_documents(
             search_mode=search_request.search_mode,
             reasoning_mode=search_request.reasoning_mode,
             conversation_id=search_request.conversation_id,
-            user_id=current_user.id
+            user_id=current_user.id,
+            top_k=search_request.top_k,
+            priority_order=search_request.priority_order
         )
 
         # Convert SearchRequest to dict for background processing

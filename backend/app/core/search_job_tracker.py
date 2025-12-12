@@ -26,13 +26,15 @@ class SearchJobStatus(str, Enum):
 class SearchJobInfo:
     """Search job information container"""
 
-    def __init__(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None):
+    def __init__(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None, top_k: int = 10, priority_order: Optional[str] = None):
         self.job_id = job_id
         self.query = query
         self.search_mode = search_mode
         self.reasoning_mode = reasoning_mode
         self.conversation_id = conversation_id
         self.user_id = user_id
+        self.top_k = top_k
+        self.priority_order = priority_order
         self.status = SearchJobStatus.PENDING
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
@@ -56,6 +58,8 @@ class SearchJobInfo:
             "search_mode": self.search_mode,
             "reasoning_mode": self.reasoning_mode,
             "conversation_id": self.conversation_id,
+            "top_k": self.top_k,
+            "priority_order": self.priority_order,
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -126,6 +130,22 @@ class SearchJobTracker:
                 # Column already exists
                 pass
 
+            # Add top_k column if it doesn't exist (migration for existing databases)
+            try:
+                conn.execute("ALTER TABLE search_jobs ADD COLUMN top_k INTEGER DEFAULT 10")
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+
+            # Add priority_order column if it doesn't exist (migration for existing databases)
+            try:
+                conn.execute("ALTER TABLE search_jobs ADD COLUMN priority_order TEXT")
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+
     def _job_from_row(self, row) -> SearchJobInfo:
         """Convert database row to SearchJobInfo object"""
         job = SearchJobInfo.__new__(SearchJobInfo)
@@ -147,9 +167,11 @@ class SearchJobTracker:
         job.results = json.loads(row[15]) if row[15] else None
         job.total_results = row[16]
         job.processing_time = row[17]
+        job.top_k = row[18] if len(row) > 18 and row[18] is not None else 10
+        job.priority_order = row[19] if len(row) > 19 else None
         return job
 
-    def create_job(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None) -> SearchJobInfo:
+    def create_job(self, job_id: str, query: str, search_mode: str, reasoning_mode: str, conversation_id: Optional[str] = None, user_id: Optional[int] = None, top_k: int = 10, priority_order: Optional[str] = None) -> SearchJobInfo:
         """
         Create a new search job
 
@@ -160,6 +182,8 @@ class SearchJobTracker:
             reasoning_mode: Reasoning mode (non_reasoning, reasoning, reasoning_gpt5, deep_research)
             conversation_id: Optional conversation ID
             user_id: Optional user ID for filtering
+            top_k: Number of results to return (default: 10)
+            priority_order: Priority order for 'both' mode (online_first/files_first)
 
         Returns:
             Created SearchJobInfo object
@@ -177,18 +201,18 @@ class SearchJobTracker:
                     logger.info("Removed oldest search job to make space")
 
                 # Create new job
-                job = SearchJobInfo(job_id, query, search_mode, reasoning_mode, conversation_id, user_id)
+                job = SearchJobInfo(job_id, query, search_mode, reasoning_mode, conversation_id, user_id, top_k, priority_order)
                 conn.execute("""
                     INSERT INTO search_jobs (
                         job_id, query, search_mode, reasoning_mode, conversation_id, user_id, status, created_at, updated_at,
                         progress, current_step, error_message, answer, extracted_info, online_search_response,
-                        results, total_results, processing_time
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        results, total_results, processing_time, top_k, priority_order
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     job.job_id, job.query, job.search_mode, job.reasoning_mode, job.conversation_id, job.user_id, job.status.value,
                     job.created_at.isoformat(), job.updated_at.isoformat(),
                     job.progress, job.current_step, job.error_message, job.answer, job.extracted_info,
-                    job.online_search_response, None, job.total_results, job.processing_time
+                    job.online_search_response, None, job.total_results, job.processing_time, job.top_k, job.priority_order
                 ))
                 conn.commit()
                 logger.info(f"Created search job {job_id} for query: {query[:50]}...")
@@ -208,7 +232,8 @@ class SearchJobTracker:
             row = conn.execute("""
                 SELECT job_id, query, search_mode, reasoning_mode, conversation_id, user_id,
                        status, created_at, updated_at, progress, current_step, error_message,
-                       answer, extracted_info, online_search_response, results, total_results, processing_time
+                       answer, extracted_info, online_search_response, results, total_results, processing_time,
+                       top_k, priority_order
                 FROM search_jobs WHERE job_id = ?
             """, (job_id,)).fetchone()
             if row:
@@ -411,7 +436,7 @@ class SearchJobTracker:
         with sqlite3.connect(str(self.db_path)) as conn:
             if user_id is not None:
                 query = """
-                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order
                     FROM search_jobs
                     WHERE conversation_id = ? AND user_id = ?
                     ORDER BY created_at ASC
@@ -419,7 +444,7 @@ class SearchJobTracker:
                 rows = conn.execute(query, (conversation_id, user_id)).fetchall()
             else:
                 query = """
-                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order
                     FROM search_jobs
                     WHERE conversation_id = ?
                     ORDER BY created_at ASC
@@ -428,7 +453,9 @@ class SearchJobTracker:
 
             history = []
             for row in rows:
-                job_id, query, answer, created_at, status, reasoning_mode, search_mode = row
+                job_id, query, answer, created_at, status, reasoning_mode, search_mode = row[:7]
+                top_k = row[7] if len(row) > 7 and row[7] is not None else 10
+                priority_order = row[8] if len(row) > 8 else None
                 # Only include completed searches
                 if status == 'completed' and query and answer:
                     history.append({
@@ -436,7 +463,9 @@ class SearchJobTracker:
                         'answer': answer,
                         'timestamp': created_at,
                         'reasoning_mode': reasoning_mode,
-                        'search_mode': search_mode
+                        'search_mode': search_mode,
+                        'top_k': top_k,
+                        'priority_order': priority_order
                     })
 
             return history
