@@ -136,14 +136,20 @@ def process_search_job(job_id: str, search_request_dict: dict):
 
         # Save results
         logger.info(f"[JOB {job_id}] Saving results...")
+
+        # Serialize complex objects to JSON strings for database storage
+        import json as json_module
+        extracted_info_str = json_module.dumps(extracted_info) if extracted_info else None
+        online_search_response_str = json_module.dumps(online_search_response) if online_search_response else None
+
         job_tracker.save_results(
             job_id=job_id,
             answer=answer,
             results=search_results,
             total_results=len(search_results),
             processing_time=processing_time,
-            extracted_info=extracted_info,
-            online_search_response=online_search_response
+            extracted_info=extracted_info_str,
+            online_search_response=online_search_response_str
         )
 
         logger.info(f"[JOB {job_id}] Search job completed successfully in {processing_time:.1f}s")
@@ -292,6 +298,8 @@ async def search_documents(
         job_tracker = get_search_job_tracker()
 
         try:
+            import json as json_module
+
             # Create job record
             job_tracker.create_job(
                 job_id=job_id,
@@ -306,14 +314,19 @@ async def search_documents(
 
             # Update to completed and save results
             job_tracker.update_status(job_id, SearchJobStatus.COMPLETED)
+
+            # Serialize complex objects to JSON strings for database storage
+            extracted_info_str = json_module.dumps(extracted_info) if extracted_info else None
+            online_search_response_str = json_module.dumps(online_search_response) if online_search_response else None
+
             job_tracker.save_results(
                 job_id=job_id,
                 answer=answer,
                 results=[result.dict() for result in search_results],
                 total_results=len(search_results),
                 processing_time=processing_time,
-                extracted_info=extracted_info,
-                online_search_response=online_search_response
+                extracted_info=extracted_info_str,
+                online_search_response=online_search_response_str
             )
             logger.info(f"[JOB {job_id}] Synchronous search saved to database")
         except Exception as e:
