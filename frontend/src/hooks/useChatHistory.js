@@ -73,13 +73,24 @@ export const useChatHistory = () => {
         // - localStorage preserves history for non-incognito users
         const conversationMap = new Map();
 
-        // Add backend conversations first (these are filtered by user_id)
-        backendConversations.forEach(conv => {
-          conversationMap.set(conv.id, conv);
+        // First, create a map of localStorage conversations for quick lookup
+        const localConvMap = new Map();
+        localConversations.forEach(conv => {
+          localConvMap.set(conv.id, conv);
         });
 
-        // Add localStorage conversations that don't exist in backend
-        // Safe because localStorage is per-browser (not shared between users)
+        // Add backend conversations, but preserve localStorage history if available
+        backendConversations.forEach(conv => {
+          const localConv = localConvMap.get(conv.id);
+          conversationMap.set(conv.id, {
+            ...conv,
+            // Preserve localStorage history for backend conversations
+            // This prevents losing localStorage searches when backend doesn't have them
+            history: localConv?.history || []
+          });
+        });
+
+        // Add localStorage-only conversations (not in backend)
         localConversations.forEach(conv => {
           if (!conversationMap.has(conv.id)) {
             conversationMap.set(conv.id, { ...conv, fromBackend: false });
