@@ -110,9 +110,10 @@ export const useChatHistory = () => {
             : mergedConversations[0].id;
           setCurrentConversationId(currentId);
 
-          // Load history for current conversation if from backend
+          // Always try to load history from backend (even for localStorage conversations)
+          // because searches may have been saved to backend after conversation was created
           const currentConv = conversationMap.get(currentId);
-          if (currentConv && currentConv.fromBackend && (!currentConv.history || currentConv.history.length === 0)) {
+          if (currentConv && (!currentConv.history || currentConv.history.length === 0)) {
             loadConversationHistory(currentId);
           }
         }
@@ -249,9 +250,10 @@ export const useChatHistory = () => {
     setCurrentConversationId(conversationId);
     saveToLocalStorage(conversations, conversationId);
 
-    // Load history from backend if conversation is from backend and history not loaded yet
+    // Always try to load history from backend (even for localStorage conversations)
+    // because searches may have been saved to backend after conversation was created
     const conversation = conversations.find(c => c.id === conversationId);
-    if (conversation && conversation.fromBackend && (!conversation.history || conversation.history.length === 0)) {
+    if (conversation && (!conversation.history || conversation.history.length === 0)) {
       await loadConversationHistory(conversationId);
     }
   };
