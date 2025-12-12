@@ -161,25 +161,47 @@ export const useChatHistory = () => {
       const data = await response.json();
 
       if (data.success && data.history) {
-        // Update conversation with loaded history
+        // Update conversation with loaded history from backend
         setConversations(prev => prev.map(conv => {
           if (conv.id === conversationId) {
+            // MERGE backend history with existing localStorage history
+            // This prevents losing localStorage-only searches when backend has incomplete data
+            const backendHistory = data.history.map(item => ({
+              query: item.query,
+              answer: item.answer,
+              timestamp: item.timestamp,
+              reasoning_mode: item.reasoning_mode,
+              search_mode: item.search_mode,
+              // Add search_params object for UI display
+              search_params: {
+                search_mode: item.search_mode,
+                reasoning_mode: item.reasoning_mode,
+                top_k: item.top_k || 10,
+                priority_order: item.priority_order
+              },
+              fromBackend: true
+            }));
+
+            // Get existing localStorage history
+            const existingHistory = conv.history || [];
+
+            // Merge: backend searches + localStorage-only searches
+            const mergedHistory = [...backendHistory];
+            const backendQueries = new Set(backendHistory.map(h => h.query));
+
+            // Add localStorage searches that aren't in backend
+            existingHistory.forEach(localSearch => {
+              if (!backendQueries.has(localSearch.query)) {
+                mergedHistory.push({ ...localSearch, fromBackend: false });
+              }
+            });
+
+            // Sort by timestamp
+            mergedHistory.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
             return {
               ...conv,
-              history: data.history.map(item => ({
-                query: item.query,
-                answer: item.answer,
-                timestamp: item.timestamp,
-                reasoning_mode: item.reasoning_mode,
-                search_mode: item.search_mode,
-                // Add search_params object for UI display
-                search_params: {
-                  search_mode: item.search_mode,
-                  reasoning_mode: item.reasoning_mode,
-                  top_k: item.top_k || 10,
-                  priority_order: item.priority_order
-                }
-              }))
+              history: mergedHistory
             };
           }
           return conv;
