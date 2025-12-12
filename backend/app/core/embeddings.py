@@ -59,19 +59,19 @@ class EmbeddingGenerator:
         embedding = self.model.encode(text, convert_to_numpy=True)
         return embedding.tolist()
 
-    def embed_batch(self, texts: List[str], batch_size: int = 64) -> List[List[float]]:
+    def embed_batch(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
         """
         Generate embeddings for a batch of texts with optimizations
 
         Args:
             texts: List of input texts
-            batch_size: Batch size for processing (balanced at 64 for performance vs memory)
+            batch_size: Batch size for processing (conservative at 32 to prevent memory overload)
 
         Returns:
             List of embeddings
         """
-        # Balanced batch size: reduces overhead while maintaining memory safety
-        # With 3 workers: 64 batch_size = ~6GB RAM usage (46% of 13GB total)
+        # Conservative batch size: prevents memory crashes
+        # With 3 workers: 32 batch_size = ~3GB RAM usage (23% of 13GB total, 77% headroom)
         embeddings = self.model.encode(
             texts,
             batch_size=batch_size,
