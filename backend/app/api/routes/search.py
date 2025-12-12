@@ -286,6 +286,40 @@ async def search_documents(
 
         processing_time = time.time() - start_time
 
+        # Save synchronous search to database for conversation history
+        # Create job_id for tracking in conversation history
+        job_id = f"search_{uuid.uuid4().hex}"
+        job_tracker = get_search_job_tracker()
+
+        try:
+            # Create job record
+            job_tracker.create_job(
+                job_id=job_id,
+                query=search_request.query,
+                search_mode=search_request.search_mode,
+                reasoning_mode=search_request.reasoning_mode,
+                conversation_id=search_request.conversation_id,
+                user_id=current_user.id,
+                top_k=search_request.top_k,
+                priority_order=search_request.priority_order
+            )
+
+            # Update to completed and save results
+            job_tracker.update_status(job_id, SearchJobStatus.COMPLETED)
+            job_tracker.save_results(
+                job_id=job_id,
+                answer=answer,
+                results=[result.dict() for result in search_results],
+                total_results=len(search_results),
+                processing_time=processing_time,
+                extracted_info=extracted_info,
+                online_search_response=online_search_response
+            )
+            logger.info(f"[JOB {job_id}] Synchronous search saved to database")
+        except Exception as e:
+            logger.error(f"[JOB {job_id}] Error saving synchronous search to database: {str(e)}")
+            # Don't fail the request if database save fails
+
         return SearchResponse(
             success=True,
             query=search_request.query,
