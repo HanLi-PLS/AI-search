@@ -48,7 +48,7 @@ echo ""
 # Step 4: Verify backend is running with latest code
 echo "4. Checking backend status..."
 cd /opt/ai-search
-pm2 restart backend
+pm2 restart ai-search-backend
 sleep 3
 pm2 status
 echo -e "${GREEN}✓ Backend restarted${NC}"
