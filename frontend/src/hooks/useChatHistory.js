@@ -42,34 +42,16 @@ export const useChatHistory = () => {
           }));
         }
 
-        // Get localStorage conversations (safe to show - they're per-browser)
-        const saved = localStorage.getItem('chatHistory');
-        const localConversations = saved ? JSON.parse(saved) : [];
         const savedCurrentId = localStorage.getItem('currentConversationId');
 
-        // Merge backend and localStorage conversations safely
-        // - Backend conversations are filtered by user_id (secure)
-        // - localStorage conversations are per-browser (safe to show)
-        // - Avoid duplicates by conversation ID
-        const conversationMap = new Map();
-
-        // Add backend conversations first (these are filtered by user_id)
-        backendConversations.forEach(conv => {
-          conversationMap.set(conv.id, conv);
-        });
-
-        // Add localStorage conversations that don't exist in backend
-        // These are safe because:
-        // 1. They're per-browser (not shared between users)
-        // 2. After database reset, old backend contamination is cleared
-        localConversations.forEach(conv => {
-          if (!conversationMap.has(conv.id)) {
-            conversationMap.set(conv.id, { ...conv, fromBackend: false });
-          }
-        });
-
-        const mergedConversations = Array.from(conversationMap.values())
-          .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        // SECURITY FIX: Use ONLY backend conversations when authenticated
+        // localStorage may contain contaminated data from before authentication was added
+        // (when backend returned all users' conversations without filtering)
+        // After database reset, all old conversations have user_id=NULL and won't appear in backend
+        // This ensures clean slate with proper user isolation
+        const mergedConversations = backendConversations.length > 0
+          ? backendConversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+          : [];
 
         if (mergedConversations.length === 0) {
           // Create initial conversation if none exist
@@ -87,13 +69,12 @@ export const useChatHistory = () => {
         } else {
           setConversations(mergedConversations);
           // Set current conversation to saved ID or first available
-          const currentId = savedCurrentId && conversationMap.has(savedCurrentId)
-            ? savedCurrentId
-            : mergedConversations[0].id;
+          const savedConvExists = mergedConversations.find(c => c.id === savedCurrentId);
+          const currentId = savedConvExists ? savedCurrentId : mergedConversations[0].id;
           setCurrentConversationId(currentId);
 
           // Load history for current conversation if from backend
-          const currentConv = conversationMap.get(currentId);
+          const currentConv = mergedConversations.find(c => c.id === currentId);
           if (currentConv && currentConv.fromBackend && currentConv.history.length === 0) {
             loadConversationHistory(currentId);
           }
