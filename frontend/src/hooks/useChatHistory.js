@@ -42,28 +42,13 @@ export const useChatHistory = () => {
           }));
         }
 
-        // Get localStorage conversations
-        const saved = localStorage.getItem('chatHistory');
-        const localConversations = saved ? JSON.parse(saved) : [];
         const savedCurrentId = localStorage.getItem('currentConversationId');
 
-        // Merge backend and local conversations (avoid duplicates by ID)
-        const conversationMap = new Map();
-
-        // Add backend conversations first
-        backendConversations.forEach(conv => {
-          conversationMap.set(conv.id, conv);
-        });
-
-        // Add local conversations (only if not already in backend)
-        localConversations.forEach(conv => {
-          if (!conversationMap.has(conv.id)) {
-            conversationMap.set(conv.id, { ...conv, fromBackend: false });
-          }
-        });
-
-        const mergedConversations = Array.from(conversationMap.values())
-          .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        // When authenticated, use ONLY backend conversations as source of truth
+        // This prevents mixing conversations from different users that may be in localStorage
+        const mergedConversations = backendConversations.length > 0
+          ? backendConversations.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+          : [];
 
         if (mergedConversations.length === 0) {
           // Create initial conversation if none exist
@@ -81,13 +66,12 @@ export const useChatHistory = () => {
         } else {
           setConversations(mergedConversations);
           // Set current conversation to saved ID or first available
-          const currentId = savedCurrentId && conversationMap.has(savedCurrentId)
-            ? savedCurrentId
-            : mergedConversations[0].id;
+          const savedConvExists = mergedConversations.find(c => c.id === savedCurrentId);
+          const currentId = savedConvExists ? savedCurrentId : mergedConversations[0].id;
           setCurrentConversationId(currentId);
 
           // Load history for current conversation if from backend
-          const currentConv = conversationMap.get(currentId);
+          const currentConv = mergedConversations.find(c => c.id === currentId);
           if (currentConv && currentConv.fromBackend && currentConv.history.length === 0) {
             loadConversationHistory(currentId);
           }
