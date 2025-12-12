@@ -72,19 +72,13 @@ class EmbeddingGenerator:
         """
         # Balanced batch size: reduces overhead while maintaining memory safety
         # With 3 workers: 64 batch_size = ~6GB RAM usage (46% of 13GB total)
-
-        # Determine optimal number of workers for data loading
-        # Use 4 workers to parallelize tokenization/preprocessing
-        num_workers = 4 if len(texts) > 100 else 0
-
         embeddings = self.model.encode(
             texts,
             batch_size=batch_size,
             convert_to_numpy=True,
             show_progress_bar=len(texts) > 100,
             normalize_embeddings=False,
-            convert_to_tensor=False,
-            num_workers=num_workers  # Parallel data loading/tokenization
+            convert_to_tensor=False
         )
         return embeddings.tolist()
 
