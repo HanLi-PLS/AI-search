@@ -192,6 +192,10 @@ async def search_documents(
 
         logger.info(f"Creating background job {job_id} for {search_request.reasoning_mode} mode")
 
+        # Serialize priority_order (it's a list, but DB expects string)
+        import json as json_module
+        priority_order_str = json_module.dumps(search_request.priority_order) if search_request.priority_order else None
+
         # Create job in database
         job_tracker.create_job(
             job_id=job_id,
@@ -201,7 +205,7 @@ async def search_documents(
             conversation_id=search_request.conversation_id,
             user_id=current_user.id,
             top_k=search_request.top_k,
-            priority_order=search_request.priority_order
+            priority_order=priority_order_str
         )
 
         # Convert SearchRequest to dict for background processing
@@ -300,6 +304,9 @@ async def search_documents(
         try:
             import json as json_module
 
+            # Serialize priority_order (it's a list, but DB expects string)
+            priority_order_str = json_module.dumps(search_request.priority_order) if search_request.priority_order else None
+
             # Create job record
             job_tracker.create_job(
                 job_id=job_id,
@@ -309,7 +316,7 @@ async def search_documents(
                 conversation_id=search_request.conversation_id,
                 user_id=current_user.id,
                 top_k=search_request.top_k,
-                priority_order=search_request.priority_order
+                priority_order=priority_order_str
             )
 
             # Update to completed and save results
