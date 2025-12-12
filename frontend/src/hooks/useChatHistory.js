@@ -110,12 +110,9 @@ export const useChatHistory = () => {
             : mergedConversations[0].id;
           setCurrentConversationId(currentId);
 
-          // Always try to load history from backend (even for localStorage conversations)
-          // because searches may have been saved to backend after conversation was created
-          const currentConv = conversationMap.get(currentId);
-          if (currentConv && (!currentConv.history || currentConv.history.length === 0)) {
-            loadConversationHistory(currentId);
-          }
+          // Always load from backend to ensure complete history
+          // localStorage may have incomplete data (e.g., 1 search when backend has 3)
+          loadConversationHistory(currentId);
         }
       } catch (error) {
         console.error('Error loading conversations from backend:', error);
@@ -250,12 +247,9 @@ export const useChatHistory = () => {
     setCurrentConversationId(conversationId);
     saveToLocalStorage(conversations, conversationId);
 
-    // Always try to load history from backend (even for localStorage conversations)
-    // because searches may have been saved to backend after conversation was created
-    const conversation = conversations.find(c => c.id === conversationId);
-    if (conversation && (!conversation.history || conversation.history.length === 0)) {
-      await loadConversationHistory(conversationId);
-    }
+    // Always load from backend to ensure we have complete history
+    // localStorage may have incomplete data (e.g., 1 search when backend has 3)
+    await loadConversationHistory(conversationId);
   };
 
   const deleteConversation = (conversationId) => {
