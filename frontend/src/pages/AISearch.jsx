@@ -45,7 +45,7 @@ function AISearch() {
   useEffect(() => {
     const history = getCurrentHistory();
     setConversationHistory(history);
-  }, [currentConversationId]);
+  }, [currentConversationId, conversations]); // Also trigger when conversations change
 
   // Auto-resize search input textarea based on content
   useEffect(() => {
