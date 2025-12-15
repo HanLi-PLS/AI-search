@@ -122,6 +122,7 @@ async def startup_event():
         nltk.download('punkt_tab', quiet=True)
         nltk.download('punkt', quiet=True)
         nltk.download('averaged_perceptron_tagger', quiet=True)
+        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
         logger.info("NLTK data downloaded successfully")
     except Exception as e:
         logger.warning(f"Failed to download NLTK data: {str(e)}")
