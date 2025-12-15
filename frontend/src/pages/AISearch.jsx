@@ -47,6 +47,19 @@ function AISearch() {
     setConversationHistory(history);
   }, [currentConversationId, conversations]); // Also trigger when conversations change
 
+  // Auto-scroll to latest message when conversation history changes
+  useEffect(() => {
+    if (conversationHistory.length > 0 && searchResultsRef.current) {
+      // Use setTimeout to ensure DOM has updated before scrolling
+      setTimeout(() => {
+        searchResultsRef.current?.scrollTo({
+          top: searchResultsRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+  }, [conversationHistory]);
+
   // Auto-resize search input textarea based on content
   useEffect(() => {
     const textarea = searchInputRef.current;
