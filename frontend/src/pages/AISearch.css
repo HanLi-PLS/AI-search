@@ -81,7 +81,10 @@ body {
 .main-content {
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: 20px;
+    height: 100vh;
+    overflow: hidden;
+    padding: 20px;
 }
 
 /* Section Styles */
@@ -99,11 +102,68 @@ section h2 {
     font-weight: 600;
 }
 
+/* Header - Compact */
+.header {
+    flex-shrink: 0;
+    margin-bottom: 0;
+    padding: 20px;
+}
+
+.header h1 {
+    font-size: 2rem;
+}
+
+.subtitle {
+    font-size: 1rem;
+}
+
+/* Upload Section - Compact */
+.upload-section {
+    flex-shrink: 0;
+    padding: 20px;
+}
+
+/* Conversation Section - Scrollable, Takes Remaining Space */
+.conversation-section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 20px;
+}
+
+.conversation-section .search-results {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin: 0;
+    padding-right: 10px;
+}
+
+/* Search Section - Fixed at Bottom */
+.search-section {
+    flex-shrink: 0;
+    padding: 20px;
+    border-top: 2px solid var(--border-color);
+}
+
+.search-section h2 {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+}
+
+/* Documents Section - Compact or Collapsible */
+.documents-section {
+    flex-shrink: 0;
+    padding: 15px 20px;
+}
+
 /* Upload Section */
 .upload-area {
     border: 2px dashed var(--border-color);
     border-radius: 8px;
-    padding: 40px 20px;
+    padding: 20px 15px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -117,21 +177,22 @@ section h2 {
 }
 
 .upload-icon {
-    width: 48px;
-    height: 48px;
+    width: 36px;
+    height: 36px;
     color: var(--pantone-1505u);
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+    font-size: 36px;
 }
 
 .upload-text {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 5px;
 }
 
 .upload-subtext {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
 }
 
