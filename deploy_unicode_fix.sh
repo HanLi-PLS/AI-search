@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Deploy Unicode fix for Chinese character rendering
+# Deploy Unicode fix and auto-scroll feature
 # Run this on the production server
 
 set -e  # Exit on error
 
 echo "=========================================="
-echo "Deploying Unicode Fix"
+echo "Deploying Updates"
 echo "=========================================="
 echo ""
 
@@ -28,22 +28,32 @@ git pull origin claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
 echo -e "${GREEN}✓ Code updated${NC}"
 echo ""
 
-# Step 2: Restart backend service
-echo "2. Restarting backend service..."
+# Step 2: Build frontend
+echo "2. Building frontend..."
+cd frontend
+npm run build
+cd ..
+echo -e "${GREEN}✓ Frontend built${NC}"
+echo ""
+
+# Step 3: Restart backend service
+echo "3. Restarting backend service..."
 pm2 restart ai-search-backend
 echo -e "${GREEN}✓ Backend restarted${NC}"
 echo ""
 
-# Step 3: Show status
-echo "3. Checking service status..."
+# Step 4: Show status
+echo "4. Checking service status..."
 pm2 status
 echo ""
 
 echo "=========================================="
-echo -e "${GREEN}Unicode Fix Deployed!${NC}"
+echo -e "${GREEN}Deployment Complete!${NC}"
 echo "=========================================="
 echo ""
-echo "Chinese characters should now display properly in search results."
+echo "Updates deployed:"
+echo "  ✓ Unicode fix - Chinese characters display properly"
+echo "  ✓ Auto-scroll - Latest messages auto-scroll into view"
 echo ""
 echo "To view logs: pm2 logs ai-search-backend"
 echo ""
