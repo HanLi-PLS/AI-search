@@ -82,8 +82,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
     padding: 20px;
 }
 
@@ -126,15 +125,14 @@ section h2 {
 /* Conversation Section - Scrollable, Takes Remaining Space */
 .conversation-section {
     flex: 1;
-    min-height: 0;
+    min-height: 400px;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     padding: 20px;
 }
 
 .conversation-section .search-results {
-    flex: 1;
+    max-height: 600px;
     overflow-y: auto;
     overflow-x: hidden;
     margin: 0;
