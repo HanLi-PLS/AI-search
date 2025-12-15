@@ -139,8 +139,8 @@ def process_search_job(job_id: str, search_request_dict: dict):
 
         # Serialize complex objects to JSON strings for database storage
         import json as json_module
-        extracted_info_str = json_module.dumps(extracted_info) if extracted_info else None
-        online_search_response_str = json_module.dumps(online_search_response) if online_search_response else None
+        extracted_info_str = json_module.dumps(extracted_info, ensure_ascii=False) if extracted_info else None
+        online_search_response_str = json_module.dumps(online_search_response, ensure_ascii=False) if online_search_response else None
 
         job_tracker.save_results(
             job_id=job_id,
@@ -305,7 +305,7 @@ async def search_documents(
             import json as json_module
 
             # Serialize priority_order (it's a list, but DB expects string)
-            priority_order_str = json_module.dumps(search_request.priority_order) if search_request.priority_order else None
+            priority_order_str = json_module.dumps(search_request.priority_order, ensure_ascii=False) if search_request.priority_order else None
 
             # Create job record
             job_tracker.create_job(
@@ -323,8 +323,8 @@ async def search_documents(
             job_tracker.update_status(job_id, SearchJobStatus.COMPLETED)
 
             # Serialize complex objects to JSON strings for database storage
-            extracted_info_str = json_module.dumps(extracted_info) if extracted_info else None
-            online_search_response_str = json_module.dumps(online_search_response) if online_search_response else None
+            extracted_info_str = json_module.dumps(extracted_info, ensure_ascii=False) if extracted_info else None
+            online_search_response_str = json_module.dumps(online_search_response, ensure_ascii=False) if online_search_response else None
 
             job_tracker.save_results(
                 job_id=job_id,
