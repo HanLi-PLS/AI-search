@@ -115,6 +115,17 @@ async def startup_event():
     logger.info(f"Qdrant host: {settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
     logger.info(f"Embedding model: {settings.EMBEDDING_MODEL}")
 
+    # Download required NLTK data for Excel/document processing
+    try:
+        import nltk
+        logger.info("Downloading required NLTK data...")
+        nltk.download('punkt_tab', quiet=True)
+        nltk.download('punkt', quiet=True)
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+        logger.info("NLTK data downloaded successfully")
+    except Exception as e:
+        logger.warning(f"Failed to download NLTK data: {str(e)}")
+
     # Initialize database
     try:
         from backend.app.database import init_db
