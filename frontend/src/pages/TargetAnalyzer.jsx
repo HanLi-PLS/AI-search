@@ -4,8 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import './TargetAnalyzer.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
 function TargetAnalyzer() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -24,9 +22,9 @@ function TargetAnalyzer() {
     setData(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await axios.post(
-        `${API_URL}/api/target-analyzer/analyze`,
+        '/api/target-analyzer/analyze',
         {
           target: target.trim(),
           indication: indication.trim()
