@@ -371,7 +371,7 @@ Ensure all data is scientific and actionable.
 
         # Use Gemini with search
         response = client.models.generate_content(
-            model="gemini-3-pro",
+            model="gemini-1.5-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -398,38 +398,11 @@ Steps to illustrate: {mechanism_text}.
 Style: Clean, professional, textbook medical illustration, white background, high resolution, schematic.
 Labels should be legible and use standard scientific font."""
 
-            try:
-                # Try gemini-3-pro-image first
-                image_response = client.models.generate_content(
-                    model="gemini-3-pro-image",
-                    contents=[types.Part.from_text(image_prompt)],
-                    config=types.GenerateContentConfig(
-                        image_config=types.ImageConfig(
-                            aspect_ratio="4:3",
-                            image_size="1K"
-                        )
-                    )
-                )
-
-                for part in image_response.candidates[0].content.parts:
-                    if part.inline_data:
-                        mechanism_image = f"data:{part.inline_data.mime_type};base64,{part.inline_data.data}"
-                        break
-            except Exception as e:
-                logger.warning(f"gemini-3-pro-image failed: {e}, trying gemini-2.5-flash-image")
-                try:
-                    # Fallback to flash image model
-                    image_response = client.models.generate_content(
-                        model="gemini-2.5-flash-image",
-                        contents=[types.Part.from_text(image_prompt)]
-                    )
-
-                    for part in image_response.candidates[0].content.parts:
-                        if part.inline_data:
-                            mechanism_image = f"data:{part.inline_data.mime_type};base64,{part.inline_data.data}"
-                            break
-                except Exception as e2:
-                    logger.error(f"All image generation failed: {e2}")
+            # NOTE: Image generation with Gemini models is not currently supported
+            # Gemini models focus on text/analysis. Image generation requires Imagen models
+            # which are not available in the google-genai SDK yet.
+            # The frontend will show a placeholder when mechanism_image is None.
+            logger.info("Mechanism diagram generation is disabled (Gemini models don't generate images)")
 
         except Exception as e:
             logger.warning(f"Failed to generate mechanism diagram: {e}")
