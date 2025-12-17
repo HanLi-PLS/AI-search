@@ -47,6 +47,19 @@ function AISearch() {
     setConversationHistory(history);
   }, [currentConversationId, conversations]); // Also trigger when conversations change
 
+  // Auto-scroll to latest message when conversation history changes
+  useEffect(() => {
+    if (conversationHistory.length > 0 && searchResultsRef.current) {
+      // Use setTimeout to ensure DOM has updated before scrolling
+      setTimeout(() => {
+        searchResultsRef.current?.scrollTo({
+          top: searchResultsRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+  }, [conversationHistory]);
+
   // Auto-resize search input textarea based on content
   useEffect(() => {
     const textarea = searchInputRef.current;
@@ -778,8 +791,37 @@ function AISearch() {
           )}
         </section>
 
+        <section className="conversation-section">
+          <div ref={searchResultsRef} className="search-results">
+            {conversationHistory.length === 0 ? (
+              <div className="no-results"><p>Start a conversation. Ask me anything!</p></div>
+            ) : (
+              <ChatMessages history={conversationHistory} />
+            )}
+          </div>
+        </section>
+
         <section className="search-section">
           <h2>Search Documents</h2>
+
+          {/* Search Job Progress Indicator */}
+          {searchJobStatus && (
+            <div className="search-job-progress">
+              <div className="progress-header">
+                <span className="progress-query">🔍 {searchJobStatus.query}</span>
+                <button className="cancel-button" onClick={handleCancelSearchJob} title="Cancel search">
+                  ✕
+                </button>
+              </div>
+              <div className="progress-bar-container">
+                <div className="progress-bar" style={{ width: `${searchJobStatus.progress}%` }}></div>
+              </div>
+              <div className="progress-status">
+                <span>{searchJobStatus.progress}% - {searchJobStatus.currentStep}</span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSearch} className="search-box">
             <textarea ref={searchInputRef} className="search-input" placeholder="Enter your search query..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -829,32 +871,6 @@ function AISearch() {
                   <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
                   <option value="deep_research">Deep Research (o3-deep-research)</option>
                 </select></label>
-            )}
-          </div>
-
-          {/* Search Job Progress Indicator */}
-          {searchJobStatus && (
-            <div className="search-job-progress">
-              <div className="progress-header">
-                <span className="progress-query">🔍 {searchJobStatus.query}</span>
-                <button className="cancel-button" onClick={handleCancelSearchJob} title="Cancel search">
-                  ✕
-                </button>
-              </div>
-              <div className="progress-bar-container">
-                <div className="progress-bar" style={{ width: `${searchJobStatus.progress}%` }}></div>
-              </div>
-              <div className="progress-status">
-                <span>{searchJobStatus.progress}% - {searchJobStatus.currentStep}</span>
-              </div>
-            </div>
-          )}
-
-          <div ref={searchResultsRef} className="search-results">
-            {conversationHistory.length === 0 ? (
-              <div className="no-results"><p>Start a conversation. Ask me anything!</p></div>
-            ) : (
-              <ChatMessages history={conversationHistory} />
             )}
           </div>
         </section>

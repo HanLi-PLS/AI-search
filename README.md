@@ -21,8 +21,10 @@ A production-ready AI-powered document search platform with semantic search, onl
 
 ### 🤖 AI Models & Search
 - **Multiple Reasoning Modes**:
-  - Non-Reasoning (gpt-4.1) - Fast, balanced responses
+  - Non-Reasoning (gpt-5.1) - Fast, balanced responses
   - Reasoning (o4-mini) - Extended reasoning chains
+  - Reasoning GPT-5 (gpt-5-pro) - Advanced reasoning capabilities
+  - Reasoning Gemini (gemini-3-pro-preview) - Google's reasoning model
   - Deep Research (o3-deep-research) - Comprehensive research synthesis
 - **Hybrid Search** - Combines BM25 (keyword) and dense vector (semantic) search
 - **Conversation History** - Context-aware multi-turn conversations
@@ -48,9 +50,14 @@ A production-ready AI-powered document search platform with semantic search, onl
 - FastAPI web framework with async support
 - Qdrant vector database
 - Alibaba-NLP/gte-multilingual-base embeddings (768 dim)
-- OpenAI API (gpt-4.1, o4-mini, o3-deep-research)
+- OpenAI API models:
+  - gpt-5.1 (default/non-reasoning)
+  - o4-mini (reasoning, vision, online search)
+  - gpt-5-pro (advanced reasoning)
+  - o3-deep-research (comprehensive research)
+- Google Gemini API (gemini-3-pro-preview for reasoning)
 - BM25Okapi for keyword search
-- PyMuPDF for PDF processing
+- PyMuPDF for PDF processing with vision AI
 - python-docx, openpyxl for Office documents
 - AWS SDK (boto3) for S3 integration
 
@@ -235,9 +242,21 @@ Query: "What's our drug efficacy and how does it compare to competitors?"
 ```bash
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...
-ANSWER_MODEL=gpt-4.1
-ONLINE_SEARCH_MODEL=o4-mini
-VISION_MODEL=o4-mini
+ANSWER_MODEL=gpt-5.1              # Base model for files_only mode
+VISION_MODEL=o4-mini              # Model for PDF image/chart extraction
+ONLINE_SEARCH_MODEL=o4-mini       # Used only for stock news analysis (not main search)
+
+# Model Selection for Document Search:
+# The model is automatically selected based on the reasoning mode you choose
+# in the frontend dropdown. The ANSWER_MODEL/ONLINE_SEARCH_MODEL variables
+# are NOT used for this - it's controlled by reasoning_mode only.
+#
+# Reasoning Mode → Model Used:
+# - non_reasoning     → gpt-5.1
+# - reasoning         → o4-mini
+# - reasoning_gpt5    → gpt-5-pro
+# - reasoning_gemini  → gemini-3-pro-preview
+# - deep_research     → o3-deep-research
 
 # Or use AWS Secrets Manager
 USE_AWS_SECRETS=true
@@ -352,6 +371,12 @@ Response:
 
 ### 1. Set Up EC2 Instance
 
+**Instance Type**: g4dn.xlarge (GPU-accelerated for fast embeddings)
+- 4 vCPUs, 16 GB RAM, 1x NVIDIA T4 GPU
+- 7-12x faster embeddings than CPU instances
+
+**Important**: Use **Elastic IP** to maintain DNS stability during spot interruptions
+
 ```bash
 # Install dependencies
 sudo yum update -y
@@ -360,21 +385,27 @@ sudo yum install -y python3 python3-pip nodejs npm docker git
 # Install PM2
 sudo npm install -g pm2
 
-# Start Docker & Qdrant
+# Start Docker & Qdrant with auto-restart
 sudo systemctl start docker
 sudo systemctl enable docker
 docker run -d -p 6333:6333 -p 6334:6334 \
   -v /opt/qdrant_storage:/qdrant/storage:z \
-  --restart unless-stopped \
+  --restart always \
+  --name ai-search-qdrant \
   qdrant/qdrant
 ```
+
+**Critical for Spot Instances**: Use `--restart always` (not `unless-stopped`) to ensure Qdrant restarts after spot interruptions.
 
 ### 2. Deploy Application
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/AI-search.git
-cd AI-search
+git clone https://github.com/your-repo/AI-search.git /opt/ai-search
+cd /opt/ai-search
+
+# Checkout the active branch
+git checkout claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
 
 # Set up backend
 cd backend
@@ -394,6 +425,21 @@ pm2 save
 pm2 startup
 ```
 
+### 2.1. Quick Deployment (Updates)
+
+Use the deployment script for quick updates:
+
+```bash
+cd /opt/ai-search
+./deploy_unicode_fix.sh
+```
+
+This script:
+- Pulls latest code from branch
+- Builds frontend
+- Restarts backend service
+- Shows deployment status
+
 ### 3. Set Up Automated Backups
 
 ```bash
@@ -410,29 +456,106 @@ crontab -l
 # Should show: 0 2 * * 0 /opt/ai-search/scripts/backup_qdrant.sh
 ```
 
-### 4. Configure Nginx (Optional)
+### 4. Configure Nginx
+
+**Production Setup** - Serve built frontend and proxy API:
 
 ```nginx
 server {
     listen 80;
     server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
 
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+
+    # Serve production frontend build
     location / {
-        proxy_pass http://localhost:5173;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        root /opt/ai-search/frontend/dist;
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
     }
 
+    # Proxy API requests to backend
     location /api {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Long timeout for AI operations
+        proxy_read_timeout 7200s;
+        proxy_connect_timeout 7200s;
+        proxy_send_timeout 7200s;
     }
 }
+```
+
+### 5. Monitoring & Statistics
+
+**Check User Activity (Last 7 Days)**
+
+```bash
+cd /opt/ai-search
+sqlite3 -header -column data/db/search_jobs.db "
+ATTACH DATABASE 'data/db/stocks.db' AS stocks;
+
+SELECT
+    u.email,
+    COUNT(*) as searches,
+    DATE(MIN(s.created_at)) as first_day,
+    DATE(MAX(s.created_at)) as last_day
+FROM search_jobs s
+LEFT JOIN stocks.users u ON s.user_id = u.id
+WHERE s.created_at >= datetime('now', '-7 days')
+GROUP BY u.email
+ORDER BY searches DESC;
+"
+```
+
+**Daily Breakdown**
+
+```bash
+sqlite3 -header -column data/db/search_jobs.db "
+ATTACH DATABASE 'data/db/stocks.db' AS stocks;
+
+SELECT
+    u.email,
+    DATE(s.created_at) as date,
+    COUNT(*) as searches
+FROM search_jobs s
+LEFT JOIN stocks.users u ON s.user_id = u.id
+WHERE s.created_at >= datetime('now', '-7 days')
+GROUP BY u.email, DATE(s.created_at)
+ORDER BY date DESC, searches DESC;
+"
+```
+
+**Check PM2 Status**
+
+```bash
+pm2 status
+pm2 logs ai-search-backend --lines 50
+pm2 monit
+```
+
+**Check Spot Instance Interruption History**
+
+```bash
+# View instance restart history
+sudo journalctl -u amazon-ssm-agent | grep -i "reboot\|restart" | tail -20
 ```
 
 ## 🐛 Troubleshooting
@@ -463,6 +586,18 @@ echo $OPENAI_API_KEY
 aws secretsmanager get-secret-value --secret-id openai-api-key
 ```
 
+**NLTK Data Missing (Excel Upload Errors)**
+```bash
+# NLTK data is auto-downloaded on backend startup
+# If missing, manually run:
+cd /opt/ai-search/backend
+source venv/bin/activate
+python setup_nltk.py
+
+# Then restart backend
+pm2 restart ai-search-backend
+```
+
 ### Frontend Issues
 
 **API Connection Failed**
@@ -479,7 +614,28 @@ npm install
 
 ## 📈 Recent Updates (This Branch)
 
-### Latest Session Changes
+### Latest Session Changes (December 2025)
+
+**UX Improvements**
+- ✅ **Claude-style Layout** - Search input moved below conversation for better UX
+- ✅ **Auto-scroll** - Automatically scrolls to show latest messages
+- ✅ **Unicode Support** - Proper display of Chinese characters and non-ASCII text
+- ✅ **Cross-browser Sync** - Conversation history syncs across Chrome, Edge, etc.
+- ✅ **Backend Conversation Storage** - All searches persisted to database
+
+**Production Infrastructure**
+- ✅ **GPU Acceleration** - Migrated to g4dn.xlarge for 7-12x faster embeddings
+- ✅ **Spot Instance Resilience** - Auto-restart with Elastic IP for DNS stability
+- ✅ **Qdrant Auto-restart** - Survives spot interruptions with `restart: always`
+- ✅ **NLTK Data Setup** - Auto-downloads on startup for Excel file processing
+
+**Bug Fixes**
+- ✅ Fixed XLSX/Excel upload errors (missing NLTK tokenizer data)
+- ✅ Fixed conversation history not syncing across browsers
+- ✅ Fixed synchronous searches not saving to database
+- ✅ Fixed JSON serialization for non-ASCII characters
+
+### Previous Session Changes
 - ✅ Migrated from HTML to React 19
 - ✅ Implemented PM2 production deployment
 - ✅ Switched from Qwen to Alibaba-NLP embeddings (768 dim)
@@ -498,11 +654,12 @@ npm install
 - Embedding model changed: Qwen → Alibaba-NLP
 - Upload response now returns job_id instead of immediate processing
 - Frontend framework: HTML → React 19
+- Conversation storage: localStorage → Backend database
 
 ## 🔄 Branching Strategy
 
 ### Current Branch
-**Branch**: `claude/evaluate-html-to-react-011CUyQ9hSAQupSJFsteh1nb`
+**Branch**: `claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4`
 
 This branch contains all latest features and improvements listed above.
 
@@ -511,15 +668,15 @@ This branch contains all latest features and improvements listed above.
 **Option 1: Continue on Same Branch (Recommended)**
 ```bash
 # Just pull this branch - no merge needed
-git checkout claude/evaluate-html-to-react-011CUyQ9hSAQupSJFsteh1nb
-git pull origin claude/evaluate-html-to-react-011CUyQ9hSAQupSJFsteh1nb
+git checkout claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
+git pull origin claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
 ```
 
 **Option 2: Merge to Main First**
 ```bash
 # Merge this branch to main
 git checkout main
-git merge claude/evaluate-html-to-react-011CUyQ9hSAQupSJFsteh1nb
+git merge claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
 git push origin main
 
 # Then start new session from main
@@ -574,6 +731,7 @@ For issues or questions:
 
 ---
 
-**Last Updated**: 2025-01-12
-**Current Version**: React Migration + Background Processing
-**Branch**: claude/evaluate-html-to-react-011CUyQ9hSAQupSJFsteh1nb
+**Last Updated**: 2025-12-17
+**Current Version**: GPU-Accelerated + Cross-browser Sync + Claude-style UX
+**Branch**: claude/upgrade-document-search-0146g7aVkVoKHACRKoW3X4y4
+**Instance**: g4dn.xlarge GPU (AWS us-west-2c spot)
