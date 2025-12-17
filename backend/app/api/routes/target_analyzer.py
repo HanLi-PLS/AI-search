@@ -402,7 +402,7 @@ Labels should be legible and use standard scientific font."""
                 # Generate mechanism diagram with Gemini image model
                 image_response = client.models.generate_content(
                     model="gemini-3-pro-image-preview",
-                    contents=[types.Part.from_text(image_prompt)],
+                    contents=image_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.7,
                     )
