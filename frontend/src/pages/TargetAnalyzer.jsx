@@ -231,41 +231,85 @@ function TargetAnalyzer() {
                 <div className="evidence-section">
                   <div className="subsection">
                     <h4>Human Genetic Evidence</h4>
-                    <table className="evidence-table">
-                      <thead>
-                        <tr>
-                          <th>Variant</th>
-                          <th>Clinical Significance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.preclinical_evidence.human_genetics.map((item, i) => (
-                          <tr key={i}>
-                            <td>{item.variant}</td>
-                            <td>{item.significance}</td>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong>Monogenic Gain-of-Function Mutations:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Variant</th>
+                            <th>Phenotype</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.human_genetics.monogenic_mutations.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.variant}</td>
+                              <td>{item.phenotype}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <strong>Common/Low-Frequency Variant Associations:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Variant</th>
+                            <th>Association</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.human_genetics.common_variants.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.variant}</td>
+                              <td>{item.association}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                   <div className="subsection">
-                    <h4>Animal Models</h4>
-                    <table className="evidence-table">
-                      <thead>
-                        <tr>
-                          <th>Model</th>
-                          <th>Outcome</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.preclinical_evidence.animal_models.map((item, i) => (
-                          <tr key={i}>
-                            <td>{item.model}</td>
-                            <td>{item.outcome}</td>
+                    <h4>Preclinical Animal Studies</h4>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong>Loss-of-Function Models:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Model</th>
+                            <th>Outcome</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.animal_models.loss_of_function.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.model}</td>
+                              <td>{item.outcome}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <strong>Gain-of-Function Models:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Model</th>
+                            <th>Outcome</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.animal_models.gain_of_function.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.model}</td>
+                              <td>{item.outcome}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -372,8 +416,21 @@ function TargetAnalyzer() {
                     </div>
                   </div>
                   <div className="analysis-text">
-                    <h4>Market & Strategic Fit</h4>
-                    <p>{data.indication_specific_analysis}</p>
+                    <h4>Current Therapeutic Landscape</h4>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong>Major Drug Classes:</strong>
+                      <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                        {data.indication_specific_analysis.therapeutic_classes.map((tc, i) => (
+                          <li key={i} style={{ marginBottom: '0.25rem' }}>
+                            <strong>{tc.class_name}:</strong> {tc.examples}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <strong>Treatment Guidelines:</strong>
+                      <p style={{ marginTop: '0.5rem' }}>{data.indication_specific_analysis.treatment_guidelines}</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -407,18 +464,22 @@ function TargetAnalyzer() {
               {/* Unmet Needs */}
               {renderSection(
                 '8. Unmet Medical Needs',
-                <div className="unmet-grid">
+                <div className="unmet-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="unmet-box">
-                    <h4>📊 Response Rates</h4>
+                    <h4>📊 Incomplete Response</h4>
                     <p>{data.unmet_needs.response_rates}</p>
                   </div>
                   <div className="unmet-box">
-                    <h4>⚠️ Resistance</h4>
+                    <h4>⚠️ Treatment Resistance</h4>
                     <p>{data.unmet_needs.resistance}</p>
                   </div>
                   <div className="unmet-box">
                     <h4>🛡️ Safety Limitations</h4>
                     <p>{data.unmet_needs.safety_limitations}</p>
+                  </div>
+                  <div className="unmet-box">
+                    <h4>💊 Adherence Challenges</h4>
+                    <p>{data.unmet_needs.adherence_challenges}</p>
                   </div>
                 </div>
               )}
@@ -484,7 +545,18 @@ function TargetAnalyzer() {
               {renderSection(
                 '10. Biomarker Strategy',
                 <div className="biomarker-section">
-                  <p>{data.biomarker_strategy}</p>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Stratification Biomarkers:</h4>
+                    <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
+                      {data.biomarker_strategy.stratification_biomarkers.map((biomarker, i) => (
+                        <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem' }}>{biomarker}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Adaptive Design Considerations:</h4>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}>{data.biomarker_strategy.adaptive_design}</p>
+                  </div>
                 </div>
               )}
 
