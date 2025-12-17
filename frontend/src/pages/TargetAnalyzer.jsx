@@ -168,11 +168,30 @@ function TargetAnalyzer() {
                   </div>
                   <div className="subsection">
                     <h4>Mechanism of Action</h4>
-                    <ol className="mechanism-list">
-                      {data.biological_overview.mechanistic_insights.map((insight, i) => (
-                        <li key={i}>{insight}</li>
-                      ))}
-                    </ol>
+                    <div className="mechanism-content">
+                      <ol className="mechanism-list">
+                        {data.biological_overview.mechanistic_insights.map((insight, i) => (
+                          <li key={i}>{insight}</li>
+                        ))}
+                      </ol>
+                      {data.biological_overview.mechanism_image ? (
+                        <div className="mechanism-image">
+                          <img
+                            src={data.biological_overview.mechanism_image}
+                            alt="Mechanism of Action Diagram"
+                            className="mechanism-diagram"
+                          />
+                          <p className="image-caption">
+                            <span className="image-icon">🖼️</span> AI-generated schematic
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mechanism-placeholder">
+                          <span className="placeholder-icon">🖼️</span>
+                          <p>Diagram not available</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="subsection-grid">
                     <div>

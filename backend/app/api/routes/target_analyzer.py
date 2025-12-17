@@ -1,13 +1,15 @@
 """
 Target Analyzer API endpoints
-Analyzes drug targets and indications using AI
+Analyzes drug targets and indications using Gemini AI with search and image generation
 """
 import logging
+import json
+import base64
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from openai import OpenAI
-import json
+from google import genai
+from google.genai import types
 
 from backend.app.config import settings
 from backend.app.api.routes.auth import get_current_user
@@ -31,6 +33,7 @@ class BiologicalOverview(BaseModel):
     mechanistic_insights: list[str]
     human_validation: str
     species_conservation: str
+    mechanism_image: Optional[str] = None  # Base64 encoded image
 
 class TherapeuticRationale(BaseModel):
     pathway_positioning: str
@@ -129,33 +132,205 @@ async def analyze_target(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Analyze a drug target and indication pair
-
-    This endpoint generates a comprehensive analysis report including:
-    - Biological overview and mechanism of action
-    - Therapeutic rationale
-    - Pre-clinical evidence
-    - Competitive landscape
-    - Risk assessment
-    - Business development opportunities
-
-    Args:
-        request: Target and indication to analyze
-        current_user: Authenticated user
-
-    Returns:
-        Comprehensive analysis report
+    Analyze a drug target and indication pair using Gemini AI with search
     """
     try:
         logger.info(f"Starting target analysis for {request.target} in {request.indication}")
 
-        # Initialize OpenAI client
-        api_key = settings.get_openai_api_key()
-        client = OpenAI(api_key=api_key)
+        # Initialize Gemini client
+        if not settings.GEMINI_API_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Gemini API key not configured"
+            )
+
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
+        # Define JSON schema for structured output
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "biological_overview": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "structural_domains": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "name": types.Schema(type=types.Type.STRING),
+                                    "description": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["name", "description"]
+                            )
+                        ),
+                        "mechanistic_insights": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.STRING)
+                        ),
+                        "human_validation": types.Schema(type=types.Type.STRING),
+                        "species_conservation": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["structural_domains", "mechanistic_insights", "human_validation", "species_conservation"]
+                ),
+                "therapeutic_rationale": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "pathway_positioning": types.Schema(type=types.Type.STRING),
+                        "specificity_vs_breadth": types.Schema(type=types.Type.STRING),
+                        "modality_comparison": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["pathway_positioning", "specificity_vs_breadth", "modality_comparison"]
+                ),
+                "preclinical_evidence": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "human_genetics": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "variant": types.Schema(type=types.Type.STRING),
+                                    "significance": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["variant", "significance"]
+                            )
+                        ),
+                        "animal_models": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "model": types.Schema(type=types.Type.STRING),
+                                    "outcome": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["model", "outcome"]
+                            )
+                        ),
+                    },
+                    required=["human_genetics", "animal_models"]
+                ),
+                "drug_trial_landscape": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "summary": types.Schema(type=types.Type.STRING),
+                        "competitors": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "company": types.Schema(type=types.Type.STRING),
+                                    "molecule_name": types.Schema(type=types.Type.STRING),
+                                    "phase": types.Schema(type=types.Type.STRING),
+                                    "mechanism": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["company", "molecule_name", "phase", "mechanism"]
+                            )
+                        ),
+                        "phase_count": types.Schema(
+                            type=types.Type.OBJECT,
+                            properties={
+                                "preclinical": types.Schema(type=types.Type.INTEGER),
+                                "phase1": types.Schema(type=types.Type.INTEGER),
+                                "phase2": types.Schema(type=types.Type.INTEGER),
+                                "phase3": types.Schema(type=types.Type.INTEGER),
+                                "approved": types.Schema(type=types.Type.INTEGER),
+                            },
+                            required=["preclinical", "phase1", "phase2", "phase3", "approved"]
+                        ),
+                    },
+                    required=["summary", "competitors", "phase_count"]
+                ),
+                "patent_ip": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "recent_filings": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "assignee": types.Schema(type=types.Type.STRING),
+                                    "year": types.Schema(type=types.Type.STRING),
+                                    "focus": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["assignee", "year", "focus"]
+                            )
+                        ),
+                        "strategy": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["recent_filings", "strategy"]
+                ),
+                "indication_potential": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "score": types.Schema(type=types.Type.INTEGER, description="Score from 0 to 10"),
+                        "reasoning": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["score", "reasoning"]
+                ),
+                "differentiation": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "analysis": types.Schema(type=types.Type.STRING),
+                        "advantages": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                        "disadvantages": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                    },
+                    required=["analysis", "advantages", "disadvantages"]
+                ),
+                "unmet_needs": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "response_rates": types.Schema(type=types.Type.STRING),
+                        "resistance": types.Schema(type=types.Type.STRING),
+                        "safety_limitations": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["response_rates", "resistance", "safety_limitations"]
+                ),
+                "indication_specific_analysis": types.Schema(type=types.Type.STRING),
+                "risks": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "clinical": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
+                        "safety": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
+                        "competitive": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
+                        "technical": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
+                        "risk_analysis": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["clinical", "safety", "competitive", "technical", "risk_analysis"]
+                ),
+                "biomarker_strategy": types.Schema(type=types.Type.STRING),
+                "bd_potentials": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "activities": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "company": types.Schema(type=types.Type.STRING),
+                                    "description": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["company", "description"]
+                            )
+                        ),
+                        "interested_parties": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+                    },
+                    required=["activities", "interested_parties"]
+                ),
+            },
+            required=[
+                "biological_overview", "therapeutic_rationale", "preclinical_evidence",
+                "drug_trial_landscape", "patent_ip", "indication_potential",
+                "differentiation", "unmet_needs", "indication_specific_analysis",
+                "risks", "biomarker_strategy", "bd_potentials"
+            ]
+        )
 
         # Create the analysis prompt
         prompt = f"""
 Conduct a deep comprehensive research analysis for the drug target "{request.target}" specifically for the indication "{request.indication}".
+
+You must use the 'google_search' tool to find the most recent clinical trials, patent filings, and business development news.
 
 Fill out the response following the JSON schema provided.
 Focus on structured data (arrays, lists) suitable for visualization rather than long paragraphs.
@@ -167,7 +342,7 @@ Specific Instructions:
 - 'preclinical_evidence': Break down into specific models and outcomes.
 - 'patent_ip.recent_filings': List top 3-5 relevant recent patent assignees/years.
 
-**Indication Potential Scoring Criteria (STABILITY REQUIRED):**
+**Indication Potential Scoring Criteria:**
 To determine the 'indication_potential.score' (0-10), strictly evaluate the following 5 dimensions. Assign 0-2 points for each, then sum them up:
 1. **Unmet Need**: (0=Low, 2=High/Critical)
 2. **Scientific Rationale**: (0=Weak link, 2=Strong genetic/mechanistic validation)
@@ -178,254 +353,76 @@ Sum these values to get the final score. Explain this calculation in the 'reason
 
 - 'risks': Provide numerical scores 0-100.
 
-Ensure all data is scientific and actionable. Use real-world data where possible.
+Ensure all data is scientific and actionable.
         """
 
-        # Use structured outputs with OpenAI
-        # Use o4-mini for complex analysis with web search capabilities
-        response = client.chat.completions.create(
-            model="o4-mini",  # Use reasoning model with web search
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an expert biotech analyst specializing in drug target analysis and competitive intelligence. Provide comprehensive, data-driven analysis."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "target_analysis",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "biological_overview": {
-                                "type": "object",
-                                "properties": {
-                                    "structural_domains": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "name": {"type": "string"},
-                                                "description": {"type": "string"}
-                                            },
-                                            "required": ["name", "description"],
-                                            "additionalProperties": False
-                                        }
-                                    },
-                                    "mechanistic_insights": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    },
-                                    "human_validation": {"type": "string"},
-                                    "species_conservation": {"type": "string"}
-                                },
-                                "required": ["structural_domains", "mechanistic_insights", "human_validation", "species_conservation"],
-                                "additionalProperties": False
-                            },
-                            "therapeutic_rationale": {
-                                "type": "object",
-                                "properties": {
-                                    "pathway_positioning": {"type": "string"},
-                                    "specificity_vs_breadth": {"type": "string"},
-                                    "modality_comparison": {"type": "string"}
-                                },
-                                "required": ["pathway_positioning", "specificity_vs_breadth", "modality_comparison"],
-                                "additionalProperties": False
-                            },
-                            "preclinical_evidence": {
-                                "type": "object",
-                                "properties": {
-                                    "human_genetics": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "variant": {"type": "string"},
-                                                "significance": {"type": "string"}
-                                            },
-                                            "required": ["variant", "significance"],
-                                            "additionalProperties": False
-                                        }
-                                    },
-                                    "animal_models": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "model": {"type": "string"},
-                                                "outcome": {"type": "string"}
-                                            },
-                                            "required": ["model", "outcome"],
-                                            "additionalProperties": False
-                                        }
-                                    }
-                                },
-                                "required": ["human_genetics", "animal_models"],
-                                "additionalProperties": False
-                            },
-                            "drug_trial_landscape": {
-                                "type": "object",
-                                "properties": {
-                                    "summary": {"type": "string"},
-                                    "competitors": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "company": {"type": "string"},
-                                                "molecule_name": {"type": "string"},
-                                                "phase": {"type": "string"},
-                                                "mechanism": {"type": "string"}
-                                            },
-                                            "required": ["company", "molecule_name", "phase", "mechanism"],
-                                            "additionalProperties": False
-                                        }
-                                    },
-                                    "phase_count": {
-                                        "type": "object",
-                                        "properties": {
-                                            "preclinical": {"type": "integer"},
-                                            "phase1": {"type": "integer"},
-                                            "phase2": {"type": "integer"},
-                                            "phase3": {"type": "integer"},
-                                            "approved": {"type": "integer"}
-                                        },
-                                        "required": ["preclinical", "phase1", "phase2", "phase3", "approved"],
-                                        "additionalProperties": False
-                                    }
-                                },
-                                "required": ["summary", "competitors", "phase_count"],
-                                "additionalProperties": False
-                            },
-                            "patent_ip": {
-                                "type": "object",
-                                "properties": {
-                                    "recent_filings": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "assignee": {"type": "string"},
-                                                "year": {"type": "string"},
-                                                "focus": {"type": "string"}
-                                            },
-                                            "required": ["assignee", "year", "focus"],
-                                            "additionalProperties": False
-                                        }
-                                    },
-                                    "strategy": {"type": "string"}
-                                },
-                                "required": ["recent_filings", "strategy"],
-                                "additionalProperties": False
-                            },
-                            "indication_potential": {
-                                "type": "object",
-                                "properties": {
-                                    "score": {"type": "integer"},
-                                    "reasoning": {"type": "string"}
-                                },
-                                "required": ["score", "reasoning"],
-                                "additionalProperties": False
-                            },
-                            "differentiation": {
-                                "type": "object",
-                                "properties": {
-                                    "analysis": {"type": "string"},
-                                    "advantages": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    },
-                                    "disadvantages": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    }
-                                },
-                                "required": ["analysis", "advantages", "disadvantages"],
-                                "additionalProperties": False
-                            },
-                            "unmet_needs": {
-                                "type": "object",
-                                "properties": {
-                                    "response_rates": {"type": "string"},
-                                    "resistance": {"type": "string"},
-                                    "safety_limitations": {"type": "string"}
-                                },
-                                "required": ["response_rates", "resistance", "safety_limitations"],
-                                "additionalProperties": False
-                            },
-                            "indication_specific_analysis": {"type": "string"},
-                            "risks": {
-                                "type": "object",
-                                "properties": {
-                                    "clinical": {"type": "integer"},
-                                    "safety": {"type": "integer"},
-                                    "competitive": {"type": "integer"},
-                                    "technical": {"type": "integer"},
-                                    "risk_analysis": {"type": "string"}
-                                },
-                                "required": ["clinical", "safety", "competitive", "technical", "risk_analysis"],
-                                "additionalProperties": False
-                            },
-                            "biomarker_strategy": {"type": "string"},
-                            "bd_potentials": {
-                                "type": "object",
-                                "properties": {
-                                    "activities": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "company": {"type": "string"},
-                                                "description": {"type": "string"}
-                                            },
-                                            "required": ["company", "description"],
-                                            "additionalProperties": False
-                                        }
-                                    },
-                                    "interested_parties": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    }
-                                },
-                                "required": ["activities", "interested_parties"],
-                                "additionalProperties": False
-                            }
-                        },
-                        "required": [
-                            "biological_overview",
-                            "therapeutic_rationale",
-                            "preclinical_evidence",
-                            "drug_trial_landscape",
-                            "patent_ip",
-                            "indication_potential",
-                            "differentiation",
-                            "unmet_needs",
-                            "indication_specific_analysis",
-                            "risks",
-                            "biomarker_strategy",
-                            "bd_potentials"
-                        ],
-                        "additionalProperties": False
-                    }
-                }
-            }
+        # Use Gemini with search
+        response = client.models.generate_content(
+            model="gemini-3-pro",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            )
         )
 
         # Parse the response
-        content = response.choices[0].message.content
-        if not content:
+        if not response.text:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No response generated from AI model"
+                detail="No response generated from Gemini"
             )
 
-        analysis_data = json.loads(content)
+        analysis_data = json.loads(response.text)
+
+        # Generate mechanism diagram using Gemini image generation
+        mechanism_image = None
+        try:
+            mechanism_text = " → ".join(analysis_data["biological_overview"]["mechanistic_insights"])
+            image_prompt = f"""Scientific schematic diagram illustrating the biological mechanism of action for {request.target}.
+Steps to illustrate: {mechanism_text}.
+Style: Clean, professional, textbook medical illustration, white background, high resolution, schematic.
+Labels should be legible and use standard scientific font."""
+
+            try:
+                # Try gemini-3-pro-image first
+                image_response = client.models.generate_content(
+                    model="gemini-3-pro-image",
+                    contents=[types.Part.from_text(image_prompt)],
+                    config=types.GenerateContentConfig(
+                        image_config=types.ImageConfig(
+                            aspect_ratio="4:3",
+                            image_size="1K"
+                        )
+                    )
+                )
+
+                for part in image_response.candidates[0].content.parts:
+                    if part.inline_data:
+                        mechanism_image = f"data:{part.inline_data.mime_type};base64,{part.inline_data.data}"
+                        break
+            except Exception as e:
+                logger.warning(f"gemini-3-pro-image failed: {e}, trying gemini-2.5-flash-image")
+                try:
+                    # Fallback to flash image model
+                    image_response = client.models.generate_content(
+                        model="gemini-2.5-flash-image",
+                        contents=[types.Part.from_text(image_prompt)]
+                    )
+
+                    for part in image_response.candidates[0].content.parts:
+                        if part.inline_data:
+                            mechanism_image = f"data:{part.inline_data.mime_type};base64,{part.inline_data.data}"
+                            break
+                except Exception as e2:
+                    logger.error(f"All image generation failed: {e2}")
+
+        except Exception as e:
+            logger.warning(f"Failed to generate mechanism diagram: {e}")
+
+        # Add mechanism image to biological overview
+        analysis_data["biological_overview"]["mechanism_image"] = mechanism_image
 
         # Add target and indication to response
         analysis_data['target'] = request.target
@@ -436,7 +433,7 @@ Ensure all data is scientific and actionable. Use real-world data where possible
         return TargetAnalysisResponse(**analysis_data)
 
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse AI response: {str(e)}")
+        logger.error(f"Failed to parse Gemini response: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse AI response: {str(e)}"
