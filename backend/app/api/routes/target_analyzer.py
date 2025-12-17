@@ -41,17 +41,33 @@ class TherapeuticRationale(BaseModel):
     specificity_vs_breadth: str
     modality_comparison: str
 
-class GeneticEvidence(BaseModel):
+class MonogenicMutation(BaseModel):
     variant: str
-    significance: str
+    phenotype: str
 
-class AnimalModel(BaseModel):
+class CommonVariant(BaseModel):
+    variant: str
+    association: str
+
+class HumanGenetics(BaseModel):
+    monogenic_mutations: list[MonogenicMutation]
+    common_variants: list[CommonVariant]
+
+class LossOfFunctionModel(BaseModel):
     model: str
     outcome: str
 
+class GainOfFunctionModel(BaseModel):
+    model: str
+    outcome: str
+
+class AnimalModels(BaseModel):
+    loss_of_function: list[LossOfFunctionModel]
+    gain_of_function: list[GainOfFunctionModel]
+
 class PreClinicalEvidence(BaseModel):
-    human_genetics: list[GeneticEvidence]
-    animal_models: list[AnimalModel]
+    human_genetics: HumanGenetics
+    animal_models: AnimalModels
 
 class Competitor(BaseModel):
     company: str
@@ -89,6 +105,7 @@ class UnmetNeeds(BaseModel):
     response_rates: str
     resistance: str
     safety_limitations: str
+    adherence_challenges: str
 
 class Risks(BaseModel):
     clinical: int = Field(..., description="0-100")
@@ -109,6 +126,18 @@ class BDPotentials(BaseModel):
     activities: list[BDActivity]
     interested_parties: list[str]
 
+class TherapeuticClass(BaseModel):
+    class_name: str
+    examples: str
+
+class IndicationSpecificAnalysis(BaseModel):
+    therapeutic_classes: list[TherapeuticClass]
+    treatment_guidelines: str
+
+class BiomarkerStrategy(BaseModel):
+    stratification_biomarkers: list[str]
+    adaptive_design: str
+
 class TargetAnalysisResponse(BaseModel):
     """Response model for target analysis"""
     target: str
@@ -121,9 +150,9 @@ class TargetAnalysisResponse(BaseModel):
     indication_potential: IndicationPotential
     differentiation: Differentiation
     unmet_needs: UnmetNeeds
-    indication_specific_analysis: str
+    indication_specific_analysis: IndicationSpecificAnalysis
     risks: Risks
-    biomarker_strategy: str
+    biomarker_strategy: BiomarkerStrategy
     bd_potentials: BDPotentials
 
 
@@ -521,15 +550,12 @@ Labels should be legible and use standard scientific font."""
 
             try:
                 # Generate mechanism diagram with Gemini image model
+                # Note: Image generation is experimental and may not always work
                 image_response = client.models.generate_content(
                     model="gemini-3-pro-image-preview",
                     contents=image_prompt,
                     config=types.GenerateContentConfig(
-                        tools=[{"google_search": {}}],
-                        image_config=types.ImageConfig(
-                            aspect_ratio="4:3",
-                            image_size="1K"
-                        )
+                        tools=[{"google_search": {}}]
                     )
                 )
 
