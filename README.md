@@ -21,8 +21,10 @@ A production-ready AI-powered document search platform with semantic search, onl
 
 ### 🤖 AI Models & Search
 - **Multiple Reasoning Modes**:
-  - Non-Reasoning (gpt-4.1) - Fast, balanced responses
+  - Non-Reasoning (gpt-5.1) - Fast, balanced responses
   - Reasoning (o4-mini) - Extended reasoning chains
+  - Reasoning GPT-5 (gpt-5-pro) - Advanced reasoning capabilities
+  - Reasoning Gemini (gemini-3-pro-preview) - Google's reasoning model
   - Deep Research (o3-deep-research) - Comprehensive research synthesis
 - **Hybrid Search** - Combines BM25 (keyword) and dense vector (semantic) search
 - **Conversation History** - Context-aware multi-turn conversations
@@ -48,9 +50,14 @@ A production-ready AI-powered document search platform with semantic search, onl
 - FastAPI web framework with async support
 - Qdrant vector database
 - Alibaba-NLP/gte-multilingual-base embeddings (768 dim)
-- OpenAI API (gpt-4.1, o4-mini, o3-deep-research)
+- OpenAI API models:
+  - gpt-5.1 (default/non-reasoning)
+  - o4-mini (reasoning, vision, online search)
+  - gpt-5-pro (advanced reasoning)
+  - o3-deep-research (comprehensive research)
+- Google Gemini API (gemini-3-pro-preview for reasoning)
 - BM25Okapi for keyword search
-- PyMuPDF for PDF processing
+- PyMuPDF for PDF processing with vision AI
 - python-docx, openpyxl for Office documents
 - AWS SDK (boto3) for S3 integration
 
@@ -235,9 +242,16 @@ Query: "What's our drug efficacy and how does it compare to competitors?"
 ```bash
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...
-ANSWER_MODEL=gpt-4.1
-ONLINE_SEARCH_MODEL=o4-mini
-VISION_MODEL=o4-mini
+ANSWER_MODEL=gpt-5.1              # Default model for non-reasoning mode
+ONLINE_SEARCH_MODEL=o4-mini       # Model for reasoning mode online search
+VISION_MODEL=o4-mini               # Model for PDF image/chart extraction
+
+# Reasoning Mode Options (set via frontend dropdown):
+# - non_reasoning: Uses gpt-5.1 (fast, balanced)
+# - reasoning: Uses o4-mini (extended reasoning chains)
+# - reasoning_gpt5: Uses gpt-5-pro (advanced reasoning)
+# - reasoning_gemini: Uses gemini-3-pro-preview (Google's reasoning model)
+# - deep_research: Uses o3-deep-research (comprehensive research)
 
 # Or use AWS Secrets Manager
 USE_AWS_SECRETS=true
