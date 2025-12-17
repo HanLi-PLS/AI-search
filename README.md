@@ -373,7 +373,6 @@ Response:
 
 **Instance Type**: g4dn.xlarge (GPU-accelerated for fast embeddings)
 - 4 vCPUs, 16 GB RAM, 1x NVIDIA T4 GPU
-- ~$259/month with spot pricing (70% cheaper than on-demand)
 - 7-12x faster embeddings than CPU instances
 
 **Important**: Use **Elastic IP** to maintain DNS stability during spot interruptions
