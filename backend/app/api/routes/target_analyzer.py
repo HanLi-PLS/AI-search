@@ -13,6 +13,7 @@ from google.genai import types
 
 from backend.app.config import settings
 from backend.app.api.routes.auth import get_current_user
+from backend.app.utils.aws_secrets import get_key
 
 logger = logging.getLogger(__name__)
 
@@ -137,14 +138,26 @@ async def analyze_target(
     try:
         logger.info(f"Starting target analysis for {request.target} in {request.indication}")
 
-        # Initialize Gemini client
-        if not settings.GEMINI_API_KEY:
+        # Initialize Gemini client - try AWS Secrets Manager first, then fall back to env var
+        gemini_api_key = None
+        try:
+            # Try to get from AWS Secrets Manager (same as Unified AI Search)
+            gemini_api_key = get_key("googleai-api-key", settings.AWS_REGION)
+            logger.info("Using Gemini API key from AWS Secrets Manager")
+        except Exception as e:
+            logger.warning(f"Could not load Gemini API key from AWS Secrets Manager: {str(e)}")
+            # Fall back to environment variable
+            gemini_api_key = settings.GEMINI_API_KEY
+            if gemini_api_key:
+                logger.info("Using Gemini API key from environment variable")
+
+        if not gemini_api_key:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Gemini API key not configured"
+                detail="Gemini API key not configured. Set GEMINI_API_KEY in .env or add 'googleai-api-key' to AWS Secrets Manager"
             )
 
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        client = genai.Client(api_key=gemini_api_key)
 
         # Define JSON schema for structured output
         schema = types.Schema(
