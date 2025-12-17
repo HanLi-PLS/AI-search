@@ -562,8 +562,18 @@ Labels should be legible and use standard scientific font."""
                 # Extract image from response
                 for part in image_response.candidates[0].content.parts:
                     if part.inline_data:
-                        mechanism_image = f"data:{part.inline_data.mime_type};base64,{part.inline_data.data}"
-                        logger.info("Successfully generated mechanism diagram")
+                        # The data is already base64 encoded
+                        import base64
+                        mime_type = part.inline_data.mime_type or "image/png"
+
+                        # Check if data is bytes or string
+                        if isinstance(part.inline_data.data, bytes):
+                            image_b64 = base64.b64encode(part.inline_data.data).decode('utf-8')
+                        else:
+                            image_b64 = part.inline_data.data
+
+                        mechanism_image = f"data:{mime_type};base64,{image_b64}"
+                        logger.info(f"Successfully generated mechanism diagram (mime: {mime_type}, data length: {len(image_b64)})")
                         break
             except Exception as e:
                 logger.warning(f"Failed to generate mechanism diagram: {e}")
