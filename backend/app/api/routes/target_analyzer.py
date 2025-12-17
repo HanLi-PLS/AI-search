@@ -199,26 +199,60 @@ async def analyze_target(
                     type=types.Type.OBJECT,
                     properties={
                         "human_genetics": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(
-                                type=types.Type.OBJECT,
-                                properties={
-                                    "variant": types.Schema(type=types.Type.STRING),
-                                    "significance": types.Schema(type=types.Type.STRING),
-                                },
-                                required=["variant", "significance"]
-                            )
+                            type=types.Type.OBJECT,
+                            properties={
+                                "monogenic_mutations": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(
+                                        type=types.Type.OBJECT,
+                                        properties={
+                                            "variant": types.Schema(type=types.Type.STRING),
+                                            "phenotype": types.Schema(type=types.Type.STRING),
+                                        },
+                                        required=["variant", "phenotype"]
+                                    )
+                                ),
+                                "common_variants": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(
+                                        type=types.Type.OBJECT,
+                                        properties={
+                                            "variant": types.Schema(type=types.Type.STRING),
+                                            "association": types.Schema(type=types.Type.STRING),
+                                        },
+                                        required=["variant", "association"]
+                                    )
+                                ),
+                            },
+                            required=["monogenic_mutations", "common_variants"]
                         ),
                         "animal_models": types.Schema(
-                            type=types.Type.ARRAY,
-                            items=types.Schema(
-                                type=types.Type.OBJECT,
-                                properties={
-                                    "model": types.Schema(type=types.Type.STRING),
-                                    "outcome": types.Schema(type=types.Type.STRING),
-                                },
-                                required=["model", "outcome"]
-                            )
+                            type=types.Type.OBJECT,
+                            properties={
+                                "loss_of_function": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(
+                                        type=types.Type.OBJECT,
+                                        properties={
+                                            "model": types.Schema(type=types.Type.STRING),
+                                            "outcome": types.Schema(type=types.Type.STRING),
+                                        },
+                                        required=["model", "outcome"]
+                                    )
+                                ),
+                                "gain_of_function": types.Schema(
+                                    type=types.Type.ARRAY,
+                                    items=types.Schema(
+                                        type=types.Type.OBJECT,
+                                        properties={
+                                            "model": types.Schema(type=types.Type.STRING),
+                                            "outcome": types.Schema(type=types.Type.STRING),
+                                        },
+                                        required=["model", "outcome"]
+                                    )
+                                ),
+                            },
+                            required=["loss_of_function", "gain_of_function"]
                         ),
                     },
                     required=["human_genetics", "animal_models"]
@@ -293,13 +327,31 @@ async def analyze_target(
                 "unmet_needs": types.Schema(
                     type=types.Type.OBJECT,
                     properties={
-                        "response_rates": types.Schema(type=types.Type.STRING),
-                        "resistance": types.Schema(type=types.Type.STRING),
-                        "safety_limitations": types.Schema(type=types.Type.STRING),
+                        "response_rates": types.Schema(type=types.Type.STRING, description="Incomplete response to existing drugs"),
+                        "resistance": types.Schema(type=types.Type.STRING, description="Treatment resistance & refractory populations"),
+                        "safety_limitations": types.Schema(type=types.Type.STRING, description="Safety & monitoring limitations"),
+                        "adherence_challenges": types.Schema(type=types.Type.STRING, description="Adherence & persistence challenges"),
                     },
-                    required=["response_rates", "resistance", "safety_limitations"]
+                    required=["response_rates", "resistance", "safety_limitations", "adherence_challenges"]
                 ),
-                "indication_specific_analysis": types.Schema(type=types.Type.STRING),
+                "indication_specific_analysis": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "therapeutic_classes": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "class_name": types.Schema(type=types.Type.STRING),
+                                    "examples": types.Schema(type=types.Type.STRING),
+                                },
+                                required=["class_name", "examples"]
+                            )
+                        ),
+                        "treatment_guidelines": types.Schema(type=types.Type.STRING),
+                    },
+                    required=["therapeutic_classes", "treatment_guidelines"]
+                ),
                 "risks": types.Schema(
                     type=types.Type.OBJECT,
                     properties={
@@ -311,7 +363,17 @@ async def analyze_target(
                     },
                     required=["clinical", "safety", "competitive", "technical", "risk_analysis"]
                 ),
-                "biomarker_strategy": types.Schema(type=types.Type.STRING),
+                "biomarker_strategy": types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        "stratification_biomarkers": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.STRING)
+                        ),
+                        "adaptive_design": types.Schema(type=types.Type.STRING, description="Adaptive design considerations"),
+                    },
+                    required=["stratification_biomarkers", "adaptive_design"]
+                ),
                 "bd_potentials": types.Schema(
                     type=types.Type.OBJECT,
                     properties={
@@ -341,32 +403,91 @@ async def analyze_target(
 
         # Create the analysis prompt
         prompt = f"""
-Conduct a deep comprehensive research analysis for the drug target "{request.target}" specifically for the indication "{request.indication}".
+Conduct a deep comprehensive drug development potential analysis for "{request.target}" inhibitor/modulator in "{request.indication}".
 
-You must use the 'google_search' tool to find the most recent clinical trials, patent filings, and business development news.
+**CRITICAL**: You MUST use the 'google_search' tool extensively to find:
+- Latest clinical trial data (ClinicalTrials.gov, published results)
+- Recent patent filings and IP landscape
+- Business development news and partnerships
+- Recent scientific publications and genetic evidence
+- Competitive landscape and market data
 
-Fill out the response following the JSON schema provided.
-Focus on structured data (arrays, lists) suitable for visualization rather than long paragraphs.
-Keep text descriptions concise and high-density.
+## Analysis Framework:
 
-Specific Instructions:
-- 'structural_domains': List key domains (e.g., Kinase domain, CARD domain) and a brief 1-sentence description of their function.
-- 'mechanistic_insights': Provide a step-by-step breakdown of the mechanism as an ordered list of strings.
-- 'preclinical_evidence': Break down into specific models and outcomes.
-- 'patent_ip.recent_filings': List top 3-5 relevant recent patent assignees/years.
+### 1. Biological Overview
+- **Structural & Functional Domains**: List key protein domains with specific functions
+- **Key Mechanistic Insights**: Step-by-step mechanism of action (how the target works biologically)
+- **Human Validation Evidence**: Evidence from human genetics, biomarkers, patient data
+- **Functional Conservation Across Species**: Evolutionary conservation and cross-species validation
 
-**Indication Potential Scoring Criteria:**
-To determine the 'indication_potential.score' (0-10), strictly evaluate the following 5 dimensions. Assign 0-2 points for each, then sum them up:
-1. **Unmet Need**: (0=Low, 2=High/Critical)
-2. **Scientific Rationale**: (0=Weak link, 2=Strong genetic/mechanistic validation)
-3. **Competition**: (0=Crowded/Commoditized, 2=First-in-class/Best-in-class opportunity)
-4. **Clinical Feasibility**: (0=Hard endpoints/High failure rate, 2=Clear path)
-5. **Commercial Size**: (0=Niche, 2=Blockbuster potential)
-Sum these values to get the final score. Explain this calculation in the 'reasoning' field.
+### 2. Therapeutic Rationale
+- **Convergent Pathway Node Positioning**: Where does this target sit in disease pathways? Is it a convergence point?
+- **Downstream Specificity vs Upstream Breadth**: Does modulating this target affect narrow downstream effects or broad upstream cascades?
+- **Degradation vs Inhibition Approaches**: Compare protein degradation (PROTACs, molecular glues) vs traditional inhibition
 
-- 'risks': Provide numerical scores 0-100.
+### 3. Pre-clinical Evidence
+**Human Genetic Evidence:**
+- **Monogenic Gain-of-Function Mutations**: Rare variants that cause disease
+- **Common/Low-Frequency Variant Associations**: GWAS, rare variant associations
 
-Ensure all data is scientific and actionable.
+**Preclinical Animal Studies:**
+- **Loss-of-Function Models**: Knockout/knockdown studies and phenotypes
+- **Gain-of-Function Models**: Overexpression studies and disease models
+
+### 4. Drug/Trial Landscape
+- Provide detailed competitive landscape overview
+- List specific companies, molecules, phases, and mechanisms
+- Calculate phase distribution counts
+
+### 5. Patent & IP Landscape
+- Recent patent filings (last 3-5 years)
+- Key assignees and their strategic focus
+- IP strategy considerations for entering this space
+
+### 6. Indication Potential in {request.indication}
+**Scoring Criteria (0-10):**
+1. **Unmet Need** (0-2 points): Current treatment gaps
+2. **Scientific Rationale** (0-2 points): Strength of genetic/mechanistic validation
+3. **Competition** (0-2 points): First-in-class vs crowded space
+4. **Clinical Feasibility** (0-2 points): Clear endpoints, feasible trials
+5. **Commercial Size** (0-2 points): Market potential and addressable population
+Sum these to get final score. Provide detailed reasoning.
+
+### 7. Key Differentiation vs Existing Drugs
+- Compare against current standard of care drug classes in {request.indication}
+- List specific advantages and disadvantages
+- Focus on mechanism-based differentiation
+
+### 8. Unmet Medical Needs in {request.indication}
+- **Incomplete Response**: % of patients not responding to current drugs
+- **Treatment Resistance & Refractory Populations**: Who fails current therapy?
+- **Safety & Monitoring Limitations**: Toxicity, required monitoring, black box warnings
+- **Adherence & Persistence Challenges**: Dosing frequency, routes, tolerability
+
+### 9. Indication-Specific Analysis: {request.indication}
+- **Current Therapeutic Classes**: List major drug classes with examples
+- **Treatment Guidelines Summary**: Current standard of care per guidelines
+
+### 10. Risks
+Provide 0-100 risk scores and detailed analysis for:
+- **Clinical Development Risks**: Trial design, endpoint challenges, historical failure rates
+- **Long-term Safety Concerns**: Known or predicted on-target/off-target toxicities
+- **Competitive Positioning Challenges**: How crowded is the space?
+- **Technical Risks**: Druggability, delivery, bioavailability issues
+
+### 11. Biomarker Strategy
+- **Stratification/Paradigm Biomarkers**: Which biomarkers could identify responders?
+- **Adaptive Design Considerations**: Biomarker-driven trial designs
+
+### 12. BD Potentials
+- **Known Activities**: Recent deals, investments, partnerships involving this target
+- **Interested Parties**: Which pharma/biotech companies are most likely interested based on their portfolios?
+
+## Output Format:
+- Use structured data (arrays, objects) over long paragraphs
+- Be specific: cite studies, patents, companies, molecules by name
+- Keep descriptions concise but information-dense
+- All data must be scientifically accurate and current (search for latest information)
         """
 
         # Use Gemini with search
