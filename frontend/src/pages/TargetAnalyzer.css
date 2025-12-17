@@ -293,8 +293,8 @@
   max-width: 1200px;
   margin: 0 auto;
   background: white;
-  border-radius: 20px;
-  padding: 2rem;
+  border-radius: 16px;
+  padding: 1.5rem;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
 }
 
@@ -302,13 +302,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
   border-bottom: 2px solid #e2e8f0;
 }
 
 .results-header h1 {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: #0f172a;
 }
@@ -336,24 +336,29 @@
 .results-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 /* Section Cards */
 .section-card {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.section-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .section-card h3 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.625rem;
   border-bottom: 2px solid #e2e8f0;
 }
 
@@ -365,59 +370,61 @@
 .bio-overview {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .subsection {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .subsection h4 {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #334155;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .domains-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .domain-item {
   background: #f8fafc;
-  padding: 0.75rem 1rem;
+  padding: 0.625rem 0.875rem;
   border-radius: 6px;
   border-left: 3px solid #2563eb;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .mechanism-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
   align-items: start;
 }
 
 .mechanism-list {
   background: #f8fafc;
-  padding: 1rem 1rem 1rem 2.5rem;
+  padding: 0.75rem 0.75rem 0.75rem 2rem;
   border-radius: 6px;
   margin: 0;
 }
 
 .mechanism-list li {
-  margin-bottom: 0.5rem;
-  line-height: 1.6;
-  font-size: 0.875rem;
+  margin-bottom: 0.375rem;
+  line-height: 1.5;
+  font-size: 0.8125rem;
 }
 
 .mechanism-image {
   background: white;
-  padding: 1rem;
-  border-radius: 12px;
+  padding: 0.75rem;
+  border-radius: 8px;
   border: 2px solid #e2e8f0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
@@ -425,6 +432,7 @@
 
 .mechanism-image:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 .mechanism-diagram {
@@ -474,18 +482,18 @@
 .subsection-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 /* Therapeutic Rationale */
 .rationale-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .rationale-box {
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
   border: 1px solid;
 }
@@ -507,13 +515,14 @@
 
 .rationale-box h4 {
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
   color: #1e3a8a;
+  font-size: 0.9375rem;
 }
 
 .rationale-box p {
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 /* Tables */
@@ -529,10 +538,10 @@
 .competitors-table th,
 .patent-table th {
   background: #f8fafc;
-  padding: 0.75rem;
+  padding: 0.625rem 0.75rem;
   text-align: left;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: #334155;
   border-bottom: 2px solid #e2e8f0;
 }
@@ -540,9 +549,10 @@
 .evidence-table td,
 .competitors-table td,
 .patent-table td {
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid #e2e8f0;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 .phase-badge {
@@ -583,35 +593,35 @@
 
 /* Phase Distribution */
 .phase-distribution {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   background: #f8fafc;
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
 }
 
 .phase-bars {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .phase-bar-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .phase-label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
-  min-width: 120px;
+  min-width: 100px;
   text-transform: capitalize;
 }
 
 .phase-bar {
   flex: 1;
-  height: 28px;
+  height: 24px;
   background: #e2e8f0;
   border-radius: 4px;
   overflow: hidden;
@@ -624,7 +634,7 @@
   align-items: center;
   padding: 0 0.5rem;
   color: white;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   transition: width 0.5s ease;
 }
@@ -633,34 +643,34 @@
 .ip-section {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .strategy-box {
   background: #f8fafc;
-  padding: 1rem;
+  padding: 0.875rem;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 /* Indication Potential */
 .potential-section {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
   align-items: center;
 }
 
 .score-display {
   display: flex;
-  gap: 1.5rem;
+  gap: 1rem;
   align-items: center;
 }
 
 .score-circle {
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   display: flex;
@@ -672,13 +682,13 @@
 }
 
 .score-number {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: 700;
   line-height: 1;
 }
 
 .score-max {
-  font-size: 1rem;
+  font-size: 0.875rem;
   opacity: 0.8;
 }
 
@@ -687,15 +697,15 @@
 }
 
 .score-reasoning h4 {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #334155;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
 }
 
 .score-reasoning p {
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 .analysis-text {
@@ -703,38 +713,40 @@
 }
 
 .analysis-text h4 {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: #0f172a;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
 }
 
 .analysis-text p {
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.8125rem;
 }
 
 /* Differentiation */
 .diff-section {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .diff-analysis {
-  padding: 1rem;
+  padding: 0.875rem;
   background: #f8fafc;
   border-radius: 8px;
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.8125rem;
 }
 
 .diff-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .diff-box {
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
   border: 1px solid;
 }
@@ -772,21 +784,21 @@
 }
 
 .diff-box li {
-  padding: 0.5rem 0;
+  padding: 0.375rem 0;
   line-height: 1.5;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 /* Unmet Needs */
 .unmet-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .unmet-box {
   background: #f8fafc;
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
   transition: all 0.2s;
 }
@@ -797,57 +809,61 @@
 
 .unmet-box h4 {
   font-weight: 600;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   color: #0f172a;
+  font-size: 0.9375rem;
 }
 
 .unmet-box p {
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 /* Risk Assessment */
 .risk-section {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .risk-analysis {
   background: #f8fafc;
-  padding: 1rem;
+  padding: 0.875rem;
   border-radius: 8px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 .risk-analysis h4 {
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
+  font-size: 0.9375rem;
 }
 
 .risk-scores {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  gap: 0.875rem;
 }
 
 .risk-score-item {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.375rem;
 }
 
 .risk-label {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
 }
 
 .risk-bar {
-  height: 32px;
+  height: 28px;
   background: #e2e8f0;
   border-radius: 6px;
   overflow: hidden;
@@ -857,10 +873,10 @@
   height: 100%;
   display: flex;
   align-items: center;
-  padding: 0 0.75rem;
+  padding: 0 0.625rem;
   color: white;
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   transition: width 0.5s ease;
 }
 
@@ -875,38 +891,39 @@
 /* Biomarker */
 .biomarker-section p {
   background: #f8fafc;
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 8px;
   border-left: 4px solid #2563eb;
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.8125rem;
 }
 
 /* Business Development */
 .bd-section {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 2rem;
+  gap: 1.25rem;
 }
 
 .bd-activities {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .bd-activity-item {
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.875rem;
+  padding: 0.875rem;
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .activity-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   background: #dbeafe;
   color: #2563eb;
   border-radius: 50%;
@@ -914,7 +931,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   flex-shrink: 0;
 }
 
@@ -922,10 +939,11 @@
   font-weight: 700;
   margin-bottom: 0.25rem;
   color: #0f172a;
+  font-size: 0.9375rem;
 }
 
 .activity-content p {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: #64748b;
   line-height: 1.5;
 }
@@ -933,16 +951,16 @@
 .interested-parties {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.375rem;
 }
 
 .party-tag {
   display: inline-block;
-  padding: 0.5rem 1rem;
+  padding: 0.375rem 0.875rem;
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 20px;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: #334155;
   transition: all 0.2s;
