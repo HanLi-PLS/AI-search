@@ -242,16 +242,21 @@ Query: "What's our drug efficacy and how does it compare to competitors?"
 ```bash
 # OpenAI Configuration
 OPENAI_API_KEY=sk-...
-ANSWER_MODEL=gpt-5.1              # Default model for non-reasoning mode
-ONLINE_SEARCH_MODEL=o4-mini       # Model for reasoning mode online search
-VISION_MODEL=o4-mini               # Model for PDF image/chart extraction
+ANSWER_MODEL=gpt-5.1              # Base model for files_only mode
+VISION_MODEL=o4-mini              # Model for PDF image/chart extraction
+ONLINE_SEARCH_MODEL=o4-mini       # Used only for stock news analysis (not main search)
 
-# Reasoning Mode Options (set via frontend dropdown):
-# - non_reasoning: Uses gpt-5.1 (fast, balanced)
-# - reasoning: Uses o4-mini (extended reasoning chains)
-# - reasoning_gpt5: Uses gpt-5-pro (advanced reasoning)
-# - reasoning_gemini: Uses gemini-3-pro-preview (Google's reasoning model)
-# - deep_research: Uses o3-deep-research (comprehensive research)
+# Model Selection for Document Search:
+# The model is automatically selected based on the reasoning mode you choose
+# in the frontend dropdown. The ANSWER_MODEL/ONLINE_SEARCH_MODEL variables
+# are NOT used for this - it's controlled by reasoning_mode only.
+#
+# Reasoning Mode → Model Used:
+# - non_reasoning     → gpt-5.1
+# - reasoning         → o4-mini
+# - reasoning_gpt5    → gpt-5-pro
+# - reasoning_gemini  → gemini-3-pro-preview
+# - deep_research     → o3-deep-research
 
 # Or use AWS Secrets Manager
 USE_AWS_SECRETS=true
