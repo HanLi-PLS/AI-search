@@ -12,6 +12,7 @@ const StockTracker = lazy(() => import('./pages/StockTracker'));
 const StockDetail = lazy(() => import('./pages/StockDetail'));
 const Watchlist = lazy(() => import('./pages/Watchlist'));
 const AISearch = lazy(() => import('./pages/AISearch'));
+const TargetAnalyzer = lazy(() => import('./pages/TargetAnalyzer'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const AdminUsers = lazy(() => import('./pages/AdminUsers'));
@@ -51,6 +52,11 @@ function App() {
             <Route path="/ai-search" element={
               <ProtectedRoute>
                 <AISearch />
+              </ProtectedRoute>
+            } />
+            <Route path="/target-analyzer" element={
+              <ProtectedRoute>
+                <TargetAnalyzer />
               </ProtectedRoute>
             } />
 
