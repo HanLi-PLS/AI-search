@@ -404,7 +404,11 @@ Labels should be legible and use standard scientific font."""
                     model="gemini-3-pro-image-preview",
                     contents=image_prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.7,
+                        tools=[{"google_search": {}}],
+                        image_config=types.ImageConfig(
+                            aspect_ratio="4:3",
+                            image_size="1K"
+                        )
                     )
                 )
 
