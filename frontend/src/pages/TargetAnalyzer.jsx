@@ -54,31 +54,24 @@ function TargetAnalyzer() {
 
   return (
     <div className="target-analyzer-container">
-      {/* Header */}
-      <header className="ta-header">
-        <div className="ta-header-content">
-          <div className="ta-logo" onClick={() => navigate('/')}>
-            <span className="ta-icon">🎯</span>
-            <span className="ta-title">Target Analyzer</span>
-          </div>
-          <nav className="ta-nav">
-            <button onClick={() => navigate('/')}>Home</button>
-            <button onClick={() => navigate('/ai-search')}>AI Search</button>
-            <button onClick={() => navigate('/stock-tracker')}>Market Tracker</button>
-          </nav>
-          <div className="user-section">
-            <span className="user-name">{user?.name}</span>
-            <button className="logout-btn" onClick={logout}>Logout</button>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="ta-main">
+        <div className="ta-header-section">
+          <button className="back-button" onClick={() => navigate('/')}>
+            ← Back to Home
+          </button>
+          <div className="ta-title-block">
+            <div className="ta-icon-wrapper">
+              <span className="ta-icon">🧬</span>
+            </div>
+            <h1>Target Analyzer</h1>
+            <p className="ta-subtitle">AI-powered drug target and indication analysis</p>
+          </div>
+        </div>
         {!data && !loading ? (
           <div className="ta-input-section">
             <div className="ta-intro">
-              <h1>Accelerate Your Drug Discovery Research</h1>
+              <h2>Accelerate Your Drug Discovery Research</h2>
               <p>Generate comprehensive deep-dive reports on any drug target and indication pair in seconds using advanced AI.</p>
             </div>
 
