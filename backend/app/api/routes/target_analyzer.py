@@ -444,14 +444,37 @@ async def analyze_target(
 
         # Create the analysis prompt
         prompt = f"""
-Conduct a deep comprehensive drug development potential analysis for "{request.target}" inhibitor/modulator in "{request.indication}".
+You are a world-class drug development expert conducting sophisticated target-indication analysis for "{request.target}" inhibitor/modulator in "{request.indication}".
 
-**CRITICAL**: You MUST use the 'google_search' tool extensively to find:
+## CRITICAL METHODOLOGY - TWO-STAGE EXTRACTION APPROACH:
+
+**STAGE 1: EXTENSIVE RESEARCH (Be Comprehensive)**
+For each analysis section, you will FIRST conduct exhaustive research:
+- Use 'google_search' tool extensively to find ALL relevant data
+- Explore every dimension of the analysis with sophisticated frameworks
+- Be thorough, rigorous, and demonstrate analytical excellence
+- Consider mechanism precedents, competitive landscape, clinical/preclinical evidence
+
+**STAGE 2: FOCUSED EXTRACTION (Be Selective & Actionable)**
+After comprehensive research, apply QUALITY GATES to extract insights:
+- **MATERIALITY**: Only include insights that materially impact target assessment
+- **SPECIFICITY**: Must be unique to THIS target/indication (not generic biotech observations)
+- **QUANTIFICATION**: Demand numbers, percentages, fold-changes (not vague "better/worse")
+- **ACTIONABILITY**: Each insight should drive specific diligence or decision-making
+
+**QUALITY THRESHOLDS ACROSS ALL SECTIONS:**
+- 5-10 deeply analyzed, specific insights > 20 generic observations
+- Quantified claims with evidence > vague qualitative statements
+- Mechanism-based analysis > superficial descriptions
+- Each insight must pass: "Does this tell me something unique about THIS target?"
+
+**SEARCH REQUIREMENTS - Use google_search extensively for:**
 - Latest clinical trial data (ClinicalTrials.gov, published results)
-- Recent patent filings and IP landscape
-- Business development news and partnerships
-- Recent scientific publications and genetic evidence
-- Competitive landscape and market data
+- Genetic evidence (GWAS, rare variants, knockout studies)
+- Mechanism precedents (approved/failed drugs with similar MOA)
+- Competitive landscape (clinical-stage assets, approved drugs)
+- Safety precedents (target class effects, expression patterns)
+- Recent scientific publications with PubMed citations
 
 ## Analysis Framework:
 
@@ -467,13 +490,46 @@ Conduct a deep comprehensive drug development potential analysis for "{request.t
 - **Degradation vs Inhibition Approaches**: Compare protein degradation (PROTACs, molecular glues) vs traditional inhibition
 
 ### 3. Pre-clinical Evidence
+
+**EXTENSIVE RESEARCH PHASE - Genetic & Animal Evidence:**
+Comprehensively search for and analyze ALL available evidence:
+- Every published genetic association (GWAS, rare variants, monogenic mutations)
+- All animal knockout/knockin studies across species
+- Historical precedents for this target mechanism
+- Evidence quality and statistical rigor for each finding
+
+**FOCUSED EXTRACTION PHASE - Evidence Benchmarking & Quality Assessment:**
+
 **Human Genetic Evidence:**
-- **Monogenic Gain-of-Function Mutations**: Rare variants that cause disease. Include PubMed ID (PMID) in `pmid` field for each variant if available.
-- **Common/Low-Frequency Variant Associations**: GWAS, rare variant associations. Include PubMed ID (PMID) in `pmid` field for each variant if available.
+- **Monogenic Gain-of-Function Mutations**: Rare variants that cause disease
+  * For each: variant ID, phenotype, effect size/penetrance, PMID
+  * EVIDENCE QUALITY: Rate confidence (High/Medium/Low) based on replication, sample size
+  * BENCHMARK: How does effect size compare to approved targets? (e.g., "2x larger odds ratio than typical approved target")
+
+- **Common/Low-Frequency Variant Associations**: GWAS, rare variant associations
+  * For each: variant/locus, association strength (OR, p-value), population, PMID
+  * STATISTICAL RIGOR: Flag genome-wide significance (p<5e-8), replication status
+  * BENCHMARK: "Top 10% of genetic evidence strength vs approved mechanism precedents"
 
 **Preclinical Animal Studies:**
-- **Loss-of-Function Models**: Knockout/knockdown studies and phenotypes. Include PubMed ID (PMID) in `pmid` field for each model if available.
-- **Gain-of-Function Models**: Overexpression studies and disease models. Include PubMed ID (PMID) in `pmid` field for each model if available.
+- **Loss-of-Function Models**: Knockout/knockdown studies
+  * For each: model system, phenotype magnitude, disease relevance, PMID
+  * QUANTIFY: "60% reduction in disease score vs 30% typical for approved targets (2x stronger signal)"
+  * BENCHMARK: Compare phenotype strength to historical knockouts that led to approved drugs
+
+- **Gain-of-Function Models**: Overexpression/activation studies
+  * For each: model, phenotype, translational relevance, PMID
+  * EVIDENCE QUALITY: Does model recapitulate human disease pathology?
+
+**EFFICACY BAR ANALYSIS:**
+Based on mechanism precedents (similar targets that succeeded/failed):
+- Minimum genetic evidence bar for clinical success: [Quantified threshold]
+- Minimum animal phenotype magnitude for translation: [Quantified threshold]
+- This target's position: "Exceeds approval bar by [X]%" or "Falls short by [Y]%"
+- Clear assessment: ABOVE BENCHMARK / AT BENCHMARK / BELOW BENCHMARK
+
+**SPECIFICITY REQUIREMENT:** Evidence must be mechanistically relevant to {request.indication}.
+Exclude generic target biology unless directly tied to disease mechanism.
 
 ### 4. Drug/Trial Landscape
 - Provide detailed competitive landscape overview
@@ -495,9 +551,47 @@ Conduct a deep comprehensive drug development potential analysis for "{request.t
 Sum these to get final score. Provide detailed reasoning.
 
 ### 7. Key Differentiation vs Existing Drugs
-- Compare against current standard of care drug classes in {request.indication}
-- List specific advantages and disadvantages
-- Focus on mechanism-based differentiation
+
+**EXTENSIVE RESEARCH PHASE - Competitive Target Analysis:**
+Comprehensively analyze competitive landscape:
+- ALL approved drugs and mechanisms for {request.indication}
+- ALL clinical-stage assets targeting same/similar mechanisms
+- Efficacy and safety profiles across competitive targets
+- Mechanism-based advantages and limitations of each approach
+
+**FOCUSED EXTRACTION PHASE - Strategic Competitive Frameworks:**
+
+**1. EFFICACY/SAFETY FRONTIER ANALYSIS:**
+   - Plot this target vs competitors on efficacy/safety trade-off matrix
+   - Position: ON frontier (optimal balance), ABOVE (superior), or BELOW (dominated)?
+   - QUANTIFY competitive gap specifically:
+     * ✅ "2x better efficacy in animal models (60% vs 30% disease reduction) but 20% more Grade 3/4 AEs predicted"
+     * ❌ NOT "better efficacy" (too vague)
+
+**2. MECHANISTIC WHITE SPACE MAPPING:**
+   - What mechanisms are UNDEREXPLOITED for {request.indication}?
+   - Quantify: "80% of approved drugs hit pathway X; pathway Y (our target) has 0 approved drugs despite genetic validation"
+   - Barriers: Technical challenges, historical failures, biomarker requirements
+
+**3. COMPETITIVE SCENARIOS WITH PROBABILITIES:**
+   Model key competitive developments:
+
+   SCENARIO: [Competitor's selective inhibitor] succeeds in Phase 3
+   - Probability: [X]% (based on mechanism precedent, Phase 2 data)
+   - Impact: If superior efficacy → our [approach] requires [specific repositioning]
+   - Strategic response: Emphasize [specific advantage], different biomarker/patient strategy
+
+**4. QUANTIFIED DIFFERENTIATION (NOT VAGUE CLAIMS):**
+   Mechanism-level specificity:
+   - "100x selectivity for target vs off-target A (competitor has 10x) → predicted 90% reduction in [specific side effect]"
+   - "Pan-inhibition covers isoforms A+B+C vs competitor's isoform A-only → 40% broader patient coverage but [specific toxicity concern]"
+   - "Degradation approach (complete target removal) vs inhibition (partial blockade) → [quantified advantage] but [specific risk]"
+
+**EXCLUSION CRITERIA:**
+❌ Generic statements: "better safety", "more selective", "novel mechanism"
+✅ Required: Quantified, mechanism-specific differentiation with tradeoffs acknowledged
+
+Focus on mechanism-based differentiation grounded in biology, not marketing claims.
 
 ### 8. Unmet Medical Needs in {request.indication}
 - **Incomplete Response**: % of patients not responding to current drugs
@@ -509,12 +603,66 @@ Sum these to get final score. Provide detailed reasoning.
 - **Current Therapeutic Classes**: List major drug classes with examples
 - **Treatment Guidelines Summary**: Current standard of care per guidelines
 
-### 10. Risks
-Provide 0-100 risk scores and detailed analysis for:
-- **Clinical Development Risks**: Trial design, endpoint challenges, historical failure rates
-- **Long-term Safety Concerns**: Known or predicted on-target/off-target toxicities
-- **Competitive Positioning Challenges**: How crowded is the space?
-- **Technical Risks**: Druggability, delivery, bioavailability issues
+### 10. Risks - TARGET-SPECIFIC RISK ASSESSMENT
+
+**EXTENSIVE RESEARCH PHASE - Comprehensive Risk Identification:**
+Exhaustively analyze ALL potential risks:
+- Every mechanism-related safety concern from precedent targets
+- All technical druggability challenges (PK/PD, tissue penetration, etc.)
+- Complete competitive landscape threats
+- Historical failure modes for this target class
+- Preclinical to clinical translation gaps
+
+**FOCUSED EXTRACTION PHASE - Materiality Gates & Quality Thresholds:**
+
+**MATERIALITY GATES - ONLY EXTRACT RISKS IF:**
+1. Probability >20% AND material impact on target viability/development success
+   OR
+2. Mechanism-breaking risk regardless of probability (e.g., on-target toxicity in essential tissue)
+
+**SPECIFICITY REQUIREMENTS - MUST BE TARGET-SPECIFIC:**
+
+❌ EXCLUDE GENERIC RISKS (these add no value):
+- "Clinical trials may fail" (too generic)
+- "Safety signals possible" (too vague)
+- "Competition exists" (not specific)
+- "Financing needed" (not target-related)
+- "Regulatory approval uncertain" (applies to all drugs)
+
+✅ INCLUDE ONLY TARGET/MECHANISM-SPECIFIC RISKS:
+- "High target affinity (Kd=0.1nM) may limit tissue penetration in fibrotic tissue due to binding site barrier effect"
+- "Prior Class X inhibitor (70% sequence homology) showed QT prolongation in 15% of patients; this target's cardiac expression raises similar concern"
+- "Compensatory pathway Y upregulates 3-fold when target inhibited >80% (observed in 3 knockout models); may limit efficacy durability"
+- "Biomarker Z required for patient selection but assay not yet standardized; regulatory path unclear"
+- "Target expressed in developing neural tissue; pregnancy category concern based on knockout embryonic lethality"
+
+**RISK QUANTIFICATION (0-100 scale):**
+For each risk, provide:
+- **Category**: Clinical/Safety/Competitive/Technical/Regulatory
+- **Description**: SPECIFIC mechanism explaining WHY this risk exists for THIS target (not generic)
+- **Probability**: 0-100% (must justify with precedent data, not speculation)
+- **Impact**: 0-100 where 100=program-killing (quantify commercial/development impact)
+- **Timeline**: When risk could materialize (specific catalyst/data readout)
+- **Early Warning Signals**: Specific biomarkers, preclinical findings, competitor data to monitor
+- **Mitigation Strategies**: Actionable steps (not "monitor closely")
+
+**MECHANISM-BASED RISK ANALYSIS:**
+- **On-target toxicity**: Based on target expression pattern, knockout phenotypes
+- **Off-target toxicity**: Based on selectivity profile, structural homology to related proteins
+- **Efficacy limitations**: Compensatory pathways, target engagement thresholds, patient heterogeneity
+- **Competitive displacement**: Specific competitor profiles that could make this target obsolete
+
+**QUALITY THRESHOLD:**
+- Aim for 5-10 deeply analyzed, target-specific risks
+- NOT 20+ generic biotech risks
+- Each risk must pass: "Does this tell me something unique about THIS target that I wouldn't know from generic risk factors?"
+
+**EVIDENCE QUALITY for each risk:**
+- HIGH: Direct data from this target (knockout, clinical precedent, structural biology)
+- MEDIUM: Inference from related targets (class effects, homology-based)
+- LOW: Theoretical concern without precedent data
+
+Demonstrate sophisticated risk assessment by explaining the MECHANISM behind each risk, not just listing concerns.
 
 ### 11. Biomarker Strategy
 - **Stratification/Paradigm Biomarkers**: Which biomarkers could identify responders?
@@ -524,11 +672,38 @@ Provide 0-100 risk scores and detailed analysis for:
 - **Known Activities**: Recent deals, investments, partnerships involving this target
 - **Interested Parties**: Which pharma/biotech companies are most likely interested based on their portfolios?
 
-## Output Format:
-- Use structured data (arrays, objects) over long paragraphs
-- Be specific: cite studies, patents, companies, molecules by name
+## Output Format & Quality Standards:
+
+**EVIDENCE-BASED ANALYSIS:**
+- Every claim must be supported by specific evidence (studies, precedents, data)
+- Include PubMed citations (PMIDs) for key scientific claims
+- Cite specific competitor drugs, molecules, companies by name
+- Reference specific clinical trials (NCT numbers), genetic studies, animal models
+
+**QUANTIFICATION REQUIREMENTS:**
+- Use numbers, percentages, fold-changes, effect sizes (not "better/worse/higher/lower")
+- Examples:
+  * ✅ "2x stronger genetic association (OR=3.2) than typical approved target (OR=1.6)"
+  * ❌ "Strong genetic association"
+  * ✅ "60% disease reduction in knockout vs 30% for approved precedent (2x stronger signal)"
+  * ❌ "Significant disease reduction"
+
+**STRUCTURED DATA FORMAT:**
+- Use arrays and objects over long narrative paragraphs
 - Keep descriptions concise but information-dense
+- Organize data in tables/lists where appropriate (genetic variants, competitors, risks)
+
+**SCIENTIFIC RIGOR:**
 - All data must be scientifically accurate and current (search for latest information)
+- Flag confidence level for key claims (High/Medium/Low evidence quality)
+- Acknowledge uncertainty and data gaps where they exist
+- Distinguish direct data from inference or extrapolation
+
+**TARGET-SPECIFIC FOCUS:**
+- Every section must be specific to {request.target} in {request.indication}
+- Exclude generic biotech/pharma observations
+- Focus on mechanism-based insights grounded in biology
+- Demonstrate sophisticated understanding of this specific target's unique characteristics
         """
 
         # Use Gemini with search
