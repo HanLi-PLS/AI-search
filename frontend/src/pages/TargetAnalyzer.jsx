@@ -404,32 +404,42 @@ function TargetAnalyzer() {
               {/* Indication Potential */}
               {renderSection(
                 '6. Indication Potential',
-                <div className="potential-section">
-                  <div className="score-display">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {/* Score and Rationale - Compact Row */}
+                  <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
                     <div className="score-circle">
                       <span className="score-number">{data.indication_potential.score}</span>
                       <span className="score-max">/10</span>
                     </div>
-                    <div className="score-reasoning">
-                      <h4>Scoring Rationale</h4>
-                      <p>{data.indication_potential.reasoning}</p>
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Scoring Rationale</h4>
+                      <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{data.indication_potential.reasoning}</p>
                     </div>
                   </div>
-                  <div className="analysis-text">
-                    <h4>Current Therapeutic Landscape</h4>
+
+                  {/* Therapeutic Landscape - Full Width */}
+                  <div style={{
+                    background: '#f8fafc',
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.75rem', color: '#0f172a' }}>Current Therapeutic Landscape</h4>
                     <div style={{ marginBottom: '1rem' }}>
-                      <strong>Major Drug Classes:</strong>
+                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Major Drug Classes:</strong>
                       <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
                         {data.indication_specific_analysis.therapeutic_classes.map((tc, i) => (
-                          <li key={i} style={{ marginBottom: '0.25rem' }}>
+                          <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
                             <strong>{tc.class_name}:</strong> {tc.examples}
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div>
-                      <strong>Treatment Guidelines:</strong>
-                      <p style={{ marginTop: '0.5rem' }}>{data.indication_specific_analysis.treatment_guidelines}</p>
+                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Treatment Guidelines:</strong>
+                      <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>
+                        {data.indication_specific_analysis.treatment_guidelines}
+                      </p>
                     </div>
                   </div>
                 </div>
