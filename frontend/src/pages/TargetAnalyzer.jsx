@@ -394,6 +394,9 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Variant</th>
                             <th>Phenotype</th>
+                            <th>Effect Size</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
                             <th>Citation</th>
                           </tr>
                         </thead>
@@ -402,6 +405,15 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.variant}</td>
                               <td>{item.phenotype}</td>
+                              <td>{item.effect_size || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
                               <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
@@ -415,6 +427,9 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Variant</th>
                             <th>Association</th>
+                            <th>Significance</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
                             <th>Citation</th>
                           </tr>
                         </thead>
@@ -423,6 +438,15 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.variant}</td>
                               <td>{item.association}</td>
+                              <td>{item.statistical_significance || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
                               <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
@@ -439,6 +463,9 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Model</th>
                             <th>Outcome</th>
+                            <th>Magnitude</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
                             <th>Citation</th>
                           </tr>
                         </thead>
@@ -447,6 +474,15 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.model}</td>
                               <td>{item.outcome}</td>
+                              <td>{item.phenotype_magnitude || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
                               <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
@@ -460,6 +496,8 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Model</th>
                             <th>Outcome</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
                             <th>Citation</th>
                           </tr>
                         </thead>
@@ -468,6 +506,14 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.model}</td>
                               <td>{item.outcome}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
                               <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
@@ -622,6 +668,56 @@ function TargetAnalyzer() {
                 '7. Key Differentiation',
                 <div className="diff-section">
                   <p className="diff-analysis">{data.differentiation.analysis}</p>
+
+                  {/* Efficacy/Safety Position */}
+                  {data.differentiation.efficacy_safety_position && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Efficacy/Safety Frontier Position: </strong>
+                      <span className={`position-badge position-${data.differentiation.efficacy_safety_position.toLowerCase()}`}>
+                        {data.differentiation.efficacy_safety_position}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Quantified Gaps */}
+                  {data.differentiation.quantified_gaps && data.differentiation.quantified_gaps.length > 0 && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Quantified Competitive Advantages:</h4>
+                      <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
+                        {data.differentiation.quantified_gaps.map((gap, i) => (
+                          <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: '#059669' }}>{gap}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Competitive Scenarios */}
+                  {data.differentiation.competitive_scenarios && data.differentiation.competitive_scenarios.length > 0 && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Competitive Scenarios:</h4>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Scenario</th>
+                            <th>Probability</th>
+                            <th>Impact</th>
+                            <th>Strategic Response</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.differentiation.competitive_scenarios.map((scenario, i) => (
+                            <tr key={i}>
+                              <td>{scenario.scenario}</td>
+                              <td><span className="probability-badge">{scenario.probability}</span></td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{scenario.impact}</td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{scenario.strategic_response}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
                   <div className="diff-grid">
                     <div className="diff-box advantages">
                       <h4>✓ Advantages</h4>
@@ -675,55 +771,74 @@ function TargetAnalyzer() {
                 '9. Risk Assessment',
                 <div className="risk-section">
                   <div className="risk-analysis">
-                    <h4>Assessment Summary</h4>
-                    <p>{data.risks.risk_analysis}</p>
+                    <h4>Executive Summary</h4>
+                    <p>{data.risks.summary}</p>
                   </div>
-                  <div className="risk-scores">
-                    <div className="risk-score-item">
-                      <span className="risk-label">Clinical Risk</span>
-                      <div className="risk-bar">
-                        <div
-                          className={`risk-fill ${data.risks.clinical > 50 ? 'high' : 'low'}`}
-                          style={{ width: `${data.risks.clinical}%` }}
-                        >
-                          {data.risks.clinical}
-                        </div>
+
+                  {data.risks.risk_items && data.risks.risk_items.length > 0 && (
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '1rem', color: '#0f172a' }}>Detailed Risk Analysis:</h4>
+                      <div className="risk-items-container">
+                        {data.risks.risk_items.map((risk, i) => (
+                          <div key={i} className="risk-item-card">
+                            <div className="risk-item-header">
+                              <span className={`risk-category-badge category-${risk.category.toLowerCase()}`}>
+                                {risk.category}
+                              </span>
+                              <div className="risk-scores-inline">
+                                <div className="risk-score-mini">
+                                  <span className="score-label">Probability:</span>
+                                  <div className="score-bar-mini">
+                                    <div
+                                      className={`score-fill-mini ${risk.probability > 50 ? 'high' : 'medium'}`}
+                                      style={{ width: `${risk.probability}%` }}
+                                    >
+                                      {risk.probability}%
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="risk-score-mini">
+                                  <span className="score-label">Impact:</span>
+                                  <div className="score-bar-mini">
+                                    <div
+                                      className={`score-fill-mini ${risk.impact > 50 ? 'high' : 'medium'}`}
+                                      style={{ width: `${risk.impact}%` }}
+                                    >
+                                      {risk.impact}%
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="risk-item-content">
+                              <div className="risk-field">
+                                <strong>Description:</strong>
+                                <p>{risk.description}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Timeline:</strong>
+                                <p>{risk.timeline}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Early Warning Signals:</strong>
+                                <p>{risk.early_warning_signals}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Mitigation Strategies:</strong>
+                                <p>{risk.mitigation_strategies}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Evidence Quality:</strong>
+                                <span className={`quality-badge quality-${risk.evidence_quality.toLowerCase()}`}>
+                                  {risk.evidence_quality}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="risk-score-item">
-                      <span className="risk-label">Safety Risk</span>
-                      <div className="risk-bar">
-                        <div
-                          className={`risk-fill ${data.risks.safety > 50 ? 'high' : 'low'}`}
-                          style={{ width: `${data.risks.safety}%` }}
-                        >
-                          {data.risks.safety}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="risk-score-item">
-                      <span className="risk-label">Competitive Risk</span>
-                      <div className="risk-bar">
-                        <div
-                          className={`risk-fill ${data.risks.competitive > 50 ? 'high' : 'low'}`}
-                          style={{ width: `${data.risks.competitive}%` }}
-                        >
-                          {data.risks.competitive}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="risk-score-item">
-                      <span className="risk-label">Technical Risk</span>
-                      <div className="risk-bar">
-                        <div
-                          className={`risk-fill ${data.risks.technical > 50 ? 'high' : 'low'}`}
-                          style={{ width: `${data.risks.technical}%` }}
-                        >
-                          {data.risks.technical}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
               </div>

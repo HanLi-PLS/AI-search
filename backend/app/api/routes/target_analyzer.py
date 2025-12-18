@@ -47,11 +47,17 @@ class MonogenicMutation(BaseModel):
     variant: str
     phenotype: str
     pmid: Optional[str] = None  # PubMed ID
+    evidence_quality: Optional[str] = None  # High/Medium/Low confidence
+    effect_size: Optional[str] = None  # e.g., "OR=3.2, penetrance=95%"
+    benchmark_comparison: Optional[str] = None  # e.g., "2x larger effect than typical approved target"
 
 class CommonVariant(BaseModel):
     variant: str
     association: str
     pmid: Optional[str] = None  # PubMed ID
+    evidence_quality: Optional[str] = None  # High/Medium/Low
+    statistical_significance: Optional[str] = None  # e.g., "p=3e-8, genome-wide significant"
+    benchmark_comparison: Optional[str] = None  # e.g., "Top 10% of GWAS strength vs approved precedents"
 
 class HumanGenetics(BaseModel):
     monogenic_mutations: list[MonogenicMutation]
@@ -61,11 +67,16 @@ class LossOfFunctionModel(BaseModel):
     model: str
     outcome: str
     pmid: Optional[str] = None  # PubMed ID
+    evidence_quality: Optional[str] = None  # High/Medium/Low
+    phenotype_magnitude: Optional[str] = None  # e.g., "60% disease reduction"
+    benchmark_comparison: Optional[str] = None  # e.g., "2x stronger than approved precedent (30% typical)"
 
 class GainOfFunctionModel(BaseModel):
     model: str
     outcome: str
     pmid: Optional[str] = None  # PubMed ID
+    evidence_quality: Optional[str] = None  # High/Medium/Low
+    benchmark_comparison: Optional[str] = None
 
 class AnimalModels(BaseModel):
     loss_of_function: list[LossOfFunctionModel]
@@ -102,8 +113,17 @@ class PatentIP(BaseModel):
     recent_filings: list[PatentFiling]
     strategy: str
 
+class CompetitiveScenario(BaseModel):
+    scenario: str = Field(..., description="e.g., 'Competitor X succeeds in Phase 3'")
+    probability: str = Field(..., description="e.g., '40%'")
+    impact: str = Field(..., description="Impact on our target positioning")
+    strategic_response: str = Field(..., description="How to respond/differentiate")
+
 class Differentiation(BaseModel):
-    analysis: str
+    analysis: str = Field(..., description="Overall strategic competitive analysis")
+    efficacy_safety_position: Optional[str] = None  # ON/ABOVE/BELOW competitive frontier
+    quantified_gaps: list[str] = Field(default_factory=list, description="Specific quantified advantages with numbers")
+    competitive_scenarios: Optional[list[CompetitiveScenario]] = None
     advantages: list[str]
     disadvantages: list[str]
 
@@ -113,12 +133,19 @@ class UnmetNeeds(BaseModel):
     safety_limitations: str
     adherence_challenges: str
 
+class RiskItem(BaseModel):
+    category: str = Field(..., description="Clinical/Safety/Competitive/Technical/Regulatory")
+    description: str = Field(..., description="Specific mechanism explaining WHY this risk exists for THIS target")
+    probability: int = Field(..., description="0-100% probability of occurrence")
+    impact: int = Field(..., description="0-100 impact score where 100=program-killing")
+    timeline: str = Field(..., description="When risk could materialize")
+    early_warning_signals: str = Field(..., description="Specific biomarkers/findings to monitor")
+    mitigation_strategies: str = Field(..., description="Actionable steps to reduce risk")
+    evidence_quality: str = Field(..., description="High/Medium/Low - quality of evidence supporting this risk")
+
 class Risks(BaseModel):
-    clinical: int = Field(..., description="0-100")
-    safety: int = Field(..., description="0-100")
-    competitive: int = Field(..., description="0-100")
-    technical: int = Field(..., description="0-100")
-    risk_analysis: str
+    risk_items: list[RiskItem] = Field(..., description="5-10 deeply analyzed, target-specific risks")
+    summary: str = Field(..., description="Executive summary highlighting what's UNIQUE about this risk profile")
 
 class BDActivity(BaseModel):
     company: str
@@ -246,6 +273,9 @@ async def analyze_target(
                                             "variant": types.Schema(type=types.Type.STRING),
                                             "phenotype": types.Schema(type=types.Type.STRING),
                                             "pmid": types.Schema(type=types.Type.STRING),
+                                            "evidence_quality": types.Schema(type=types.Type.STRING, description="High/Medium/Low confidence"),
+                                            "effect_size": types.Schema(type=types.Type.STRING, description="e.g., OR=3.2, penetrance=95%"),
+                                            "benchmark_comparison": types.Schema(type=types.Type.STRING, description="e.g., 2x larger effect than typical approved target"),
                                         },
                                         required=["variant", "phenotype"]
                                     )
@@ -258,6 +288,9 @@ async def analyze_target(
                                             "variant": types.Schema(type=types.Type.STRING),
                                             "association": types.Schema(type=types.Type.STRING),
                                             "pmid": types.Schema(type=types.Type.STRING),
+                                            "evidence_quality": types.Schema(type=types.Type.STRING, description="High/Medium/Low"),
+                                            "statistical_significance": types.Schema(type=types.Type.STRING, description="e.g., p=3e-8, genome-wide significant"),
+                                            "benchmark_comparison": types.Schema(type=types.Type.STRING, description="e.g., Top 10% of GWAS strength vs approved precedents"),
                                         },
                                         required=["variant", "association"]
                                     )
@@ -276,6 +309,9 @@ async def analyze_target(
                                             "model": types.Schema(type=types.Type.STRING),
                                             "outcome": types.Schema(type=types.Type.STRING),
                                             "pmid": types.Schema(type=types.Type.STRING),
+                                            "evidence_quality": types.Schema(type=types.Type.STRING, description="High/Medium/Low"),
+                                            "phenotype_magnitude": types.Schema(type=types.Type.STRING, description="e.g., 60% disease reduction"),
+                                            "benchmark_comparison": types.Schema(type=types.Type.STRING, description="e.g., 2x stronger than approved precedent"),
                                         },
                                         required=["model", "outcome"]
                                     )
@@ -288,6 +324,8 @@ async def analyze_target(
                                             "model": types.Schema(type=types.Type.STRING),
                                             "outcome": types.Schema(type=types.Type.STRING),
                                             "pmid": types.Schema(type=types.Type.STRING),
+                                            "evidence_quality": types.Schema(type=types.Type.STRING, description="High/Medium/Low"),
+                                            "benchmark_comparison": types.Schema(type=types.Type.STRING, description="Comparison to approved precedents"),
                                         },
                                         required=["model", "outcome"]
                                     )
@@ -360,6 +398,25 @@ async def analyze_target(
                     type=types.Type.OBJECT,
                     properties={
                         "analysis": types.Schema(type=types.Type.STRING),
+                        "efficacy_safety_position": types.Schema(type=types.Type.STRING, description="ON/ABOVE/BELOW competitive frontier"),
+                        "quantified_gaps": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(type=types.Type.STRING),
+                            description="Specific quantified advantages with numbers"
+                        ),
+                        "competitive_scenarios": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "scenario": types.Schema(type=types.Type.STRING, description="e.g., 'Competitor X succeeds in Phase 3'"),
+                                    "probability": types.Schema(type=types.Type.STRING, description="e.g., '40%'"),
+                                    "impact": types.Schema(type=types.Type.STRING, description="Impact on our target positioning"),
+                                    "strategic_response": types.Schema(type=types.Type.STRING, description="How to respond/differentiate"),
+                                },
+                                required=["scenario", "probability", "impact", "strategic_response"]
+                            )
+                        ),
                         "advantages": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
                         "disadvantages": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
                     },
@@ -396,13 +453,27 @@ async def analyze_target(
                 "risks": types.Schema(
                     type=types.Type.OBJECT,
                     properties={
-                        "clinical": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
-                        "safety": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
-                        "competitive": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
-                        "technical": types.Schema(type=types.Type.INTEGER, description="Risk score 0-100"),
-                        "risk_analysis": types.Schema(type=types.Type.STRING),
+                        "risk_items": types.Schema(
+                            type=types.Type.ARRAY,
+                            items=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "category": types.Schema(type=types.Type.STRING, description="Clinical/Safety/Competitive/Technical/Regulatory"),
+                                    "description": types.Schema(type=types.Type.STRING, description="Specific mechanism explaining WHY this risk exists for THIS target"),
+                                    "probability": types.Schema(type=types.Type.INTEGER, description="0-100% probability of occurrence"),
+                                    "impact": types.Schema(type=types.Type.INTEGER, description="0-100 impact score where 100=program-killing"),
+                                    "timeline": types.Schema(type=types.Type.STRING, description="When risk could materialize"),
+                                    "early_warning_signals": types.Schema(type=types.Type.STRING, description="Specific biomarkers/findings to monitor"),
+                                    "mitigation_strategies": types.Schema(type=types.Type.STRING, description="Actionable steps to reduce risk"),
+                                    "evidence_quality": types.Schema(type=types.Type.STRING, description="High/Medium/Low - quality of evidence supporting this risk"),
+                                },
+                                required=["category", "description", "probability", "impact", "timeline", "early_warning_signals", "mitigation_strategies", "evidence_quality"]
+                            ),
+                            description="5-10 deeply analyzed, target-specific risks"
+                        ),
+                        "summary": types.Schema(type=types.Type.STRING, description="Executive summary highlighting what's UNIQUE about this risk profile"),
                     },
-                    required=["clinical", "safety", "competitive", "technical", "risk_analysis"]
+                    required=["risk_items", "summary"]
                 ),
                 "biomarker_strategy": types.Schema(
                     type=types.Type.OBJECT,
