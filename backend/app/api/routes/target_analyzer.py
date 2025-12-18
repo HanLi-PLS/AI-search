@@ -862,3 +862,33 @@ Labels should be legible and use standard scientific font."""
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Analysis failed: {str(e)}"
         )
+
+
+# ============================================================================
+# PARALLEL ANALYSIS ENDPOINTS - For Higher Quality Output
+# ============================================================================
+
+# Response models for parallel analysis
+class CoreBiologyResponse(BaseModel):
+    biological_overview: BiologicalOverview
+    therapeutic_rationale: TherapeuticRationale
+    preclinical_evidence: PreclinicalEvidence
+    target: str
+    indication: str
+
+class MarketCompetitionResponse(BaseModel):
+    drug_trial_landscape: DrugTrialLandscape
+    patent_ip: PatentIP
+    indication_potential: IndicationPotential
+    differentiation: Differentiation
+    target: str
+    indication: str
+
+class StrategyRiskResponse(BaseModel):
+    unmet_needs: UnmetNeeds
+    indication_specific_analysis: IndicationSpecificAnalysis
+    risks: Risks
+    biomarker_strategy: BiomarkerStrategy
+    bd_potentials: BDPotentials
+    target: str
+    indication: str

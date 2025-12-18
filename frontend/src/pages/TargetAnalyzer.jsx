@@ -23,20 +23,50 @@ function TargetAnalyzer() {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.post(
-        '/api/target-analyzer/analyze',
-        {
-          target: target.trim(),
-          indication: indication.trim()
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+      const requestBody = {
+        target: target.trim(),
+        indication: indication.trim()
+      };
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      );
+      };
 
-      setData(response.data);
+      // Call all 3 parallel endpoints simultaneously for higher quality output
+      console.log('Starting parallel analysis calls...');
+      const [coreBioResponse, marketCompResponse, strategyRiskResponse] = await Promise.all([
+        axios.post('/api/target-analyzer/analyze-core-biology', requestBody, config),
+        axios.post('/api/target-analyzer/analyze-market-competition', requestBody, config),
+        axios.post('/api/target-analyzer/analyze-strategy-risk', requestBody, config)
+      ]);
+      console.log('All parallel calls completed!');
+
+      // Merge results from all 3 endpoints
+      const mergedData = {
+        target: coreBioResponse.data.target,
+        indication: coreBioResponse.data.indication,
+        biological_overview: coreBioResponse.data.biological_overview,
+        therapeutic_rationale: coreBioResponse.data.therapeutic_rationale,
+        preclinical_evidence: coreBioResponse.data.preclinical_evidence,
+        drug_trial_landscape: marketCompResponse.data.drug_trial_landscape,
+        patent_ip: marketCompResponse.data.patent_ip,
+        indication_potential: marketCompResponse.data.indication_potential,
+        differentiation: marketCompResponse.data.differentiation,
+        unmet_needs: strategyRiskResponse.data.unmet_needs,
+        indication_specific_analysis: strategyRiskResponse.data.indication_specific_analysis,
+        risks: strategyRiskResponse.data.risks,
+        biomarker_strategy: strategyRiskResponse.data.biomarker_strategy,
+        bd_potentials: strategyRiskResponse.data.bd_potentials,
+      };
+
+      // Generate mechanism diagram (same as before)
+      if (mergedData.biological_overview) {
+        // Add placeholder for mechanism image
+        mergedData.biological_overview.mechanism_image = null;
+      }
+
+      setData(mergedData);
     } catch (err) {
       console.error('Analysis error:', err);
       setError(err.response?.data?.detail || 'Failed to generate analysis. Please try again.');

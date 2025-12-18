@@ -12,7 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from backend.app.api.routes import upload, search, stocks, auth, watchlist, target_analyzer
+from backend.app.api.routes import upload, search, stocks, auth, watchlist, target_analyzer, target_analyzer_parallel
 from backend.app.config import settings
 
 # Configure logging
@@ -94,6 +94,7 @@ app.include_router(search.router, prefix="/api", tags=["Search"])
 app.include_router(stocks.router, prefix="/api", tags=["Stocks"])
 app.include_router(watchlist.router, prefix="/api/watchlist", tags=["Watchlist"])
 app.include_router(target_analyzer.router, prefix="/api/target-analyzer", tags=["Target Analyzer"])
+app.include_router(target_analyzer_parallel.router, prefix="/api/target-analyzer", tags=["Target Analyzer Parallel"])
 app.include_router(auth.router)  # Auth router has its own prefix
 
 # Mount static files (frontend)
