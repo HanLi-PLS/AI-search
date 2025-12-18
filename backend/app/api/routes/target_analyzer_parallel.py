@@ -4,6 +4,7 @@ This improves output quality by allowing each section group to get full model at
 """
 import logging
 import json
+import base64
 from fastapi import APIRouter, Depends, HTTPException, status
 from google import genai
 from google.genai import types
@@ -340,6 +341,41 @@ Analyze deeply and provide comprehensive, quantified, target-specific insights.
             )
 
         data = json.loads(response.text)
+
+        # Generate mechanism diagram
+        mechanism_image = None
+        try:
+            mechanism_text = " → ".join(data["biological_overview"]["mechanistic_insights"])
+            image_prompt = f"""Scientific schematic diagram illustrating the biological mechanism of action for {request.target}.
+Steps to illustrate: {mechanism_text}.
+Style: Clean, professional, textbook medical illustration, white background, high resolution, schematic.
+Labels should be legible and use standard scientific font."""
+
+            try:
+                # Use Gemini 2.0 Flash for image generation
+                image_response = client.models.generate_content(
+                    model="gemini-2.0-flash-exp",
+                    contents=image_prompt
+                )
+
+                if image_response and hasattr(image_response, 'candidates'):
+                    for candidate in image_response.candidates:
+                        if hasattr(candidate.content, 'parts'):
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'inline_data'):
+                                    mechanism_image = base64.b64encode(part.inline_data.data).decode('utf-8')
+                                    mechanism_image = f"data:{part.inline_data.mime_type};base64,{mechanism_image}"
+                                    logger.info("Successfully generated mechanism diagram")
+                                    break
+                        if mechanism_image:
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to generate mechanism diagram: {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to prepare mechanism diagram: {e}")
+
+        data["biological_overview"]["mechanism_image"] = mechanism_image
         data['target'] = request.target
         data['indication'] = request.indication
 
