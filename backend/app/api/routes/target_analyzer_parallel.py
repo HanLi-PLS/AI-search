@@ -352,9 +352,9 @@ Style: Clean, professional, textbook medical illustration, white background, hig
 Labels should be legible and use standard scientific font."""
 
             try:
-                # Use Gemini 2.0 Flash for image generation
+                # Use Gemini 3 Pro Image for diagram generation
                 image_response = client.models.generate_content(
-                    model="gemini-2.0-flash-exp",
+                    model="gemini-3-pro-image-preview",
                     contents=image_prompt
                 )
 
