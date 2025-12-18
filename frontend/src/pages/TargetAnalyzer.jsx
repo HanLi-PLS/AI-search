@@ -45,6 +45,71 @@ function TargetAnalyzer() {
     }
   };
 
+  const handleExportHTML = () => {
+    const content = document.getElementById('exportable-content');
+    if (!content) return;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${data.target} for ${data.indication} - Target Analysis</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 2rem; background: #f8fafc; }
+    h1 { color: #0f172a; border-bottom: 3px solid #2563eb; padding-bottom: 1rem; }
+    .section-card { background: white; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h3 { color: #0f172a; font-size: 1.25rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-weight: 600; }
+    img { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <h1>${data.target} for ${data.indication}</h1>
+  ${content.innerHTML}
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${data.target}_${data.indication}_Analysis.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = async () => {
+    // Dynamically import html2pdf
+    const html2pdf = (await import('html2pdf.js')).default;
+
+    const content = document.getElementById('exportable-content');
+    if (!content) return;
+
+    const opt = {
+      margin: 0.5,
+      filename: `${data.target}_${data.indication}_Analysis.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+
+    // Clone content and add title
+    const wrapper = document.createElement('div');
+    const title = document.createElement('h1');
+    title.textContent = `${data.target} for ${data.indication}`;
+    title.style.cssText = 'color: #0f172a; border-bottom: 3px solid #2563eb; padding-bottom: 1rem; margin-bottom: 1.5rem;';
+    wrapper.appendChild(title);
+    wrapper.appendChild(content.cloneNode(true));
+
+    html2pdf().set(opt).from(wrapper).save();
+  };
+
   const renderSection = (title, content) => (
     <div className="section-card">
       <h3>{title}</h3>
@@ -146,26 +211,72 @@ function TargetAnalyzer() {
               <h1>
                 {data.target} <span className="for-text">for</span> {data.indication}
               </h1>
-              <button className="new-analysis-btn" onClick={() => setData(null)}>
-                New Analysis
-              </button>
+              <div className="header-actions">
+                <button className="export-btn" onClick={handleExportHTML} title="Export as HTML">
+                  📄 HTML
+                </button>
+                <button className="export-btn" onClick={handleExportPDF} title="Export as PDF">
+                  📑 PDF
+                </button>
+                <button className="new-analysis-btn" onClick={() => setData(null)}>
+                  New Analysis
+                </button>
+              </div>
             </div>
 
-            <div className="results-content">
-              {/* Sticky Navigation Bar */}
-              <div className="section-nav-bar">
-                <a href="#section-1" className="nav-item">1. Biological</a>
-                <a href="#section-2" className="nav-item">2. Rationale</a>
-                <a href="#section-3" className="nav-item">3. Evidence</a>
-                <a href="#section-4" className="nav-item">4. Landscape</a>
-                <a href="#section-5" className="nav-item">5. Patents</a>
-                <a href="#section-6" className="nav-item">6. Potential</a>
-                <a href="#section-7" className="nav-item">7. Differentiation</a>
-                <a href="#section-8" className="nav-item">8. Unmet Needs</a>
-                <a href="#section-9" className="nav-item">9. Risks</a>
-                <a href="#section-10" className="nav-item">10. Biomarkers</a>
-                <a href="#section-11" className="nav-item">11. BD Potential</a>
-              </div>
+            <div className="results-layout">
+              {/* Side Navigation Bar */}
+              <aside className="side-nav-bar">
+                <div className="side-nav-header">Sections</div>
+                <nav className="side-nav-items">
+                  <a href="#section-1" className="nav-item">
+                    <span className="nav-number">1</span>
+                    <span className="nav-text">Biological Overview</span>
+                  </a>
+                  <a href="#section-2" className="nav-item">
+                    <span className="nav-number">2</span>
+                    <span className="nav-text">Therapeutic Rationale</span>
+                  </a>
+                  <a href="#section-3" className="nav-item">
+                    <span className="nav-number">3</span>
+                    <span className="nav-text">Pre-clinical Evidence</span>
+                  </a>
+                  <a href="#section-4" className="nav-item">
+                    <span className="nav-number">4</span>
+                    <span className="nav-text">Drug/Trial Landscape</span>
+                  </a>
+                  <a href="#section-5" className="nav-item">
+                    <span className="nav-number">5</span>
+                    <span className="nav-text">Patent & IP</span>
+                  </a>
+                  <a href="#section-6" className="nav-item">
+                    <span className="nav-number">6</span>
+                    <span className="nav-text">Indication Potential</span>
+                  </a>
+                  <a href="#section-7" className="nav-item">
+                    <span className="nav-number">7</span>
+                    <span className="nav-text">Differentiation</span>
+                  </a>
+                  <a href="#section-8" className="nav-item">
+                    <span className="nav-number">8</span>
+                    <span className="nav-text">Unmet Needs</span>
+                  </a>
+                  <a href="#section-9" className="nav-item">
+                    <span className="nav-number">9</span>
+                    <span className="nav-text">Risks</span>
+                  </a>
+                  <a href="#section-10" className="nav-item">
+                    <span className="nav-number">10</span>
+                    <span className="nav-text">Biomarker Strategy</span>
+                  </a>
+                  <a href="#section-11" className="nav-item">
+                    <span className="nav-number">11</span>
+                    <span className="nav-text">BD Potential</span>
+                  </a>
+                </nav>
+              </aside>
+
+              <div className="results-content" id="exportable-content">
 
               {/* Biological Overview */}
               <div id="section-1">
@@ -637,6 +748,7 @@ function TargetAnalyzer() {
                 </div>
               )}
               </div>
+            </div>
             </div>
           </div>
         ) : null}
