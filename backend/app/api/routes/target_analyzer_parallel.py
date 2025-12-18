@@ -18,7 +18,7 @@ from backend.app.api.routes.target_analyzer import (
     StrategyRiskResponse,
     BiologicalOverview,
     TherapeuticRationale,
-    PreclinicalEvidence,
+    PreClinicalEvidence,
     DrugTrialLandscape,
     PatentIP,
     IndicationPotential,

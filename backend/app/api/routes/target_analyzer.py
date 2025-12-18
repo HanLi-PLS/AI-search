@@ -872,7 +872,7 @@ Labels should be legible and use standard scientific font."""
 class CoreBiologyResponse(BaseModel):
     biological_overview: BiologicalOverview
     therapeutic_rationale: TherapeuticRationale
-    preclinical_evidence: PreclinicalEvidence
+    preclinical_evidence: PreClinicalEvidence
     target: str
     indication: str
 
