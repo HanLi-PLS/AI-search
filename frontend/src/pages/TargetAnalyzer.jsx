@@ -110,6 +110,21 @@ function TargetAnalyzer() {
     html2pdf().set(opt).from(wrapper).save();
   };
 
+  const renderPubMedLink = (pmid) => {
+    if (!pmid) return null;
+    return (
+      <a
+        href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="pubmed-link"
+        title="View on PubMed"
+      >
+        📚 PMID: {pmid}
+      </a>
+    );
+  };
+
   const renderSection = (title, content) => (
     <div className="section-card">
       <h3>{title}</h3>
@@ -324,10 +339,20 @@ function TargetAnalyzer() {
                     <div>
                       <h4>Human Validation</h4>
                       <p>{data.biological_overview.human_validation}</p>
+                      {data.biological_overview.human_validation_pmid && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {renderPubMedLink(data.biological_overview.human_validation_pmid)}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <h4>Species Conservation</h4>
                       <p>{data.biological_overview.species_conservation}</p>
+                      {data.biological_overview.species_conservation_pmid && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {renderPubMedLink(data.biological_overview.species_conservation_pmid)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -369,6 +394,7 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Variant</th>
                             <th>Phenotype</th>
+                            <th>Citation</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -376,6 +402,7 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.variant}</td>
                               <td>{item.phenotype}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -388,6 +415,7 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Variant</th>
                             <th>Association</th>
+                            <th>Citation</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -395,6 +423,7 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.variant}</td>
                               <td>{item.association}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -410,6 +439,7 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Model</th>
                             <th>Outcome</th>
+                            <th>Citation</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -417,6 +447,7 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.model}</td>
                               <td>{item.outcome}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -429,6 +460,7 @@ function TargetAnalyzer() {
                           <tr>
                             <th>Model</th>
                             <th>Outcome</th>
+                            <th>Citation</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -436,6 +468,7 @@ function TargetAnalyzer() {
                             <tr key={i}>
                               <td>{item.model}</td>
                               <td>{item.outcome}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
                             </tr>
                           ))}
                         </tbody>

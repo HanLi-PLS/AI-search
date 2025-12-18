@@ -33,7 +33,9 @@ class BiologicalOverview(BaseModel):
     structural_domains: list[Domain]
     mechanistic_insights: list[str]
     human_validation: str
+    human_validation_pmid: Optional[str] = None  # PubMed ID
     species_conservation: str
+    species_conservation_pmid: Optional[str] = None  # PubMed ID
     mechanism_image: Optional[str] = None  # Base64 encoded image
 
 class TherapeuticRationale(BaseModel):
@@ -44,10 +46,12 @@ class TherapeuticRationale(BaseModel):
 class MonogenicMutation(BaseModel):
     variant: str
     phenotype: str
+    pmid: Optional[str] = None  # PubMed ID
 
 class CommonVariant(BaseModel):
     variant: str
     association: str
+    pmid: Optional[str] = None  # PubMed ID
 
 class HumanGenetics(BaseModel):
     monogenic_mutations: list[MonogenicMutation]
@@ -56,10 +60,12 @@ class HumanGenetics(BaseModel):
 class LossOfFunctionModel(BaseModel):
     model: str
     outcome: str
+    pmid: Optional[str] = None  # PubMed ID
 
 class GainOfFunctionModel(BaseModel):
     model: str
     outcome: str
+    pmid: Optional[str] = None  # PubMed ID
 
 class AnimalModels(BaseModel):
     loss_of_function: list[LossOfFunctionModel]
@@ -211,7 +217,9 @@ async def analyze_target(
                             items=types.Schema(type=types.Type.STRING)
                         ),
                         "human_validation": types.Schema(type=types.Type.STRING),
+                        "human_validation_pmid": types.Schema(type=types.Type.STRING),
                         "species_conservation": types.Schema(type=types.Type.STRING),
+                        "species_conservation_pmid": types.Schema(type=types.Type.STRING),
                     },
                     required=["structural_domains", "mechanistic_insights", "human_validation", "species_conservation"]
                 ),
@@ -237,6 +245,7 @@ async def analyze_target(
                                         properties={
                                             "variant": types.Schema(type=types.Type.STRING),
                                             "phenotype": types.Schema(type=types.Type.STRING),
+                                            "pmid": types.Schema(type=types.Type.STRING),
                                         },
                                         required=["variant", "phenotype"]
                                     )
@@ -248,6 +257,7 @@ async def analyze_target(
                                         properties={
                                             "variant": types.Schema(type=types.Type.STRING),
                                             "association": types.Schema(type=types.Type.STRING),
+                                            "pmid": types.Schema(type=types.Type.STRING),
                                         },
                                         required=["variant", "association"]
                                     )
@@ -265,6 +275,7 @@ async def analyze_target(
                                         properties={
                                             "model": types.Schema(type=types.Type.STRING),
                                             "outcome": types.Schema(type=types.Type.STRING),
+                                            "pmid": types.Schema(type=types.Type.STRING),
                                         },
                                         required=["model", "outcome"]
                                     )
@@ -276,6 +287,7 @@ async def analyze_target(
                                         properties={
                                             "model": types.Schema(type=types.Type.STRING),
                                             "outcome": types.Schema(type=types.Type.STRING),
+                                            "pmid": types.Schema(type=types.Type.STRING),
                                         },
                                         required=["model", "outcome"]
                                     )
@@ -446,8 +458,8 @@ Conduct a deep comprehensive drug development potential analysis for "{request.t
 ### 1. Biological Overview
 - **Structural & Functional Domains**: List key protein domains with specific functions
 - **Key Mechanistic Insights**: Step-by-step mechanism of action (how the target works biologically)
-- **Human Validation Evidence**: Evidence from human genetics, biomarkers, patient data
-- **Functional Conservation Across Species**: Evolutionary conservation and cross-species validation
+- **Human Validation Evidence**: Evidence from human genetics, biomarkers, patient data. Include PubMed ID (PMID) in `human_validation_pmid` field if available.
+- **Functional Conservation Across Species**: Evolutionary conservation and cross-species validation. Include PubMed ID (PMID) in `species_conservation_pmid` field if available.
 
 ### 2. Therapeutic Rationale
 - **Convergent Pathway Node Positioning**: Where does this target sit in disease pathways? Is it a convergence point?
@@ -456,12 +468,12 @@ Conduct a deep comprehensive drug development potential analysis for "{request.t
 
 ### 3. Pre-clinical Evidence
 **Human Genetic Evidence:**
-- **Monogenic Gain-of-Function Mutations**: Rare variants that cause disease
-- **Common/Low-Frequency Variant Associations**: GWAS, rare variant associations
+- **Monogenic Gain-of-Function Mutations**: Rare variants that cause disease. Include PubMed ID (PMID) in `pmid` field for each variant if available.
+- **Common/Low-Frequency Variant Associations**: GWAS, rare variant associations. Include PubMed ID (PMID) in `pmid` field for each variant if available.
 
 **Preclinical Animal Studies:**
-- **Loss-of-Function Models**: Knockout/knockdown studies and phenotypes
-- **Gain-of-Function Models**: Overexpression studies and disease models
+- **Loss-of-Function Models**: Knockout/knockdown studies and phenotypes. Include PubMed ID (PMID) in `pmid` field for each model if available.
+- **Gain-of-Function Models**: Overexpression studies and disease models. Include PubMed ID (PMID) in `pmid` field for each model if available.
 
 ### 4. Drug/Trial Landscape
 - Provide detailed competitive landscape overview
