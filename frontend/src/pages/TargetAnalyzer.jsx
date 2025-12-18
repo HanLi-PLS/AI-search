@@ -152,7 +152,23 @@ function TargetAnalyzer() {
             </div>
 
             <div className="results-content">
+              {/* Sticky Navigation Bar */}
+              <div className="section-nav-bar">
+                <a href="#section-1" className="nav-item">1. Biological</a>
+                <a href="#section-2" className="nav-item">2. Rationale</a>
+                <a href="#section-3" className="nav-item">3. Evidence</a>
+                <a href="#section-4" className="nav-item">4. Landscape</a>
+                <a href="#section-5" className="nav-item">5. Patents</a>
+                <a href="#section-6" className="nav-item">6. Potential</a>
+                <a href="#section-7" className="nav-item">7. Differentiation</a>
+                <a href="#section-8" className="nav-item">8. Unmet Needs</a>
+                <a href="#section-9" className="nav-item">9. Risks</a>
+                <a href="#section-10" className="nav-item">10. Biomarkers</a>
+                <a href="#section-11" className="nav-item">11. BD Potential</a>
+              </div>
+
               {/* Biological Overview */}
+              <div id="section-1">
               {renderSection(
                 '1. Biological Overview',
                 <div className="bio-overview">
@@ -205,8 +221,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Therapeutic Rationale */}
+              <div id="section-2">
               {renderSection(
                 '2. Therapeutic Rationale',
                 <div className="rationale-grid">
@@ -224,8 +242,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Pre-clinical Evidence */}
+              <div id="section-3">
               {renderSection(
                 '3. Pre-clinical Evidence',
                 <div className="evidence-section">
@@ -313,8 +333,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Drug/Trial Landscape */}
+              <div id="section-4">
               {renderSection(
                 '4. Drug/Trial Landscape',
                 <div className="landscape-section">
@@ -366,8 +388,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Patent & IP */}
+              <div id="section-5">
               {renderSection(
                 '5. Patent & IP Landscape',
                 <div className="ip-section">
@@ -400,8 +424,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Indication Potential */}
+              <div id="section-6">
               {renderSection(
                 '6. Indication Potential',
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -444,8 +470,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Differentiation */}
+              <div id="section-7">
               {renderSection(
                 '7. Key Differentiation',
                 <div className="diff-section">
@@ -470,8 +498,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Unmet Needs */}
+              <div id="section-8">
               {renderSection(
                 '8. Unmet Medical Needs',
                 <div className="unmet-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
@@ -493,8 +523,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Risk Assessment */}
+              <div id="section-9">
               {renderSection(
                 '9. Risk Assessment',
                 <div className="risk-section">
@@ -550,8 +582,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Biomarker Strategy */}
+              <div id="section-10">
               {renderSection(
                 '10. Biomarker Strategy',
                 <div className="biomarker-section">
@@ -569,8 +603,10 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
 
               {/* Business Development */}
+              <div id="section-11">
               {renderSection(
                 '11. Business Development & Investment',
                 <div className="bd-section">
@@ -600,6 +636,7 @@ function TargetAnalyzer() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         ) : null}
