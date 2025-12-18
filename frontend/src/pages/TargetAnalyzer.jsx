@@ -60,12 +60,6 @@ function TargetAnalyzer() {
         bd_potentials: strategyRiskResponse.data.bd_potentials,
       };
 
-      // Generate mechanism diagram (same as before)
-      if (mergedData.biological_overview) {
-        // Add placeholder for mechanism image
-        mergedData.biological_overview.mechanism_image = null;
-      }
-
       setData(mergedData);
     } catch (err) {
       console.error('Analysis error:', err);
