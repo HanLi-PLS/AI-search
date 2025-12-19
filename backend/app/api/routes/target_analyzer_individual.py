@@ -111,7 +111,7 @@ def audit_citation(claim: str, pmid: str, paper_details: dict, gemini_client) ->
         return {"valid": False, "reason": "Paper not found in PubMed", "confidence": "high"}
 
     try:
-        audit_prompt = f"""You are a scientific fact-checking bot. Your job is to validate citations.
+        audit_prompt = f"""You are a STRICT scientific fact-checking bot. Your job is to validate citations with HIGH STANDARDS.
 
 **User's Claim:** "{claim}"
 
@@ -120,19 +120,26 @@ def audit_citation(claim: str, pmid: str, paper_details: dict, gemini_client) ->
 **Actual Paper Details from PubMed API:**
 - Title: {paper_details['title']}
 - First Author: {paper_details['first_author']}
-- Abstract: {paper_details['abstract'][:500]}...
+- Abstract: {paper_details['abstract'][:800]}
 
-**Your Task:**
-1. Check if the paper title is relevant to the claim
-2. Read the abstract - does it DIRECTLY support this specific claim?
-3. Classify as one of:
-   - VALID: Paper directly supports the claim
-   - INVALID_UNRELATED: Paper exists but is about a different topic
-   - INVALID_CONTRADICTION: Paper exists but contradicts the claim
-   - INVALID_TANGENTIAL: Paper mentions topic but doesn't support this specific claim
+**STRICT VALIDATION RULES:**
+1. The paper must DIRECTLY support the ENTIRE claim, not just part of it
+2. If the claim has multiple parts (e.g., "X is conserved AND Y shows efficacy"), the paper must address ALL parts
+3. General papers about the topic are NOT sufficient - must be SPECIFIC to this exact claim
+4. Review papers that mention the topic in passing are NOT sufficient
+5. Papers about related proteins/pathways are NOT sufficient unless they specifically discuss this target
 
-Output ONLY a JSON object with this format:
-{{"valid": true/false, "reason": "brief explanation", "confidence": "high/medium/low"}}"""
+**Classification (choose ONE):**
+- VALID: Paper directly and specifically supports THE ENTIRE claim
+- INVALID_PARTIAL: Paper supports only PART of a multi-part claim (reject these)
+- INVALID_UNRELATED: Paper is about a completely different topic
+- INVALID_TANGENTIAL: Paper mentions the topic but doesn't support this specific claim
+- INVALID_GENERAL: General review, not specific primary evidence
+
+**Output ONLY a JSON object:**
+{{"valid": true/false, "reason": "explain what paper discusses vs what claim states", "confidence": "high/medium/low"}}
+
+Be STRICT. When in doubt, mark as INVALID."""
 
         response = gemini_client.models.generate_content(
             model="gemini-3-flash",
