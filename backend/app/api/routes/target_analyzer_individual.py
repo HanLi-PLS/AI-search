@@ -152,7 +152,7 @@ Focus on RELEVANCE - the paper should be directly related to and supportive of t
             contents=audit_prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                temperature=0.1  # Low temperature for consistency
+                temperature=0.5  # Balanced temperature for validation
             )
         )
 
@@ -449,6 +449,7 @@ Before finalizing your response, perform this sanity check:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -620,6 +621,7 @@ Specific PK/PD, tissue penetration, or mechanism rationale.
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -833,6 +835,7 @@ Based on mechanism precedents (similar targets that succeeded/failed):
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1019,6 +1022,7 @@ Count of assets in each phase:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1112,6 +1116,7 @@ Are there blocking patents? Clear IP space? Crowded landscape?
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1196,6 +1201,7 @@ Quantified metrics:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1312,6 +1318,7 @@ Model 2-4 key competitive developments:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1405,6 +1412,7 @@ Barriers to adherence (dosing frequency, route, monitoring)
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1497,6 +1505,7 @@ Which guidelines? (NCCN, ASCO, etc.)
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1622,6 +1631,7 @@ For each risk provide:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1711,6 +1721,7 @@ Trial design considerations for biomarker-driven strategy:
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
@@ -1807,6 +1818,7 @@ Recent M&A, partnerships, investments in this space.
                 response_mime_type="application/json",
                 response_schema=schema,
                 tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.0,  # Deterministic for consistent citations
             )
         )
 
