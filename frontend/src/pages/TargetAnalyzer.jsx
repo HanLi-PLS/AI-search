@@ -106,7 +106,7 @@ function TargetAnalyzer() {
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       margin: 0;
       padding: 2rem;
       background: #f8fafc;
@@ -258,6 +258,241 @@ function TargetAnalyzer() {
       border-bottom: 2px solid #e2e8f0;
     }
 
+    .section-card h4 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0.75rem 0 0.5rem 0;
+    }
+
+    /* Biological Overview */
+    .bio-overview {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .subsection {
+      margin-bottom: 0.75rem;
+    }
+
+    .subsection h4 {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .domains-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .domain-item {
+      background: #f8fafc;
+      padding: 0.625rem 0.875rem;
+      border-radius: 6px;
+      border-left: 3px solid #2563eb;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .mechanism-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .mechanism-list {
+      background: #f8fafc;
+      padding: 0.75rem 0.75rem 0.75rem 2rem;
+      border-radius: 6px;
+      margin: 0;
+    }
+
+    .mechanism-list li {
+      margin-bottom: 0.375rem;
+      line-height: 1.5;
+      font-size: 0.8125rem;
+    }
+
+    .mechanism-image {
+      background: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .mechanism-diagram {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .subsection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* Therapeutic Rationale */
+    .rationale-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .rationale-box {
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid;
+    }
+
+    .rationale-box.blue {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .rationale-box.indigo {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+    }
+
+    .rationale-box.violet {
+      background: #f5f3ff;
+      border-color: #ddd6fe;
+    }
+
+    /* Phase Distribution Bars */
+    .phase-distribution {
+      margin-top: 1rem;
+      background: #f8fafc;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+
+    .phase-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .phase-bar-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .phase-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      min-width: 100px;
+      text-transform: capitalize;
+    }
+
+    .phase-bar {
+      flex: 1;
+      height: 24px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .phase-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem;
+      color: white;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      transition: width 0.5s ease;
+    }
+
+    /* Score Display */
+    .potential-section {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .score-display {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .score-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .score-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-max {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+
+    /* Differentiation */
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .diff-box {
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid;
+    }
+
+    .diff-box.advantages {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .diff-box.disadvantages {
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    .diff-box h4 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .diff-box.advantages h4 {
+      color: #15803d;
+    }
+
+    .diff-box.disadvantages h4 {
+      color: #991b1b;
+    }
+
     /* PubMed Links */
     .pubmed-link {
       display: inline-flex;
@@ -272,6 +507,7 @@ function TargetAnalyzer() {
       font-weight: 600;
       text-decoration: none;
       transition: all 0.2s ease;
+      white-space: nowrap;
     }
 
     .pubmed-link:hover {
@@ -292,12 +528,14 @@ function TargetAnalyzer() {
       text-align: left;
       border-bottom: 1px solid #e2e8f0;
       font-size: 0.8125rem;
+      line-height: 1.5;
     }
 
     th {
       background: #f8fafc;
       font-weight: 600;
       color: #334155;
+      border-bottom: 2px solid #e2e8f0;
     }
 
     img {
@@ -307,19 +545,23 @@ function TargetAnalyzer() {
     }
 
     strong { font-weight: 600; }
-    ul, ol { padding-left: 1.5rem; }
-    li { margin-bottom: 0.375rem; line-height: 1.5; }
-    p { line-height: 1.5; margin: 0.5rem 0; }
+    ul, ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+    li { margin-bottom: 0.375rem; line-height: 1.5; font-size: 0.8125rem; }
+    p { line-height: 1.5; margin: 0.5rem 0; font-size: 0.8125rem; }
 
     @media (max-width: 768px) {
       .results-layout { flex-direction: column; }
       .side-nav-bar { position: static; width: 100%; }
+      .mechanism-content,
+      .subsection-grid,
+      .rationale-grid,
+      .diff-grid { grid-template-columns: 1fr; }
     }
 
     @media print {
       body { padding: 0; background: white; }
       .side-nav-bar { display: none; }
-      .section-card { break-inside: avoid; }
+      .section-card { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
