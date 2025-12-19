@@ -33,53 +33,46 @@ function TargetAnalyzer() {
         }
       };
 
-      // Call all 12 individual endpoints in batches of 4 to avoid rate limits
-      console.log('Starting batched parallel analysis (12 endpoints in batches of 4)...');
+      // Call all 12 individual endpoints in batches of 6 to avoid rate limits
+      console.log('Starting batched parallel analysis (12 endpoints in batches of 6)...');
 
-      // Batch 1: Core Biology (4 endpoints)
-      console.log('→ Batch 1/3: Core Biology...');
+      // Batch 1: Core Biology & Market Analysis (6 endpoints)
+      console.log('→ Batch 1/2: Core Biology & Market...');
       const [
         biologicalOverviewResponse,
         therapeuticRationaleResponse,
         preclinicalEvidenceResponse,
-        drugTrialLandscapeResponse
+        drugTrialLandscapeResponse,
+        patentIpResponse,
+        indicationPotentialResponse
       ] = await Promise.all([
         axios.post('/api/target-analyzer/biological-overview', requestBody, config),
         axios.post('/api/target-analyzer/therapeutic-rationale', requestBody, config),
         axios.post('/api/target-analyzer/preclinical-evidence', requestBody, config),
-        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config)
+        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config),
+        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
+        axios.post('/api/target-analyzer/indication-potential', requestBody, config)
       ]);
       console.log('✓ Batch 1 complete');
 
-      // Batch 2: Market & Competition (4 endpoints)
-      console.log('→ Batch 2/3: Market & Competition...');
+      // Batch 2: Competition & Strategy (6 endpoints)
+      console.log('→ Batch 2/2: Competition & Strategy...');
       const [
-        patentIpResponse,
-        indicationPotentialResponse,
         differentiationResponse,
-        unmetNeedsResponse
-      ] = await Promise.all([
-        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
-        axios.post('/api/target-analyzer/indication-potential', requestBody, config),
-        axios.post('/api/target-analyzer/differentiation', requestBody, config),
-        axios.post('/api/target-analyzer/unmet-needs', requestBody, config)
-      ]);
-      console.log('✓ Batch 2 complete');
-
-      // Batch 3: Strategy & Risk (4 endpoints)
-      console.log('→ Batch 3/3: Strategy & Risk...');
-      const [
+        unmetNeedsResponse,
         indicationSpecificResponse,
         risksResponse,
         biomarkerStrategyResponse,
         bdPotentialsResponse
       ] = await Promise.all([
+        axios.post('/api/target-analyzer/differentiation', requestBody, config),
+        axios.post('/api/target-analyzer/unmet-needs', requestBody, config),
         axios.post('/api/target-analyzer/indication-specific-analysis', requestBody, config),
         axios.post('/api/target-analyzer/risks', requestBody, config),
         axios.post('/api/target-analyzer/biomarker-strategy', requestBody, config),
         axios.post('/api/target-analyzer/bd-potentials', requestBody, config)
       ]);
-      console.log('✓ Batch 3 complete');
+      console.log('✓ Batch 2 complete');
       console.log('✓✓✓ All 12 endpoints completed successfully!');
 
       // Merge results from all 12 endpoints
@@ -334,22 +327,26 @@ function TargetAnalyzer() {
                   </a>
                   <a href="#section-7" className="nav-item">
                     <span className="nav-number">7</span>
-                    <span className="nav-text">Differentiation</span>
+                    <span className="nav-text">Indication Analysis</span>
                   </a>
                   <a href="#section-8" className="nav-item">
                     <span className="nav-number">8</span>
-                    <span className="nav-text">Unmet Needs</span>
+                    <span className="nav-text">Differentiation</span>
                   </a>
                   <a href="#section-9" className="nav-item">
                     <span className="nav-number">9</span>
-                    <span className="nav-text">Risks</span>
+                    <span className="nav-text">Unmet Needs</span>
                   </a>
                   <a href="#section-10" className="nav-item">
                     <span className="nav-number">10</span>
-                    <span className="nav-text">Biomarker Strategy</span>
+                    <span className="nav-text">Risks</span>
                   </a>
                   <a href="#section-11" className="nav-item">
                     <span className="nav-number">11</span>
+                    <span className="nav-text">Biomarker Strategy</span>
+                  </a>
+                  <a href="#section-12" className="nav-item">
+                    <span className="nav-number">12</span>
                     <span className="nav-text">BD Potential</span>
                   </a>
                 </nav>
@@ -684,52 +681,53 @@ function TargetAnalyzer() {
               <div id="section-6">
               {renderSection(
                 '6. Indication Potential',
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {/* Score and Rationale - Compact Row */}
-                  <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                    <div className="score-circle">
-                      <span className="score-number">{data.indication_potential.score}</span>
-                      <span className="score-max">/10</span>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Scoring Rationale</h4>
-                      <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{data.indication_potential.reasoning}</p>
-                    </div>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                  <div className="score-circle">
+                    <span className="score-number">{data.indication_potential.score}</span>
+                    <span className="score-max">/10</span>
                   </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Scoring Rationale</h4>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{data.indication_potential.reasoning}</p>
+                  </div>
+                </div>
+              )}
+              </div>
 
-                  {/* Therapeutic Landscape - Full Width */}
-                  <div style={{
-                    background: '#f8fafc',
-                    padding: '1rem',
-                    borderRadius: '8px',
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.75rem', color: '#0f172a' }}>Current Therapeutic Landscape</h4>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Major Drug Classes:</strong>
-                      <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                        {data.indication_specific_analysis.therapeutic_classes.map((tc, i) => (
-                          <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
-                            <strong>{tc.class_name}:</strong> {tc.examples}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Treatment Guidelines:</strong>
-                      <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>
-                        {data.indication_specific_analysis.treatment_guidelines}
-                      </p>
-                    </div>
+              {/* Indication Specific Analysis */}
+              <div id="section-7">
+              {renderSection(
+                '7. Indication-Specific Therapeutic Landscape',
+                <div style={{
+                  background: '#f8fafc',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Major Drug Classes:</h4>
+                    <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                      {data.indication_specific_analysis.therapeutic_classes.map((tc, i) => (
+                        <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                          <strong>{tc.class_name}:</strong> {tc.examples}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Treatment Guidelines:</h4>
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>
+                      {data.indication_specific_analysis.treatment_guidelines}
+                    </p>
                   </div>
                 </div>
               )}
               </div>
 
               {/* Differentiation */}
-              <div id="section-7">
+              <div id="section-8">
               {renderSection(
-                '7. Key Differentiation',
+                '8. Key Differentiation',
                 <div className="diff-section">
                   <p className="diff-analysis">{data.differentiation.analysis}</p>
 
@@ -805,9 +803,9 @@ function TargetAnalyzer() {
               </div>
 
               {/* Unmet Needs */}
-              <div id="section-8">
+              <div id="section-9">
               {renderSection(
-                '8. Unmet Medical Needs',
+                '9. Unmet Medical Needs',
                 <div className="unmet-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="unmet-box">
                     <h4>📊 Incomplete Response</h4>
@@ -830,9 +828,9 @@ function TargetAnalyzer() {
               </div>
 
               {/* Risk Assessment */}
-              <div id="section-9">
+              <div id="section-10">
               {renderSection(
-                '9. Risk Assessment',
+                '10. Risk Assessment',
                 <div className="risk-section">
                   <div className="risk-analysis">
                     <h4>Executive Summary</h4>
@@ -908,9 +906,9 @@ function TargetAnalyzer() {
               </div>
 
               {/* Biomarker Strategy */}
-              <div id="section-10">
+              <div id="section-11">
               {renderSection(
-                '10. Biomarker Strategy',
+                '11. Biomarker Strategy',
                 <div className="biomarker-section">
                   <div style={{ marginBottom: '1rem' }}>
                     <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Stratification Biomarkers:</h4>
@@ -929,9 +927,9 @@ function TargetAnalyzer() {
               </div>
 
               {/* Business Development */}
-              <div id="section-11">
+              <div id="section-12">
               {renderSection(
-                '11. Business Development & Investment',
+                '12. Business Development & Investment',
                 <div className="bd-section">
                   <div className="subsection">
                     <h4>Recent Activities</h4>
