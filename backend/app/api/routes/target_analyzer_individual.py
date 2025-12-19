@@ -819,26 +819,78 @@ Based on mechanism precedents (similar targets that succeeded/failed):
 
         data = json.loads(response.text)
 
-        # Validate all PMIDs in preclinical evidence
+        # STEP 2 & 3: Validate and Audit PMIDs using Writer-Auditor pattern
+        logger.info("Starting PMID validation and auditing for preclinical evidence...")
+
+        # Audit monogenic mutations PMIDs
         for mutation in data.get("human_genetics", {}).get("monogenic_mutations", []):
-            if mutation.get("pmid") and not validate_pmid(mutation["pmid"]):
-                logger.warning(f"Removing invalid PMID: {mutation['pmid']}")
-                mutation["pmid"] = ""
+            if mutation.get("pmid"):
+                pmid = mutation["pmid"]
+                paper_details = fetch_paper_details(pmid)
+                if paper_details:
+                    claim = f"{mutation.get('variant', 'Genetic variant')} - {mutation.get('phenotype', 'phenotype')}"
+                    audit_result = audit_citation(claim, pmid, paper_details, client)
+                    if not audit_result.get('valid', False):
+                        logger.warning(f"Removing invalid monogenic mutation PMID {pmid}: {audit_result.get('reason')}")
+                        mutation["pmid"] = ""
+                    else:
+                        logger.info(f"✓ Monogenic mutation PMID {pmid} validated")
+                else:
+                    logger.warning(f"Removing non-existent monogenic mutation PMID {pmid}")
+                    mutation["pmid"] = ""
 
+        # Audit common variants PMIDs
         for variant in data.get("human_genetics", {}).get("common_variants", []):
-            if variant.get("pmid") and not validate_pmid(variant["pmid"]):
-                logger.warning(f"Removing invalid PMID: {variant['pmid']}")
-                variant["pmid"] = ""
+            if variant.get("pmid"):
+                pmid = variant["pmid"]
+                paper_details = fetch_paper_details(pmid)
+                if paper_details:
+                    claim = f"{variant.get('variant', 'Common variant')} - {variant.get('association', 'association')}"
+                    audit_result = audit_citation(claim, pmid, paper_details, client)
+                    if not audit_result.get('valid', False):
+                        logger.warning(f"Removing invalid common variant PMID {pmid}: {audit_result.get('reason')}")
+                        variant["pmid"] = ""
+                    else:
+                        logger.info(f"✓ Common variant PMID {pmid} validated")
+                else:
+                    logger.warning(f"Removing non-existent common variant PMID {pmid}")
+                    variant["pmid"] = ""
 
+        # Audit loss of function model PMIDs
         for model in data.get("animal_models", {}).get("loss_of_function", []):
-            if model.get("pmid") and not validate_pmid(model["pmid"]):
-                logger.warning(f"Removing invalid PMID: {model['pmid']}")
-                model["pmid"] = ""
+            if model.get("pmid"):
+                pmid = model["pmid"]
+                paper_details = fetch_paper_details(pmid)
+                if paper_details:
+                    claim = f"Loss of function: {model.get('model', 'animal model')} - {model.get('outcome', 'outcome')}"
+                    audit_result = audit_citation(claim, pmid, paper_details, client)
+                    if not audit_result.get('valid', False):
+                        logger.warning(f"Removing invalid LoF model PMID {pmid}: {audit_result.get('reason')}")
+                        model["pmid"] = ""
+                    else:
+                        logger.info(f"✓ LoF model PMID {pmid} validated")
+                else:
+                    logger.warning(f"Removing non-existent LoF model PMID {pmid}")
+                    model["pmid"] = ""
 
+        # Audit gain of function model PMIDs
         for model in data.get("animal_models", {}).get("gain_of_function", []):
-            if model.get("pmid") and not validate_pmid(model["pmid"]):
-                logger.warning(f"Removing invalid PMID: {model['pmid']}")
-                model["pmid"] = ""
+            if model.get("pmid"):
+                pmid = model["pmid"]
+                paper_details = fetch_paper_details(pmid)
+                if paper_details:
+                    claim = f"Gain of function: {model.get('model', 'animal model')} - {model.get('outcome', 'outcome')}"
+                    audit_result = audit_citation(claim, pmid, paper_details, client)
+                    if not audit_result.get('valid', False):
+                        logger.warning(f"Removing invalid GoF model PMID {pmid}: {audit_result.get('reason')}")
+                        model["pmid"] = ""
+                    else:
+                        logger.info(f"✓ GoF model PMID {pmid} validated")
+                else:
+                    logger.warning(f"Removing non-existent GoF model PMID {pmid}")
+                    model["pmid"] = ""
+
+        logger.info("PMID validation and auditing complete for preclinical evidence")
 
         result = {
             "preclinical_evidence": data,
