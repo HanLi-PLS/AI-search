@@ -142,7 +142,7 @@ def audit_citation(claim: str, pmid: str, paper_details: dict, gemini_client) ->
 Be STRICT. When in doubt, mark as INVALID."""
 
         response = gemini_client.models.generate_content(
-            model="gemini-3-flash",
+            model="gemini-1.5-flash",
             contents=audit_prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
