@@ -326,6 +326,19 @@ function TargetAnalyzer() {
               </div>
             </div>
 
+            {/* Citation Disclaimer */}
+            <div style={{
+              background: '#fff3cd',
+              border: '1px solid #ffc107',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              marginBottom: '1.5rem',
+              fontSize: '0.875rem',
+              color: '#856404'
+            }}>
+              <strong>⚠️ Note:</strong> PubMed citations are AI-generated and should be independently verified before use in research or publications.
+            </div>
+
             <div className="results-layout">
               {/* Side Navigation Bar */}
               <aside className="side-nav-bar">

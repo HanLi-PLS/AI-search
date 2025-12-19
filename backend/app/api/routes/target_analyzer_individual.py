@@ -5,6 +5,7 @@ Each section can be called independently for iterative improvements and updates
 import logging
 import json
 import base64
+import requests
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from google import genai
@@ -32,6 +33,65 @@ from backend.app.api.routes.target_analyzer import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Standard citation requirements for all prompts
+CITATION_REQUIREMENTS = """
+## ⚠️ CRITICAL CITATION REQUIREMENTS:
+
+**PMID ACCURACY IS PARAMOUNT:**
+- ONLY provide a PMID if you are ABSOLUTELY CERTAIN it directly supports the specific claim
+- The PMID must be from an actual published paper you found via google_search
+- If you cannot find a specific PMID for a claim, leave the pmid field EMPTY ("")
+- Wrong/hallucinated PMIDs are WORSE than no PMID
+- Verify the paper's title and abstract actually discuss the specific finding mentioned
+- Generic or tangentially related papers are NOT acceptable
+
+**VERIFICATION CHECKLIST BEFORE ADDING ANY PMID:**
+✓ Did google_search return this specific PMID?
+✓ Does the paper's content directly support this exact claim?
+✓ Is the PMID from a peer-reviewed journal?
+✗ DO NOT guess or fabricate PMIDs
+✗ DO NOT use PMIDs from your training data without verification
+✗ DO NOT use loosely related papers
+
+**If uncertain, leave PMID empty. Accuracy > Completeness.**
+"""
+
+
+def validate_pmid(pmid: str) -> bool:
+    """
+    Validate that a PMID exists in PubMed.
+    Returns True if valid, False otherwise.
+    """
+    if not pmid or not pmid.strip() or not pmid.isdigit():
+        return True  # Empty or non-numeric PMIDs pass (will be filtered later)
+
+    try:
+        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+        params = {
+            "db": "pubmed",
+            "id": pmid.strip(),
+            "retmode": "json",
+            "email": "api@example.com"  # NCBI requests an email for API usage
+        }
+        response = requests.get(url, params=params, timeout=5)
+
+        if response.status_code == 200:
+            data = response.json()
+            # Check if the PMID exists (no error in response)
+            if "error" in data:
+                logger.warning(f"Invalid PMID {pmid}: {data['error']}")
+                return False
+            if "result" in data and pmid in data["result"]:
+                return True
+            logger.warning(f"PMID {pmid} not found in PubMed")
+            return False
+    except Exception as e:
+        logger.error(f"Error validating PMID {pmid}: {e}")
+        # On error, assume valid to avoid blocking (but log the error)
+        return True
+
+    return False
 
 
 def get_gemini_client():
@@ -208,10 +268,12 @@ Cross-species conservation analysis and implications for animal model translatio
 Provide PMID if available.
 
 ---
+{CITATION_REQUIREMENTS}
+---
 
 ## OUTPUT REQUIREMENTS:
 - **QUANTIFICATION**: Use numbers, not "better/worse"
-- **CITATIONS**: Include PMIDs for all scientific claims
+- **CITATIONS**: Include PMIDs ONLY when you have verified them via google_search
 - **SPECIFICITY**: Everything must be specific to {request.target} in {request.indication}
 """
 
@@ -232,6 +294,16 @@ Provide PMID if available.
             )
 
         data = json.loads(response.text)
+
+        # Validate PMIDs
+        if data.get("human_validation_pmid"):
+            if not validate_pmid(data["human_validation_pmid"]):
+                logger.warning(f"Removing invalid PMID: {data['human_validation_pmid']}")
+                data["human_validation_pmid"] = ""
+        if data.get("species_conservation_pmid"):
+            if not validate_pmid(data["species_conservation_pmid"]):
+                logger.warning(f"Removing invalid PMID: {data['species_conservation_pmid']}")
+                data["species_conservation_pmid"] = ""
 
         # Generate mechanism diagram
         mechanism_image = None
@@ -331,10 +403,12 @@ Why small molecule vs antibody vs other modalities for THIS target?
 Specific PK/PD, tissue penetration, or mechanism rationale.
 
 ---
+{CITATION_REQUIREMENTS}
+---
 
 ## OUTPUT REQUIREMENTS:
 - **QUANTIFICATION**: Use numbers, not "better/worse"
-- **CITATIONS**: Include PMIDs for all scientific claims
+- **CITATIONS**: Include PMIDs ONLY when verified via google_search
 - **SPECIFICITY**: Everything must be specific to {request.target} in {request.indication}
 """
 
@@ -515,10 +589,12 @@ Based on mechanism precedents (similar targets that succeeded/failed):
 - Assessment: ABOVE BENCHMARK / AT BENCHMARK / BELOW BENCHMARK
 
 ---
+{CITATION_REQUIREMENTS}
+---
 
 ## OUTPUT REQUIREMENTS:
 - **QUANTIFICATION**: Use numbers, not "better/worse"
-- **CITATIONS**: Include PMIDs for all scientific claims
+- **CITATIONS**: Include PMIDs ONLY when you have verified them via google_search
 - **SPECIFICITY**: Everything must be specific to {request.target} in {request.indication}
 - **QUALITY RATINGS**: Rate evidence quality (High/Medium/Low)
 - **BENCHMARKING**: Compare to approved targets with quantified gaps
@@ -541,6 +617,27 @@ Based on mechanism precedents (similar targets that succeeded/failed):
             )
 
         data = json.loads(response.text)
+
+        # Validate all PMIDs in preclinical evidence
+        for mutation in data.get("human_genetics", {}).get("monogenic_mutations", []):
+            if mutation.get("pmid") and not validate_pmid(mutation["pmid"]):
+                logger.warning(f"Removing invalid PMID: {mutation['pmid']}")
+                mutation["pmid"] = ""
+
+        for variant in data.get("human_genetics", {}).get("common_variants", []):
+            if variant.get("pmid") and not validate_pmid(variant["pmid"]):
+                logger.warning(f"Removing invalid PMID: {variant['pmid']}")
+                variant["pmid"] = ""
+
+        for model in data.get("animal_models", {}).get("loss_of_function", []):
+            if model.get("pmid") and not validate_pmid(model["pmid"]):
+                logger.warning(f"Removing invalid PMID: {model['pmid']}")
+                model["pmid"] = ""
+
+        for model in data.get("animal_models", {}).get("gain_of_function", []):
+            if model.get("pmid") and not validate_pmid(model["pmid"]):
+                logger.warning(f"Removing invalid PMID: {model['pmid']}")
+                model["pmid"] = ""
 
         result = {
             "preclinical_evidence": data,
