@@ -93,7 +93,8 @@ function TargetAnalyzer() {
 
   const handleExportHTML = () => {
     const content = document.getElementById('exportable-content');
-    if (!content) return;
+    const sidebar = document.querySelector('.side-nav-bar');
+    if (!content || !sidebar) return;
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -103,19 +104,239 @@ function TargetAnalyzer() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${data.target} for ${data.indication} - Target Analysis</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 2rem; background: #f8fafc; }
-    h1 { color: #0f172a; border-bottom: 3px solid #2563eb; padding-bottom: 1rem; }
-    .section-card { background: white; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    h3 { color: #0f172a; font-size: 1.25rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
-    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-    th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
-    th { background: #f8fafc; font-weight: 600; }
-    img { max-width: 100%; height: auto; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    html { scroll-behavior: smooth; }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .results-header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .for-text {
+      color: #94a3b8;
+      font-weight: 300;
+    }
+
+    .results-layout {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+
+    /* Side Navigation Bar */
+    .side-nav-bar {
+      position: sticky;
+      top: 1.5rem;
+      width: 260px;
+      flex-shrink: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .side-nav-header {
+      padding: 1rem 1.25rem;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .side-nav-items {
+      display: flex;
+      flex-direction: column;
+      padding: 0.5rem;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.25rem;
+      background: transparent;
+      border-left: 3px solid transparent;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      color: #475569;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: #f1f5f9;
+      border-left-color: #2563eb;
+      color: #1e40af;
+      transform: translateX(4px);
+    }
+
+    .nav-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #e2e8f0;
+      color: #64748b;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .nav-item:hover .nav-number {
+      background: #2563eb;
+      color: white;
+    }
+
+    .nav-text {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .results-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .section-card {
+      background: white;
+      border-radius: 10px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+
+    .section-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-card h3 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 1rem 0;
+      padding-bottom: 0.625rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    /* PubMed Links */
+    .pubmed-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.625rem;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .pubmed-link:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e3a8a;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    th, td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.8125rem;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    strong { font-weight: 600; }
+    ul, ol { padding-left: 1.5rem; }
+    li { margin-bottom: 0.375rem; line-height: 1.5; }
+    p { line-height: 1.5; margin: 0.5rem 0; }
+
+    @media (max-width: 768px) {
+      .results-layout { flex-direction: column; }
+      .side-nav-bar { position: static; width: 100%; }
+    }
+
+    @media print {
+      body { padding: 0; background: white; }
+      .side-nav-bar { display: none; }
+      .section-card { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
-  <h1>${data.target} for ${data.indication}</h1>
-  ${content.innerHTML}
+  <div class="container">
+    <div class="results-header">
+      <h1>${data.target} <span class="for-text">for</span> ${data.indication}</h1>
+    </div>
+
+    <div class="results-layout">
+      ${sidebar.outerHTML}
+
+      <div class="results-content" id="exportable-content">
+        ${content.innerHTML}
+      </div>
+    </div>
+  </div>
 </body>
 </html>`;
 
