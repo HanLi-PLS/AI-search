@@ -519,7 +519,10 @@ Labels should be legible and use standard scientific font."""
             try:
                 image_response = client.models.generate_content(
                     model="gemini-3-pro-image-preview",
-                    contents=image_prompt
+                    contents=image_prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.0,  # Deterministic for consistent diagrams
+                    )
                 )
 
                 if image_response and hasattr(image_response, 'candidates'):
