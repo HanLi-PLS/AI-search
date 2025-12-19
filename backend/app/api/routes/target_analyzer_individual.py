@@ -36,25 +36,38 @@ router = APIRouter()
 
 # Standard citation requirements for all prompts
 CITATION_REQUIREMENTS = """
-## ⚠️ CRITICAL CITATION REQUIREMENTS:
+## ⚠️ CRITICAL CITATION REQUIREMENTS - RELEVANCE IS MANDATORY:
 
-**PMID ACCURACY IS PARAMOUNT:**
-- ONLY provide a PMID if you are ABSOLUTELY CERTAIN it directly supports the specific claim
-- The PMID must be from an actual published paper you found via google_search
-- If you cannot find a specific PMID for a claim, leave the pmid field EMPTY ("")
-- Wrong/hallucinated PMIDs are WORSE than no PMID
-- Verify the paper's title and abstract actually discuss the specific finding mentioned
-- Generic or tangentially related papers are NOT acceptable
+**PMID MUST BE DIRECTLY RELEVANT TO THE SPECIFIC CLAIM:**
+- The paper must DIRECTLY discuss the EXACT finding/claim you're citing it for
+- ONLY cite papers you found via google_search that SPECIFICALLY address this claim
+- If the paper is about the general topic but NOT this specific claim, DO NOT cite it
+- Leave PMID EMPTY ("") if you cannot find a paper that DIRECTLY supports this exact claim
+- Wrong or loosely related PMIDs are WORSE than no PMID - they mislead researchers
 
-**VERIFICATION CHECKLIST BEFORE ADDING ANY PMID:**
-✓ Did google_search return this specific PMID?
-✓ Does the paper's content directly support this exact claim?
-✓ Is the PMID from a peer-reviewed journal?
-✗ DO NOT guess or fabricate PMIDs
-✗ DO NOT use PMIDs from your training data without verification
-✗ DO NOT use loosely related papers
+**EXAMPLES OF UNACCEPTABLE CITATIONS:**
+✗ Claim: "RIPK2 inhibition reduces IL-6 by 50%" → Citing a paper about general inflammation
+✗ Claim: "Variant rs123456 shows OR=2.5" → Citing a paper that mentions the gene but not the variant
+✗ Claim: "IC50 = 1.2 nM for Compound X" → Citing a paper about a different compound
 
-**If uncertain, leave PMID empty. Accuracy > Completeness.**
+**EXAMPLES OF ACCEPTABLE CITATIONS:**
+✓ Claim: "RIPK2 inhibition reduces IL-6 by 50%" → Paper that reports this specific reduction
+✓ Claim: "Variant rs123456 shows OR=2.5" → Paper that reports this exact variant with this OR
+✓ Claim: "IC50 = 1.2 nM for Compound X" → Paper that reports IC50 for this specific compound
+
+**VERIFICATION CHECKLIST - ALL MUST BE TRUE:**
+✓ Did google_search return this specific PMID for THIS claim?
+✓ Does the paper's title/abstract mention the SPECIFIC finding (not just the general topic)?
+✓ Would a researcher reading this paper find THIS EXACT claim?
+✓ Is this the PRIMARY source for this data (not a review mentioning it)?
+
+**STRICT RULES:**
+✗ DO NOT cite review papers unless they provide the original data
+✗ DO NOT cite papers about related pathways/molecules unless they discuss THIS specific one
+✗ DO NOT cite papers that mention the topic in passing
+✗ DO NOT use your training data - ONLY use google_search results
+
+**When in doubt, LEAVE EMPTY. Better to have no citation than a misleading one.**
 """
 
 
