@@ -631,6 +631,31 @@ Specific PK/PD, tissue penetration, or mechanism rationale.
 
         data = json.loads(response.text)
 
+        # STEP 2 & 3: Validate and Audit inline PMIDs in text fields
+        logger.info("Starting PMID validation and auditing for therapeutic rationale...")
+
+        context = f"Therapeutic rationale for {request.target} in {request.indication}"
+
+        # Audit inline PMIDs in pathway_positioning
+        if data.get("pathway_positioning"):
+            data["pathway_positioning"] = validate_and_audit_pmids(
+                data["pathway_positioning"], context, client
+            )
+
+        # Audit inline PMIDs in specificity_vs_breadth
+        if data.get("specificity_vs_breadth"):
+            data["specificity_vs_breadth"] = validate_and_audit_pmids(
+                data["specificity_vs_breadth"], context, client
+            )
+
+        # Audit inline PMIDs in modality_comparison
+        if data.get("modality_comparison"):
+            data["modality_comparison"] = validate_and_audit_pmids(
+                data["modality_comparison"], context, client
+            )
+
+        logger.info("PMID validation and auditing complete for therapeutic rationale")
+
         result = {
             "therapeutic_rationale": data,
             "target": request.target,
