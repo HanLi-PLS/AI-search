@@ -36,34 +36,170 @@ router = APIRouter()
 
 # Standard citation requirements for all prompts
 CITATION_REQUIREMENTS = """
-## CRITICAL: Citation Accuracy - Search & Verify Mode
+## CITATION INSTRUCTIONS:
 
-**YOU MUST USE THE GOOGLE_SEARCH TOOL TO FIND AND VERIFY EVERY PMID. DO NOT USE TRAINING DATA.**
+**You may include citations to support your claims. Citations can be:**
+- PubMed IDs (PMID: 12345678)
+- DOIs
+- arXiv IDs
+- Other scientific references
 
-### The "Abstract-First" Rule:
-For each citation:
-1. Use google_search to find the paper for the SPECIFIC claim (not general topic)
-2. Read the abstract/results from the search
-3. Quote the relevant sentence that supports your claim
-4. Extract the PMID from the search results
-5. Verify the PMID matches the paper title
+**For PubMed citations:**
+- Use google_search to find relevant papers
+- Include inline citations in format: "Statement (PMID: 12345678)"
+- Citations will be automatically validated for relevance
 
-### Example of CORRECT Citation Process:
-Claim: "RIPK2 deficiency worsens colitis in mice"
-→ Search: "RIPK2 deficiency colitis mice study"
-→ Find paper abstract stating: "Ripk2−/− mice exhibited more severe colitis..."
-→ Extract PMID from that specific paper
-→ Include citation with claim
-
-### Example of WRONG Citation (DO NOT DO THIS):
-Claim: "RIPK2 deficiency worsens colitis in mice"
-→ Use general paper about IBD that mentions RIPK2 in passing ✗
-→ Cite from memory/training data ✗
-→ Use review paper not primary research ✗
-
-**DO NOT HALLUCINATE CITATIONS. If google_search doesn't return a paper that directly discusses the specific claim, leave PMID empty ("").**
-**Wrong PMIDs are worse than no PMIDs - they mislead researchers.**
+**Quality over quantity - only cite if you have strong supporting evidence.**
 """
+
+
+def fetch_paper_details(pmid: str) -> dict:
+    """
+    Fetch paper title and abstract from PubMed via NCBI E-utilities API.
+    Returns dict with title, abstract, and authors.
+    """
+    if not pmid or not pmid.strip() or not pmid.isdigit():
+        return None
+
+    try:
+        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+        params = {
+            "db": "pubmed",
+            "id": pmid.strip(),
+            "retmode": "xml",
+            "email": "api@example.com"
+        }
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            # Parse XML to extract title and abstract
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.content)
+
+            # Extract title
+            title_elem = root.find(".//ArticleTitle")
+            title = title_elem.text if title_elem is not None else "No title found"
+
+            # Extract abstract
+            abstract_parts = root.findall(".//AbstractText")
+            abstract = " ".join([part.text for part in abstract_parts if part.text]) if abstract_parts else "No abstract available"
+
+            # Extract first author
+            first_author_elem = root.find(".//Author[1]/LastName")
+            first_author = first_author_elem.text if first_author_elem is not None else "Unknown"
+
+            return {
+                "pmid": pmid,
+                "title": title,
+                "abstract": abstract,
+                "first_author": first_author
+            }
+        else:
+            logger.warning(f"Failed to fetch PMID {pmid}: HTTP {response.status_code}")
+            return None
+    except Exception as e:
+        logger.error(f"Error fetching paper details for PMID {pmid}: {e}")
+        return None
+
+
+def audit_citation(claim: str, pmid: str, paper_details: dict, gemini_client) -> dict:
+    """
+    Use Gemini 3 Flash to validate if a PMID actually supports the claim.
+    Returns dict with 'valid' (bool), 'reason' (str), and 'confidence' (str).
+    """
+    if not paper_details:
+        return {"valid": False, "reason": "Paper not found in PubMed", "confidence": "high"}
+
+    try:
+        audit_prompt = f"""You are a scientific fact-checking bot. Your job is to validate citations.
+
+**User's Claim:** "{claim}"
+
+**Proposed Citation:** PMID: {pmid}
+
+**Actual Paper Details from PubMed API:**
+- Title: {paper_details['title']}
+- First Author: {paper_details['first_author']}
+- Abstract: {paper_details['abstract'][:500]}...
+
+**Your Task:**
+1. Check if the paper title is relevant to the claim
+2. Read the abstract - does it DIRECTLY support this specific claim?
+3. Classify as one of:
+   - VALID: Paper directly supports the claim
+   - INVALID_UNRELATED: Paper exists but is about a different topic
+   - INVALID_CONTRADICTION: Paper exists but contradicts the claim
+   - INVALID_TANGENTIAL: Paper mentions topic but doesn't support this specific claim
+
+Output ONLY a JSON object with this format:
+{{"valid": true/false, "reason": "brief explanation", "confidence": "high/medium/low"}}"""
+
+        response = gemini_client.models.generate_content(
+            model="gemini-3-flash",
+            contents=audit_prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1  # Low temperature for consistency
+            )
+        )
+
+        if response.text:
+            result = json.loads(response.text)
+            return result
+        else:
+            return {"valid": False, "reason": "Auditor failed to respond", "confidence": "low"}
+
+    except Exception as e:
+        logger.error(f"Error auditing citation PMID {pmid}: {e}")
+        return {"valid": False, "reason": f"Audit error: {str(e)}", "confidence": "low"}
+
+
+def validate_and_audit_pmids(text: str, context: str, gemini_client) -> str:
+    """
+    Extract PMIDs from text, validate and audit them, remove invalid ones.
+    Returns cleaned text with only valid PMIDs.
+    """
+    import re
+
+    # Find all PMIDs in format (PMID: 12345678) or PMID: 12345678
+    pmid_pattern = r'\(?\s*PMID:\s*(\d+)\s*\)?'
+    matches = list(re.finditer(pmid_pattern, text, re.IGNORECASE))
+
+    if not matches:
+        return text  # No PMIDs to validate
+
+    # Process each PMID
+    cleaned_text = text
+    for match in reversed(matches):  # Reverse to maintain string positions
+        pmid = match.group(1)
+
+        # Extract the claim (sentence containing the PMID)
+        # Find sentence boundaries
+        sentence_start = text.rfind('.', 0, match.start()) + 1
+        sentence_end = text.find('.', match.end())
+        if sentence_end == -1:
+            sentence_end = len(text)
+        claim = text[sentence_start:sentence_end].strip()
+
+        # Fetch paper details
+        paper_details = fetch_paper_details(pmid)
+
+        if not paper_details:
+            # PMID doesn't exist - remove it
+            logger.warning(f"Removing non-existent PMID {pmid} from text")
+            cleaned_text = cleaned_text[:match.start()] + cleaned_text[match.end():]
+            continue
+
+        # Audit the citation
+        audit_result = audit_citation(claim, pmid, paper_details, gemini_client)
+
+        if not audit_result.get('valid', False):
+            logger.warning(f"Removing invalid PMID {pmid}: {audit_result.get('reason')}")
+            cleaned_text = cleaned_text[:match.start()] + cleaned_text[match.end():]
+        else:
+            logger.info(f"✓ PMID {pmid} validated: {audit_result.get('reason')}")
+
+    return cleaned_text
 
 
 def validate_pmid(pmid: str) -> bool:
@@ -311,15 +447,51 @@ Before finalizing your response, perform this sanity check:
 
         data = json.loads(response.text)
 
-        # Validate PMIDs
+        # STEP 2 & 3: Validate and Audit PMIDs using Writer-Auditor pattern
+        logger.info("Starting PMID validation and auditing...")
+
+        # Audit mechanistic insights (inline PMIDs in text)
+        if data.get("mechanistic_insights"):
+            audited_insights = []
+            for insight in data["mechanistic_insights"]:
+                context = f"Mechanism of action for {request.target} in {request.indication}"
+                cleaned_insight = validate_and_audit_pmids(insight, context, client)
+                audited_insights.append(cleaned_insight)
+            data["mechanistic_insights"] = audited_insights
+
+        # Audit human_validation_pmid
         if data.get("human_validation_pmid"):
-            if not validate_pmid(data["human_validation_pmid"]):
-                logger.warning(f"Removing invalid PMID: {data['human_validation_pmid']}")
+            pmid = data["human_validation_pmid"]
+            paper_details = fetch_paper_details(pmid)
+            if paper_details:
+                claim = data.get("human_validation", "Human validation of target")
+                audit_result = audit_citation(claim, pmid, paper_details, client)
+                if not audit_result.get('valid', False):
+                    logger.warning(f"Removing invalid human_validation_pmid {pmid}: {audit_result.get('reason')}")
+                    data["human_validation_pmid"] = ""
+                else:
+                    logger.info(f"✓ human_validation_pmid {pmid} validated")
+            else:
+                logger.warning(f"Removing non-existent human_validation_pmid {pmid}")
                 data["human_validation_pmid"] = ""
+
+        # Audit species_conservation_pmid
         if data.get("species_conservation_pmid"):
-            if not validate_pmid(data["species_conservation_pmid"]):
-                logger.warning(f"Removing invalid PMID: {data['species_conservation_pmid']}")
+            pmid = data["species_conservation_pmid"]
+            paper_details = fetch_paper_details(pmid)
+            if paper_details:
+                claim = data.get("species_conservation", "Species conservation of target")
+                audit_result = audit_citation(claim, pmid, paper_details, client)
+                if not audit_result.get('valid', False):
+                    logger.warning(f"Removing invalid species_conservation_pmid {pmid}: {audit_result.get('reason')}")
+                    data["species_conservation_pmid"] = ""
+                else:
+                    logger.info(f"✓ species_conservation_pmid {pmid} validated")
+            else:
+                logger.warning(f"Removing non-existent species_conservation_pmid {pmid}")
                 data["species_conservation_pmid"] = ""
+
+        logger.info("PMID validation and auditing complete")
 
         # Generate mechanism diagram
         mechanism_image = None
