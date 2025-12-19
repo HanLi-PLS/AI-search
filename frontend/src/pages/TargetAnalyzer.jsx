@@ -156,7 +156,7 @@ function TargetAnalyzer() {
     html2pdf().set(opt).from(wrapper).save();
   };
 
-  // Simple markdown renderer for bold, italic, and code
+  // Simple markdown renderer for bold, italic, code, and PMID links
   const renderMarkdown = (text) => {
     if (!text) return null;
 
@@ -164,8 +164,8 @@ function TargetAnalyzer() {
     const parts = [];
     let lastIndex = 0;
 
-    // Regex to match **bold**, *italic*, and `code`
-    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+    // Regex to match **bold**, *italic*, `code`, and PMID: 12345678
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\(?\s*PMID:\s*\d+\s*\)?)/gi;
     let match;
 
     while ((match = regex.exec(text)) !== null) {
@@ -178,12 +178,40 @@ function TargetAnalyzer() {
       if (matched.startsWith('**') && matched.endsWith('**')) {
         // Bold text
         parts.push(<strong key={match.index}>{matched.slice(2, -2)}</strong>);
-      } else if (matched.startsWith('*') && matched.endsWith('*')) {
+      } else if (matched.startsWith('*') && matched.endsWith('*') && !matched.startsWith('**')) {
         // Italic text
         parts.push(<em key={match.index}>{matched.slice(1, -1)}</em>);
       } else if (matched.startsWith('`') && matched.endsWith('`')) {
         // Code text
         parts.push(<code key={match.index}>{matched.slice(1, -1)}</code>);
+      } else if (matched.match(/PMID:\s*(\d+)/i)) {
+        // PMID link - extract the number
+        const pmidMatch = matched.match(/PMID:\s*(\d+)/i);
+        const pmid = pmidMatch[1];
+        const hasParens = matched.startsWith('(') && matched.endsWith(')');
+        const linkElement = (
+          <a
+            key={match.index}
+            href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pubmed-link"
+            style={{
+              color: '#2563eb',
+              textDecoration: 'none',
+              fontWeight: '500'
+            }}
+            title="View on PubMed"
+          >
+            PMID: {pmid}
+          </a>
+        );
+
+        if (hasParens) {
+          parts.push(<span key={`parens-${match.index}`}>({linkElement})</span>);
+        } else {
+          parts.push(linkElement);
+        }
       }
 
       lastIndex = regex.lastIndex;
