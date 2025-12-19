@@ -33,31 +33,53 @@ function TargetAnalyzer() {
         }
       };
 
-      // Call all 3 parallel endpoints simultaneously for higher quality output
-      console.log('Starting parallel analysis calls...');
-      const [coreBioResponse, marketCompResponse, strategyRiskResponse] = await Promise.all([
-        axios.post('/api/target-analyzer/analyze-core-biology', requestBody, config),
-        axios.post('/api/target-analyzer/analyze-market-competition', requestBody, config),
-        axios.post('/api/target-analyzer/analyze-strategy-risk', requestBody, config)
+      // Call all 12 individual endpoints in parallel for maximum flexibility
+      console.log('Starting parallel analysis calls (12 endpoints)...');
+      const [
+        biologicalOverviewResponse,
+        therapeuticRationaleResponse,
+        preclinicalEvidenceResponse,
+        drugTrialLandscapeResponse,
+        patentIpResponse,
+        indicationPotentialResponse,
+        differentiationResponse,
+        unmetNeedsResponse,
+        indicationSpecificResponse,
+        risksResponse,
+        biomarkerStrategyResponse,
+        bdPotentialsResponse
+      ] = await Promise.all([
+        axios.post('/api/target-analyzer/biological-overview', requestBody, config),
+        axios.post('/api/target-analyzer/therapeutic-rationale', requestBody, config),
+        axios.post('/api/target-analyzer/preclinical-evidence', requestBody, config),
+        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config),
+        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
+        axios.post('/api/target-analyzer/indication-potential', requestBody, config),
+        axios.post('/api/target-analyzer/differentiation', requestBody, config),
+        axios.post('/api/target-analyzer/unmet-needs', requestBody, config),
+        axios.post('/api/target-analyzer/indication-specific-analysis', requestBody, config),
+        axios.post('/api/target-analyzer/risks', requestBody, config),
+        axios.post('/api/target-analyzer/biomarker-strategy', requestBody, config),
+        axios.post('/api/target-analyzer/bd-potentials', requestBody, config)
       ]);
-      console.log('All parallel calls completed!');
+      console.log('All 12 parallel calls completed!');
 
-      // Merge results from all 3 endpoints
+      // Merge results from all 12 endpoints
       const mergedData = {
-        target: coreBioResponse.data.target,
-        indication: coreBioResponse.data.indication,
-        biological_overview: coreBioResponse.data.biological_overview,
-        therapeutic_rationale: coreBioResponse.data.therapeutic_rationale,
-        preclinical_evidence: coreBioResponse.data.preclinical_evidence,
-        drug_trial_landscape: marketCompResponse.data.drug_trial_landscape,
-        patent_ip: marketCompResponse.data.patent_ip,
-        indication_potential: marketCompResponse.data.indication_potential,
-        differentiation: marketCompResponse.data.differentiation,
-        unmet_needs: strategyRiskResponse.data.unmet_needs,
-        indication_specific_analysis: strategyRiskResponse.data.indication_specific_analysis,
-        risks: strategyRiskResponse.data.risks,
-        biomarker_strategy: strategyRiskResponse.data.biomarker_strategy,
-        bd_potentials: strategyRiskResponse.data.bd_potentials,
+        target: biologicalOverviewResponse.data.target,
+        indication: biologicalOverviewResponse.data.indication,
+        biological_overview: biologicalOverviewResponse.data.biological_overview,
+        therapeutic_rationale: therapeuticRationaleResponse.data.therapeutic_rationale,
+        preclinical_evidence: preclinicalEvidenceResponse.data.preclinical_evidence,
+        drug_trial_landscape: drugTrialLandscapeResponse.data.drug_trial_landscape,
+        patent_ip: patentIpResponse.data.patent_ip,
+        indication_potential: indicationPotentialResponse.data.indication_potential,
+        differentiation: differentiationResponse.data.differentiation,
+        unmet_needs: unmetNeedsResponse.data.unmet_needs,
+        indication_specific_analysis: indicationSpecificResponse.data.indication_specific_analysis,
+        risks: risksResponse.data.risks,
+        biomarker_strategy: biomarkerStrategyResponse.data.biomarker_strategy,
+        bd_potentials: bdPotentialsResponse.data.bd_potentials,
       };
 
       setData(mergedData);
