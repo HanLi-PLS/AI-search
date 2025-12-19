@@ -33,36 +33,54 @@ function TargetAnalyzer() {
         }
       };
 
-      // Call all 12 individual endpoints in parallel for maximum flexibility
-      console.log('Starting parallel analysis calls (12 endpoints)...');
+      // Call all 12 individual endpoints in batches of 4 to avoid rate limits
+      console.log('Starting batched parallel analysis (12 endpoints in batches of 4)...');
+
+      // Batch 1: Core Biology (4 endpoints)
+      console.log('→ Batch 1/3: Core Biology...');
       const [
         biologicalOverviewResponse,
         therapeuticRationaleResponse,
         preclinicalEvidenceResponse,
-        drugTrialLandscapeResponse,
+        drugTrialLandscapeResponse
+      ] = await Promise.all([
+        axios.post('/api/target-analyzer/biological-overview', requestBody, config),
+        axios.post('/api/target-analyzer/therapeutic-rationale', requestBody, config),
+        axios.post('/api/target-analyzer/preclinical-evidence', requestBody, config),
+        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config)
+      ]);
+      console.log('✓ Batch 1 complete');
+
+      // Batch 2: Market & Competition (4 endpoints)
+      console.log('→ Batch 2/3: Market & Competition...');
+      const [
         patentIpResponse,
         indicationPotentialResponse,
         differentiationResponse,
-        unmetNeedsResponse,
+        unmetNeedsResponse
+      ] = await Promise.all([
+        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
+        axios.post('/api/target-analyzer/indication-potential', requestBody, config),
+        axios.post('/api/target-analyzer/differentiation', requestBody, config),
+        axios.post('/api/target-analyzer/unmet-needs', requestBody, config)
+      ]);
+      console.log('✓ Batch 2 complete');
+
+      // Batch 3: Strategy & Risk (4 endpoints)
+      console.log('→ Batch 3/3: Strategy & Risk...');
+      const [
         indicationSpecificResponse,
         risksResponse,
         biomarkerStrategyResponse,
         bdPotentialsResponse
       ] = await Promise.all([
-        axios.post('/api/target-analyzer/biological-overview', requestBody, config),
-        axios.post('/api/target-analyzer/therapeutic-rationale', requestBody, config),
-        axios.post('/api/target-analyzer/preclinical-evidence', requestBody, config),
-        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config),
-        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
-        axios.post('/api/target-analyzer/indication-potential', requestBody, config),
-        axios.post('/api/target-analyzer/differentiation', requestBody, config),
-        axios.post('/api/target-analyzer/unmet-needs', requestBody, config),
         axios.post('/api/target-analyzer/indication-specific-analysis', requestBody, config),
         axios.post('/api/target-analyzer/risks', requestBody, config),
         axios.post('/api/target-analyzer/biomarker-strategy', requestBody, config),
         axios.post('/api/target-analyzer/bd-potentials', requestBody, config)
       ]);
-      console.log('All 12 parallel calls completed!');
+      console.log('✓ Batch 3 complete');
+      console.log('✓✓✓ All 12 endpoints completed successfully!');
 
       // Merge results from all 12 endpoints
       const mergedData = {
