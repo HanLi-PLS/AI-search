@@ -156,6 +156,47 @@ function TargetAnalyzer() {
     html2pdf().set(opt).from(wrapper).save();
   };
 
+  // Simple markdown renderer for bold, italic, and code
+  const renderMarkdown = (text) => {
+    if (!text) return null;
+
+    // Split by markdown patterns while preserving them
+    const parts = [];
+    let lastIndex = 0;
+
+    // Regex to match **bold**, *italic*, and `code`
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      const matched = match[0];
+      if (matched.startsWith('**') && matched.endsWith('**')) {
+        // Bold text
+        parts.push(<strong key={match.index}>{matched.slice(2, -2)}</strong>);
+      } else if (matched.startsWith('*') && matched.endsWith('*')) {
+        // Italic text
+        parts.push(<em key={match.index}>{matched.slice(1, -1)}</em>);
+      } else if (matched.startsWith('`') && matched.endsWith('`')) {
+        // Code text
+        parts.push(<code key={match.index}>{matched.slice(1, -1)}</code>);
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return <>{parts}</>;
+  };
+
   const renderPubMedLink = (pmid) => {
     if (!pmid) return null;
     return (
@@ -363,7 +404,7 @@ function TargetAnalyzer() {
                     <div className="mechanism-content">
                       <ol className="mechanism-list">
                         {data.biological_overview.mechanistic_insights.map((insight, i) => (
-                          <li key={i}>{insight}</li>
+                          <li key={i}>{renderMarkdown(insight)}</li>
                         ))}
                       </ol>
                       {data.biological_overview.mechanism_image ? (
@@ -388,7 +429,7 @@ function TargetAnalyzer() {
                   <div className="subsection-grid">
                     <div>
                       <h4>Human Validation</h4>
-                      <p>{data.biological_overview.human_validation}</p>
+                      <p>{renderMarkdown(data.biological_overview.human_validation)}</p>
                       {data.biological_overview.human_validation_pmid && (
                         <div style={{ marginTop: '0.5rem' }}>
                           {renderPubMedLink(data.biological_overview.human_validation_pmid)}
@@ -397,7 +438,7 @@ function TargetAnalyzer() {
                     </div>
                     <div>
                       <h4>Species Conservation</h4>
-                      <p>{data.biological_overview.species_conservation}</p>
+                      <p>{renderMarkdown(data.biological_overview.species_conservation)}</p>
                       {data.biological_overview.species_conservation_pmid && (
                         <div style={{ marginTop: '0.5rem' }}>
                           {renderPubMedLink(data.biological_overview.species_conservation_pmid)}
@@ -416,15 +457,15 @@ function TargetAnalyzer() {
                 <div className="rationale-grid">
                   <div className="rationale-box blue">
                     <h4>Pathway Positioning</h4>
-                    <p>{data.therapeutic_rationale.pathway_positioning}</p>
+                    <p>{renderMarkdown(data.therapeutic_rationale.pathway_positioning)}</p>
                   </div>
                   <div className="rationale-box indigo">
                     <h4>Specificity vs Breadth</h4>
-                    <p>{data.therapeutic_rationale.specificity_vs_breadth}</p>
+                    <p>{renderMarkdown(data.therapeutic_rationale.specificity_vs_breadth)}</p>
                   </div>
                   <div className="rationale-box violet">
                     <h4>Modality Comparison</h4>
-                    <p>{data.therapeutic_rationale.modality_comparison}</p>
+                    <p>{renderMarkdown(data.therapeutic_rationale.modality_comparison)}</p>
                   </div>
                 </div>
               )}
@@ -677,7 +718,7 @@ function TargetAnalyzer() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Scoring Rationale</h4>
-                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{data.indication_potential.reasoning}</p>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{renderMarkdown(data.indication_potential.reasoning)}</p>
                   </div>
                 </div>
               )}
@@ -706,7 +747,7 @@ function TargetAnalyzer() {
                   <div>
                     <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Treatment Guidelines:</h4>
                     <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>
-                      {data.indication_specific_analysis.treatment_guidelines}
+                      {renderMarkdown(data.indication_specific_analysis.treatment_guidelines)}
                     </p>
                   </div>
                 </div>
@@ -718,7 +759,7 @@ function TargetAnalyzer() {
               {renderSection(
                 '8. Key Differentiation',
                 <div className="diff-section">
-                  <p className="diff-analysis">{data.differentiation.analysis}</p>
+                  <p className="diff-analysis">{renderMarkdown(data.differentiation.analysis)}</p>
 
                   {/* Efficacy/Safety Position */}
                   {data.differentiation.efficacy_safety_position && (
@@ -798,19 +839,19 @@ function TargetAnalyzer() {
                 <div className="unmet-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
                   <div className="unmet-box">
                     <h4>📊 Incomplete Response</h4>
-                    <p>{data.unmet_needs.response_rates}</p>
+                    <p>{renderMarkdown(data.unmet_needs.response_rates)}</p>
                   </div>
                   <div className="unmet-box">
                     <h4>⚠️ Treatment Resistance</h4>
-                    <p>{data.unmet_needs.resistance}</p>
+                    <p>{renderMarkdown(data.unmet_needs.resistance)}</p>
                   </div>
                   <div className="unmet-box">
                     <h4>🛡️ Safety Limitations</h4>
-                    <p>{data.unmet_needs.safety_limitations}</p>
+                    <p>{renderMarkdown(data.unmet_needs.safety_limitations)}</p>
                   </div>
                   <div className="unmet-box">
                     <h4>💊 Adherence Challenges</h4>
-                    <p>{data.unmet_needs.adherence_challenges}</p>
+                    <p>{renderMarkdown(data.unmet_needs.adherence_challenges)}</p>
                   </div>
                 </div>
               )}
@@ -823,7 +864,7 @@ function TargetAnalyzer() {
                 <div className="risk-section">
                   <div className="risk-analysis">
                     <h4>Executive Summary</h4>
-                    <p>{data.risks.summary}</p>
+                    <p>{renderMarkdown(data.risks.summary)}</p>
                   </div>
 
                   {data.risks.risk_items && data.risks.risk_items.length > 0 && (
@@ -864,19 +905,19 @@ function TargetAnalyzer() {
                             <div className="risk-item-content">
                               <div className="risk-field">
                                 <strong>Description:</strong>
-                                <p>{risk.description}</p>
+                                <p>{renderMarkdown(risk.description)}</p>
                               </div>
                               <div className="risk-field">
                                 <strong>Timeline:</strong>
-                                <p>{risk.timeline}</p>
+                                <p>{renderMarkdown(risk.timeline)}</p>
                               </div>
                               <div className="risk-field">
                                 <strong>Early Warning Signals:</strong>
-                                <p>{risk.early_warning_signals}</p>
+                                <p>{renderMarkdown(risk.early_warning_signals)}</p>
                               </div>
                               <div className="risk-field">
                                 <strong>Mitigation Strategies:</strong>
-                                <p>{risk.mitigation_strategies}</p>
+                                <p>{renderMarkdown(risk.mitigation_strategies)}</p>
                               </div>
                               <div className="risk-field">
                                 <strong>Evidence Quality:</strong>
@@ -909,7 +950,7 @@ function TargetAnalyzer() {
                   </div>
                   <div>
                     <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Adaptive Design Considerations:</h4>
-                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}>{data.biomarker_strategy.adaptive_design}</p>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}>{renderMarkdown(data.biomarker_strategy.adaptive_design)}</p>
                   </div>
                 </div>
               )}
