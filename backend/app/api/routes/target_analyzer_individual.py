@@ -36,16 +36,33 @@ router = APIRouter()
 
 # Standard citation requirements for all prompts
 CITATION_REQUIREMENTS = """
-## CRITICAL: Citation Accuracy
+## CRITICAL: Citation Accuracy - Search & Verify Mode
 
-**ONLY provide a PMID if you found it via google_search AND it directly discusses the specific claim.**
+**YOU MUST USE THE GOOGLE_SEARCH TOOL TO FIND AND VERIFY EVERY PMID. DO NOT USE TRAINING DATA.**
 
-Examples:
-- ✓ GOOD: Claiming "NOD2 mutations increase IBD risk 3-fold" → Cite paper reporting this exact finding
-- ✗ BAD: Claiming "NOD2 mutations increase IBD risk 3-fold" → Cite paper about general IBD genetics
+### The "Abstract-First" Rule:
+For each citation:
+1. Use google_search to find the paper for the SPECIFIC claim (not general topic)
+2. Read the abstract/results from the search
+3. Quote the relevant sentence that supports your claim
+4. Extract the PMID from the search results
+5. Verify the PMID matches the paper title
 
-**If the paper is about the general topic but not the specific claim, leave PMID empty.**
-**Wrong citations are worse than no citations.**
+### Example of CORRECT Citation Process:
+Claim: "RIPK2 deficiency worsens colitis in mice"
+→ Search: "RIPK2 deficiency colitis mice study"
+→ Find paper abstract stating: "Ripk2−/− mice exhibited more severe colitis..."
+→ Extract PMID from that specific paper
+→ Include citation with claim
+
+### Example of WRONG Citation (DO NOT DO THIS):
+Claim: "RIPK2 deficiency worsens colitis in mice"
+→ Use general paper about IBD that mentions RIPK2 in passing ✗
+→ Cite from memory/training data ✗
+→ Use review paper not primary research ✗
+
+**DO NOT HALLUCINATE CITATIONS. If google_search doesn't return a paper that directly discusses the specific claim, leave PMID empty ("").**
+**Wrong PMIDs are worse than no PMIDs - they mislead researchers.**
 """
 
 
@@ -248,15 +265,17 @@ For each domain provide:
 Provide step-by-step mechanism in causality chain format. Each step should be:
 - Specific molecular event (not vague)
 - Quantified where possible (e.g., "50% reduction in...")
-- Include PubMed citations (PMIDs) for key steps
+- Include inline PubMed citations in format: "Statement (PMID: 12345678)" for key steps
+- ONLY cite if google_search returned this specific paper for this specific claim
 
 **Human Validation:**
 Evidence from human studies/genetics that target modulation affects disease.
-Provide PMID for strongest evidence.
+Use google_search to find the PRIMARY research paper that demonstrates this.
+Provide PMID only if you found it via google_search and verified it discusses this specific finding.
 
 **Species Conservation:**
 Cross-species conservation analysis and implications for animal model translation.
-Provide PMID if available.
+Provide PMID only if google_search returned a paper specifically about conservation of THIS target.
 
 ---
 {CITATION_REQUIREMENTS}
@@ -266,6 +285,12 @@ Provide PMID if available.
 - **QUANTIFICATION**: Use numbers, not "better/worse"
 - **CITATIONS**: Include PMIDs ONLY when you have verified them via google_search
 - **SPECIFICITY**: Everything must be specific to {request.target} in {request.indication}
+
+## SELF-VERIFICATION STEP (MANDATORY):
+Before finalizing your response, perform this sanity check:
+1. For each PMID you listed, verify: Did google_search return this PMID for THIS specific claim?
+2. Does the paper's title/abstract directly discuss the EXACT claim you're making?
+3. If you're unsure or if the paper is only tangentially related, REMOVE the PMID and leave it empty.
 """
 
         response = client.models.generate_content(
