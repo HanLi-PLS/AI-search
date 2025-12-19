@@ -394,7 +394,7 @@ function TargetAnalyzer() {
                     <div className="domains-list">
                       {data.biological_overview.structural_domains.map((domain, i) => (
                         <div key={i} className="domain-item">
-                          <strong>{domain.name}:</strong> {domain.description}
+                          <strong>{domain.name}:</strong> {renderMarkdown(domain.description)}
                         </div>
                       ))}
                     </div>
@@ -623,7 +623,7 @@ function TargetAnalyzer() {
                 <div className="landscape-section">
                   <div className="subsection">
                     <h4>Market Summary</h4>
-                    <p>{data.drug_trial_landscape.summary}</p>
+                    <p>{renderMarkdown(data.drug_trial_landscape.summary)}</p>
                   </div>
                   <div className="subsection">
                     <h4>Key Competitive Assets</h4>
@@ -700,7 +700,7 @@ function TargetAnalyzer() {
                   <div className="subsection">
                     <h4>IP Strategy</h4>
                     <div className="strategy-box">
-                      {data.patent_ip.strategy}
+                      {renderMarkdown(data.patent_ip.strategy)}
                     </div>
                   </div>
                 </div>
@@ -777,7 +777,7 @@ function TargetAnalyzer() {
                       <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Quantified Competitive Advantages:</h4>
                       <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
                         {data.differentiation.quantified_gaps.map((gap, i) => (
-                          <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: '#059669' }}>{gap}</li>
+                          <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: '#059669' }}>{renderMarkdown(gap)}</li>
                         ))}
                       </ul>
                     </div>
@@ -799,10 +799,10 @@ function TargetAnalyzer() {
                         <tbody>
                           {data.differentiation.competitive_scenarios.map((scenario, i) => (
                             <tr key={i}>
-                              <td>{scenario.scenario}</td>
+                              <td>{renderMarkdown(scenario.scenario)}</td>
                               <td><span className="probability-badge">{scenario.probability}</span></td>
-                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{scenario.impact}</td>
-                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{scenario.strategic_response}</td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{renderMarkdown(scenario.impact)}</td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{renderMarkdown(scenario.strategic_response)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -815,7 +815,7 @@ function TargetAnalyzer() {
                       <h4>✓ Advantages</h4>
                       <ul>
                         {data.differentiation.advantages.map((adv, i) => (
-                          <li key={i}>{adv}</li>
+                          <li key={i}>{renderMarkdown(adv)}</li>
                         ))}
                       </ul>
                     </div>
@@ -823,7 +823,7 @@ function TargetAnalyzer() {
                       <h4>✗ Challenges</h4>
                       <ul>
                         {data.differentiation.disadvantages.map((dis, i) => (
-                          <li key={i}>{dis}</li>
+                          <li key={i}>{renderMarkdown(dis)}</li>
                         ))}
                       </ul>
                     </div>
@@ -944,7 +944,7 @@ function TargetAnalyzer() {
                     <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Stratification Biomarkers:</h4>
                     <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
                       {data.biomarker_strategy.stratification_biomarkers.map((biomarker, i) => (
-                        <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem' }}>{biomarker}</li>
+                        <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem' }}>{renderMarkdown(biomarker)}</li>
                       ))}
                     </ul>
                   </div>
@@ -971,7 +971,7 @@ function TargetAnalyzer() {
                           </div>
                           <div className="activity-content">
                             <h5>{act.company}</h5>
-                            <p>{act.description}</p>
+                            <p>{renderMarkdown(act.description)}</p>
                           </div>
                         </div>
                       ))}
