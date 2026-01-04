@@ -1014,16 +1014,21 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                               <div className="mode-reasoning">{turn.mode_reasoning}</div>
                             </div>
                           )}
-                          {turn.extracted_info && (
+                          {turn.extracted_info && turn.extracted_info.trim() && (
                             <div className="extracted-info-box">
                               <div className="box-header">📄 Step 1: Extracted from Files</div>
                               <div className="box-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.extracted_info) }} />
                             </div>
                           )}
-                          {turn.online_search_response && (
+                          {turn.online_search_response && turn.online_search_response.trim() && (
                             <div className="online-search-box">
                               <div className="box-header">🌐 {turn.extracted_info ? 'Step 2: Online Search' : 'Online Search'}</div>
                               <div className="box-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.online_search_response) }} />
+                            </div>
+                          )}
+                          {!turn.extracted_info && !turn.online_search_response && !turn.selected_mode && (
+                            <div style={{ padding: '10px', color: '#6b7280', fontStyle: 'italic', textAlign: 'center' }}>
+                              Only search settings available for this query
                             </div>
                           )}
                         </div>

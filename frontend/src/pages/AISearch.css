@@ -1086,7 +1086,7 @@ section h2 {
 }
 
 .message-content {
-    max-width: 85%;
+    max-width: 95%;
 }
 
 .message-bubble {
@@ -1200,7 +1200,7 @@ section h2 {
 .conclusion-section {
     margin: 20px 0;
     padding: 20px;
-    background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
+    background: white;
     border-left: 4px solid var(--pantone-1505u);
     border-radius: 8px;
 }
