@@ -436,7 +436,7 @@ class SearchJobTracker:
         with sqlite3.connect(str(self.db_path)) as conn:
             if user_id is not None:
                 query = """
-                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order, extracted_info, online_search_response
                     FROM search_jobs
                     WHERE conversation_id = ? AND user_id = ?
                     ORDER BY created_at ASC
@@ -444,7 +444,7 @@ class SearchJobTracker:
                 rows = conn.execute(query, (conversation_id, user_id)).fetchall()
             else:
                 query = """
-                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order
+                    SELECT job_id, query, answer, created_at, status, reasoning_mode, search_mode, top_k, priority_order, extracted_info, online_search_response
                     FROM search_jobs
                     WHERE conversation_id = ?
                     ORDER BY created_at ASC
@@ -456,6 +456,24 @@ class SearchJobTracker:
                 job_id, query, answer, created_at, status, reasoning_mode, search_mode = row[:7]
                 top_k = row[7] if len(row) > 7 and row[7] is not None else 10
                 priority_order = row[8] if len(row) > 8 else None
+                extracted_info = row[9] if len(row) > 9 else None
+                online_search_response = row[10] if len(row) > 10 else None
+
+                # Deserialize JSON strings back to Python objects
+                if extracted_info:
+                    try:
+                        import json
+                        extracted_info = json.loads(extracted_info)
+                    except:
+                        pass  # Keep as string if JSON parsing fails
+
+                if online_search_response:
+                    try:
+                        import json
+                        online_search_response = json.loads(online_search_response)
+                    except:
+                        pass  # Keep as string if JSON parsing fails
+
                 # Only include completed searches
                 if status == 'completed' and query and answer:
                     history.append({
@@ -465,7 +483,9 @@ class SearchJobTracker:
                         'reasoning_mode': reasoning_mode,
                         'search_mode': search_mode,
                         'top_k': top_k,
-                        'priority_order': priority_order
+                        'priority_order': priority_order,
+                        'extracted_info': extracted_info,
+                        'online_search_response': online_search_response
                     })
 
             return history
