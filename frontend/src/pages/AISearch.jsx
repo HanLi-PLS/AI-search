@@ -980,6 +980,11 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                           >
                             {expandedDetails[index] ? '▲ Hide Details' : '▼ Show Details'}
                           </button>
+                          {/* Debug info */}
+                          <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '5px' }}>
+                            Debug: extracted_info={turn.extracted_info ? 'YES' : 'NO'},
+                            online_search_response={turn.online_search_response ? 'YES' : 'NO'}
+                          </div>
                         </div>
                       )}
 
