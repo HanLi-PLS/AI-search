@@ -1212,7 +1212,44 @@ section h2 {
     margin-bottom: 15px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
+}
+
+.answer-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.action-button {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 2px solid;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.copy-button {
+    color: var(--pantone-295u);
+    border-color: var(--pantone-295u);
+}
+
+.copy-button:hover {
+    background: var(--pantone-295u);
+    color: white;
+}
+
+.export-button {
+    color: var(--pantone-1505u);
+    border-color: var(--pantone-1505u);
+}
+
+.export-button:hover {
+    background: var(--pantone-1505u);
+    color: white;
 }
 
 /* Details Toggle Button */

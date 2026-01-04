@@ -927,6 +927,140 @@ const ChatMessages = memo(function ChatMessages({ history }) {
     setExpandedDetails(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
+  const copyAnswer = (turn) => {
+    // Create plain text version of the answer
+    let textToCopy = `Question: ${turn.query}\n\n`;
+    textToCopy += `Answer:\n${turn.answer}\n\n`;
+
+    if (turn.extracted_info) {
+      textToCopy += `\nExtracted from Files:\n${turn.extracted_info}\n\n`;
+    }
+
+    if (turn.online_search_response) {
+      textToCopy += `\nOnline Search:\n${turn.online_search_response}\n\n`;
+    }
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      alert('Answer copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy to clipboard');
+    });
+  };
+
+  const exportAnswer = (turn) => {
+    // Create HTML content for export
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Search Result - ${turn.query.substring(0, 50)}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .query {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .conclusion {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-left: 4px solid #FF6900;
+      border-radius: 8px;
+    }
+    .section-header {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #003DA5;
+      margin-bottom: 15px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f0f9ff;
+      border-radius: 8px;
+      border: 1px solid #bae6fd;
+    }
+    .meta {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+    h2, h3, h4 { color: #003DA5; margin-top: 1.5em; }
+    p { margin: 0.75em 0; }
+    strong { font-weight: 600; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+    hr { border: none; border-top: 2px solid #e2e8f0; margin: 2em 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="query">Question: ${turn.query}</div>
+
+    <div class="conclusion">
+      <div class="section-header">✨ Answer</div>
+      ${parseMarkdownToHTML(turn.answer)}
+    </div>
+
+    ${turn.extracted_info ? `
+    <div class="section">
+      <div class="section-header">📄 Extracted from Files</div>
+      ${parseMarkdownToHTML(turn.extracted_info)}
+    </div>
+    ` : ''}
+
+    ${turn.online_search_response ? `
+    <div class="section">
+      <div class="section-header">🌐 Online Search</div>
+      ${parseMarkdownToHTML(turn.online_search_response)}
+    </div>
+    ` : ''}
+
+    <div class="meta">
+      Generated on ${new Date().toLocaleString()}<br>
+      ${turn.search_params ? `
+        Search Mode: ${turn.search_params.search_mode || 'N/A'} |
+        Reasoning Mode: ${turn.search_params.reasoning_mode || 'N/A'}
+      ` : ''}
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = turn.query.substring(0, 50).replace(/[^a-z0-9]/gi, '_') + '.html';
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="chat-container">
       {history.map((turn, index) => {
@@ -966,7 +1100,25 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                       {/* Conclusion/Answer - Prioritized at the Top */}
                       {turn.answer && (
                         <div className="conclusion-section">
-                          <div className="conclusion-header">✨ Conclusion</div>
+                          <div className="conclusion-header">
+                            <span>✨ Conclusion</span>
+                            <div className="answer-actions">
+                              <button
+                                className="action-button copy-button"
+                                onClick={(e) => { e.stopPropagation(); copyAnswer(turn); }}
+                                title="Copy answer to clipboard"
+                              >
+                                📋 Copy
+                              </button>
+                              <button
+                                className="action-button export-button"
+                                onClick={(e) => { e.stopPropagation(); exportAnswer(turn); }}
+                                title="Export answer as HTML"
+                              >
+                                💾 Export
+                              </button>
+                            </div>
+                          </div>
                           <div className="answer-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.answer) }} />
                         </div>
                       )}
