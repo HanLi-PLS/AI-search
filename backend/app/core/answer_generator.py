@@ -142,6 +142,51 @@ Now classify the user's query."""
             logger.error(f"Error classifying query: {str(e)}")
             return "files_only", f"Error during classification, defaulting to files_only mode: {str(e)}"
 
+    def detect_language_preference(self, query: str) -> str:
+        """
+        Detect language preference from the query.
+        Returns a language instruction string to be added to prompts.
+
+        Args:
+            query: User's question
+
+        Returns:
+            Language instruction string
+        """
+        # Check for explicit language requests
+        language_patterns = {
+            'chinese': ['in chinese', 'in mandarin', '中文', '用中文', '请用中文'],
+            'japanese': ['in japanese', '日本語', '日本語で'],
+            'korean': ['in korean', '한국어', '한국어로'],
+            'spanish': ['in spanish', 'en español'],
+            'french': ['in french', 'en français'],
+            'german': ['in german', 'auf deutsch'],
+            'italian': ['in italian', 'in italiano'],
+            'portuguese': ['in portuguese', 'em português'],
+        }
+
+        query_lower = query.lower()
+
+        # Check for explicit language request
+        for language, patterns in language_patterns.items():
+            for pattern in patterns:
+                if pattern in query_lower:
+                    return f"Answer in {language.capitalize()}."
+
+        # Detect language from query content
+        # Check if query contains Chinese characters
+        if any('\u4e00' <= char <= '\u9fff' for char in query):
+            return "Answer in the same language as the question (Chinese)."
+        # Check if query contains Japanese characters
+        elif any('\u3040' <= char <= '\u309f' or '\u30a0' <= char <= '\u30ff' for char in query):
+            return "Answer in the same language as the question (Japanese)."
+        # Check if query contains Korean characters
+        elif any('\uac00' <= char <= '\ud7af' for char in query):
+            return "Answer in the same language as the question (Korean)."
+
+        # Default to English
+        return "Answer in formal written English."
+
     def analyze_query_for_extraction(self, query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         Analyze the query to determine what information needs to be extracted from documents.
@@ -513,6 +558,9 @@ Analyze the query now:"""
 
             context = "\n".join(context_parts)
 
+            # Detect language preference
+            language_instruction = self.detect_language_preference(query)
+
             prompt = f"""You are an expert in bioventure investing.{conversation_context}
 
 **Question**: {query}
@@ -523,7 +571,7 @@ Analyze the query now:"""
 
 **Response Requirements**:
 Do not fabricate any information that is not in the given content.
-Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
+{language_instruction} Be objectively and factually, avoid subjective adjectives or exaggerations.
 Please provide a response with a concise introductory phrase,
 but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
 Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
@@ -585,6 +633,9 @@ If this is a follow-up question referring to previous conversation, use the cont
             # Step 1: Extract information guided by Step 0 analysis
             extraction_items_formatted = "\n".join([f"   {item}" for item in query_analysis['information_to_extract']])
 
+            # Detect language preference for consistent language throughout the process
+            language_instruction = self.detect_language_preference(query)
+
             extraction_prompt = f"""You are an expert in bioventure investing.{conversation_context}
 
 **Original Question**: {query}
@@ -604,6 +655,7 @@ If this is a follow-up question referring to previous conversation, use the cont
 - If certain information is not available in the documents, explicitly state what's missing
 - Format the extracted information in a structured way (bullet points, numbered lists, or short sections)
 - Do NOT make assumptions or infer information not present in the documents
+- {language_instruction}
 
 **Output Format**: Structure your extraction clearly so it can be used to guide an online search. Use headings or numbered sections for each major category of information."""
 
@@ -656,6 +708,9 @@ Provide detailed, factual results from your online search."""
                 online_search_response = f"Error performing online search: {str(e)}"
 
             # Step 3: Combine extracted info and online results into final answer
+            # Detect language preference
+            language_instruction = self.detect_language_preference(query)
+
             final_prompt = f"""You are an expert in bioventure investing.{conversation_context}
 
 **Original Question**: {query}
@@ -681,6 +736,7 @@ For **custom**: Structure based on the specific question
 **Response Requirements**:
 - Synthesize information from both documents and online sources
 - Be objective and factual - do not fabricate any information
+- {language_instruction}
 - Bold the most important facts, conclusions, or recommendations
 - If there are discrepancies between file data and online data, point them out
 - Provide actionable insights where appropriate
@@ -761,6 +817,9 @@ For **custom**: Structure based on the specific question
 
             joined_priority_context = "\n\n".join(priority_context)
 
+            # Detect language preference
+            language_instruction = self.detect_language_preference(query)
+
             prompt = f"""{conversation_context}
 
 **Analysis Directive**: Answer using this priority sequence: {', '.join(priority_order).upper()}
@@ -777,7 +836,7 @@ For **custom**: Structure based on the specific question
 
 **Response Requirements**:
 Do not fabricate any information that is not in the given content.
-Answer in formal written English, be objectively and factually, avoid subjective adjectives or exaggerations.
+{language_instruction} Be objectively and factually, avoid subjective adjectives or exaggerations.
 Please provide a response with a concise introductory phrase,
 but avoid meaningless fillers like 'ok', 'sure' or 'certainly'. Focus on delivering a direct and informative answer.
 Please bold the most important facts or conclusions in your answer to help readers quickly identify key information,
