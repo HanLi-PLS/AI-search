@@ -27,7 +27,7 @@ function AISearch() {
   const [editingTitle, setEditingTitle] = useState('');
   const [topK, setTopK] = useState(10);
   const [searchMode, setSearchMode] = useState('auto');
-  const [reasoningMode, setReasoningMode] = useState('non_reasoning');
+  const [reasoningMode, setReasoningMode] = useState('reasoning_gemini');
   const [priorityOrder, setPriorityOrder] = useState('online_first');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});

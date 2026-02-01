@@ -63,7 +63,7 @@ class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Search query")
     top_k: int = Field(default=5, ge=1, le=200, description="Number of results to return from each method (max 200)")
     search_mode: str = Field(default="files_only", description="Search mode: auto, files_only, online_only, both, or sequential_analysis")
-    reasoning_mode: str = Field(default="non_reasoning", description="Reasoning mode: non_reasoning (gpt-5.2), reasoning (gpt-5.2), reasoning_gpt5 (gpt-5-pro), or deep_research (o3-deep-research)")
+    reasoning_mode: str = Field(default="reasoning_gemini", description="Reasoning mode: non_reasoning (gpt-5.2), reasoning (gpt-5.2), reasoning_gpt5 (gpt-5-pro), reasoning_gemini (gemini-3-pro), or deep_research (o3-deep-research)")
     priority_order: Optional[List[str]] = Field(default=["online_search", "files"], description="Priority order for 'both' mode")
     conversation_history: Optional[List[ConversationTurn]] = Field(default=None, description="Previous conversation turns for context")
     conversation_id: Optional[str] = Field(default=None, description="Conversation ID to filter files")
