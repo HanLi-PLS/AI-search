@@ -658,6 +658,41 @@ async def update_conversation_title(
         raise HTTPException(status_code=500, detail=f"Error updating conversation title: {str(e)}")
 
 
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a conversation and all its associated search jobs (user must own it)
+
+    Args:
+        conversation_id: Conversation identifier
+        current_user: Authenticated user (from JWT token)
+
+    Returns:
+        Success status
+    """
+    try:
+        job_tracker = get_search_job_tracker()
+        success = job_tracker.delete_conversation(conversation_id, user_id=current_user.id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "message": "Conversation deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting conversation: {str(e)}")
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """

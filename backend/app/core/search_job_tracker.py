@@ -549,6 +549,44 @@ class SearchJobTracker:
                 logger.info(f"Conversation {conversation_id} title updated to: {new_title}")
                 return True
 
+    def delete_conversation(self, conversation_id: str, user_id: Optional[int] = None) -> bool:
+        """
+        Delete a conversation and all its associated search jobs
+
+        Args:
+            conversation_id: Conversation identifier
+            user_id: Optional user ID to verify ownership
+
+        Returns:
+            True if conversation was found and deleted, False otherwise
+        """
+        with self.lock:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                # Verify conversation exists and belongs to user
+                if user_id is not None:
+                    check_query = "SELECT COUNT(*) FROM search_jobs WHERE conversation_id = ? AND user_id = ?"
+                    result = conn.execute(check_query, (conversation_id, user_id)).fetchone()
+                else:
+                    check_query = "SELECT COUNT(*) FROM search_jobs WHERE conversation_id = ?"
+                    result = conn.execute(check_query, (conversation_id,)).fetchone()
+
+                if not result or result[0] == 0:
+                    logger.warning(f"Cannot delete conversation {conversation_id}: not found")
+                    return False
+
+                # Delete all search jobs for this conversation
+                if user_id is not None:
+                    delete_query = "DELETE FROM search_jobs WHERE conversation_id = ? AND user_id = ?"
+                    conn.execute(delete_query, (conversation_id, user_id))
+                else:
+                    delete_query = "DELETE FROM search_jobs WHERE conversation_id = ?"
+                    conn.execute(delete_query, (conversation_id,))
+
+                deleted_count = conn.total_changes
+                conn.commit()
+                logger.info(f"Deleted conversation {conversation_id} with {deleted_count} search jobs")
+                return True
+
 
 # Global search job tracker instance
 _search_job_tracker = None

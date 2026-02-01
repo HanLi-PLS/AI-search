@@ -698,6 +698,16 @@ function AISearch() {
     }
   }, [handleSaveRename, handleCancelRename]);
 
+  const handleDeleteConversation = useCallback(async (e, conversationId) => {
+    e.stopPropagation();
+    if (!confirm('Delete this conversation?')) return;
+    try {
+      await deleteConversation(conversationId);
+    } catch (error) {
+      alert('Failed to delete conversation: ' + error.message);
+    }
+  }, [deleteConversation]);
+
   return (
     <div className={`ai-search-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {sidebarCollapsed && (
@@ -751,7 +761,7 @@ function AISearch() {
                       <button className="chat-history-rename" onClick={(e) => handleStartRename(e, conv.id, conv.title)} title="Rename conversation">
                         ✏️
                       </button>
-                      <button className="chat-history-delete" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this conversation?')) deleteConversation(conv.id); }} title="Delete conversation">
+                      <button className="chat-history-delete" onClick={(e) => handleDeleteConversation(e, conv.id)} title="Delete conversation">
                         🗑️
                       </button>
                     </>
