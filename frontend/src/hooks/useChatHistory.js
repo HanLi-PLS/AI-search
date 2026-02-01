@@ -183,6 +183,8 @@ export const useChatHistory = () => {
               timestamp: item.timestamp,
               reasoning_mode: item.reasoning_mode,
               search_mode: item.search_mode,
+              extracted_info: item.extracted_info || null,
+              online_search_response: item.online_search_response || null,
               // Add search_params object for UI display
               search_params: {
                 search_mode: item.search_mode,

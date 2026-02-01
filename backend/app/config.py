@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    # Gemini Configuration (for Target Analyzer)
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
     # Finnhub Configuration (for stock data)
     FINNHUB_API_KEY: str = os.getenv("FINNHUB_API_KEY", "")
 

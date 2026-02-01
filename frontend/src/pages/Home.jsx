@@ -50,6 +50,22 @@ function Home() {
         </div>
 
         <div className="feature-card highlight">
+          <h2>🎯 Target Analyzer</h2>
+          <p>AI-powered drug target and indication analysis with competitive intelligence</p>
+          <ul className="tracker-features">
+            <li>• Comprehensive target-indication analysis</li>
+            <li>• Real-time competitive landscape</li>
+            <li>• Risk assessment & strategic insights</li>
+          </ul>
+          <button
+            className="tracker-button"
+            onClick={() => navigate('/target-analyzer')}
+          >
+            Analyze Targets
+          </button>
+        </div>
+
+        <div className="feature-card highlight">
           <h2>📊 Public Market Tracker</h2>
           <p>Track HKEX 18A biotech stocks, portfolio companies, and IPO listings</p>
           <ul className="tracker-features">

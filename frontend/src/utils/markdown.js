@@ -8,6 +8,9 @@ import DOMPurify from 'isomorphic-dompurify';
 export const parseMarkdownToHTML = (text) => {
   if (!text) return '';
 
+  // Convert escaped newlines to actual newlines (backend may return \n as literal string)
+  text = text.replace(/\\n/g, '\n');
+
   // Escape HTML to prevent XSS
   let html = text
     .replace(/&/g, '&amp;')
@@ -28,6 +31,9 @@ export const parseMarkdownToHTML = (text) => {
   // Italic: *text* or _text_ (but not in middle of words)
   html = html.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
   html = html.replace(/\b_([^_]+?)_\b/g, '<em>$1</em>');
+
+  // Horizontal rules: --- or *** or ___
+  html = html.replace(/^[\-\*_]{3,}$/gm, '<hr>');
 
   // Headers: # Heading
   html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');

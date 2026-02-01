@@ -913,6 +913,7 @@ const ChatMessages = memo(function ChatMessages({ history }) {
     });
     return initial;
   });
+  const [expandedDetails, setExpandedDetails] = useState({});
 
   const toggleSources = (index) => {
     setExpandedSources(prev => ({ ...prev, [index]: !prev[index] }));
@@ -920,6 +921,144 @@ const ChatMessages = memo(function ChatMessages({ history }) {
 
   const toggleAnswer = (index) => {
     setExpandedAnswers(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const toggleDetails = (index) => {
+    setExpandedDetails(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const copyAnswer = (turn) => {
+    // Create plain text version of the answer
+    let textToCopy = `Question: ${turn.query}\n\n`;
+    textToCopy += `Answer:\n${turn.answer}\n\n`;
+
+    if (turn.extracted_info) {
+      textToCopy += `\nExtracted from Files:\n${turn.extracted_info}\n\n`;
+    }
+
+    if (turn.online_search_response) {
+      textToCopy += `\nOnline Search:\n${turn.online_search_response}\n\n`;
+    }
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      alert('Answer copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy to clipboard');
+    });
+  };
+
+  const exportAnswer = (turn) => {
+    // Create HTML content for export
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Search Result - ${turn.query.substring(0, 50)}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .query {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .conclusion {
+      margin: 20px 0;
+      padding: 20px;
+      background: white;
+      border-left: 4px solid #FF6900;
+      border-radius: 8px;
+    }
+    .section-header {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #003DA5;
+      margin-bottom: 15px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 20px;
+      background: #f0f9ff;
+      border-radius: 8px;
+      border: 1px solid #bae6fd;
+    }
+    .meta {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+    h2, h3, h4 { color: #003DA5; margin-top: 1.5em; }
+    p { margin: 0.75em 0; }
+    strong { font-weight: 600; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+    hr { border: none; border-top: 2px solid #e2e8f0; margin: 2em 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="query">Question: ${turn.query}</div>
+
+    <div class="conclusion">
+      <div class="section-header">✨ Answer</div>
+      ${parseMarkdownToHTML(turn.answer)}
+    </div>
+
+    ${turn.extracted_info ? `
+    <div class="section">
+      <div class="section-header">📄 Extracted from Files</div>
+      ${parseMarkdownToHTML(turn.extracted_info)}
+    </div>
+    ` : ''}
+
+    ${turn.online_search_response ? `
+    <div class="section">
+      <div class="section-header">🌐 Online Search</div>
+      ${parseMarkdownToHTML(turn.online_search_response)}
+    </div>
+    ` : ''}
+
+    <div class="meta">
+      Generated on ${new Date().toLocaleString()}<br>
+      ${turn.search_params ? `
+        Search Mode: ${turn.search_params.search_mode || 'N/A'} |
+        Reasoning Mode: ${turn.search_params.reasoning_mode || 'N/A'}
+      ` : ''}
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = turn.query.substring(0, 50).replace(/[^a-z0-9]/gi, '_') + '.html';
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -957,52 +1096,102 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                       <div className="collapse-hint clickable" onClick={() => toggleAnswer(index)}>
                         ▼ Click to collapse
                       </div>
-                      {turn.search_params && (
-                        <div className="search-params-box">
-                          <strong>Search Settings:</strong>
-                          <div className="params-row">
-                            <span className="param-item">📊 Results: <strong>{turn.search_params.top_k}</strong></span>
-                            <span className="param-item">🔍 Mode: <strong>{turn.search_params.search_mode === 'auto' ? 'Intelligent (Auto-select)' :
-                              turn.search_params.search_mode === 'files_only' ? 'Files Only' :
-                              turn.search_params.search_mode === 'online_only' ? 'Online Only' :
-                              turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
-                              turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
-                              turn.search_params.search_mode}</strong></span>
-                            <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.1)' :
-                              turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
-                              turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
-                              turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
-                              turn.search_params.reasoning_mode}</strong></span>
-                            {turn.search_params.search_mode === 'both' && (
-                              <span className="param-item">📌 Priority: <strong>{turn.search_params.priority_order === 'online_first' ? 'Online First' : 'Files First'}</strong></span>
-                            )}
+
+                      {/* Conclusion/Answer - Prioritized at the Top */}
+                      {turn.answer && (
+                        <div className="conclusion-section">
+                          <div className="conclusion-header">
+                            <span>✨ Conclusion</span>
+                            <div className="answer-actions">
+                              <button
+                                className="action-button copy-button"
+                                onClick={(e) => { e.stopPropagation(); copyAnswer(turn); }}
+                                title="Copy answer to clipboard"
+                              >
+                                📋 Copy
+                              </button>
+                              <button
+                                className="action-button export-button"
+                                onClick={(e) => { e.stopPropagation(); exportAnswer(turn); }}
+                                title="Export answer as HTML"
+                              >
+                                💾 Export
+                              </button>
+                            </div>
+                          </div>
+                          <div className="answer-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.answer) }} />
+                        </div>
+                      )}
+
+                      {/* Show Details Toggle - Only show if there are details to show */}
+                      {(turn.search_params || turn.selected_mode || turn.extracted_info || turn.online_search_response) && (
+                        <div className="details-toggle-container">
+                          <button
+                            className="details-toggle-button"
+                            onClick={(e) => { e.stopPropagation(); toggleDetails(index); }}
+                          >
+                            {expandedDetails[index] ? '▲ Hide Details' : '▼ Show Details'}
+                          </button>
+                          {/* Debug info */}
+                          <div style={{ fontSize: '0.7rem', color: '#999', marginTop: '5px' }}>
+                            Debug: extracted_info={turn.extracted_info ? 'YES' : 'NO'},
+                            online_search_response={turn.online_search_response ? 'YES' : 'NO'}
                           </div>
                         </div>
                       )}
-                      {turn.selected_mode && turn.mode_reasoning && (
-                        <div className="mode-selection-box">
-                          <strong>Mode:</strong> <span className="mode-badge">{turn.selected_mode}</span>
-                          <div className="mode-reasoning">{turn.mode_reasoning}</div>
+
+                      {/* Supporting Steps - Hidden Behind Toggle */}
+                      {expandedDetails[index] && (
+                        <div className="supporting-details">
+                          {turn.search_params && (
+                            <div className="search-params-box">
+                              <strong>Search Settings:</strong>
+                              <div className="params-row">
+                                <span className="param-item">📊 Results: <strong>{turn.search_params.top_k}</strong></span>
+                                <span className="param-item">🔍 Mode: <strong>{turn.search_params.search_mode === 'auto' ? 'Intelligent (Auto-select)' :
+                                  turn.search_params.search_mode === 'files_only' ? 'Files Only' :
+                                  turn.search_params.search_mode === 'online_only' ? 'Online Only' :
+                                  turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
+                                  turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
+                                  turn.search_params.search_mode}</strong></span>
+                                <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.1)' :
+                                  turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
+                                  turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
+                                  turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
+                                  turn.search_params.reasoning_mode}</strong></span>
+                                {turn.search_params.search_mode === 'both' && (
+                                  <span className="param-item">📌 Priority: <strong>{turn.search_params.priority_order === 'online_first' ? 'Online First' : 'Files First'}</strong></span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {turn.selected_mode && turn.mode_reasoning && (
+                            <div className="mode-selection-box">
+                              <strong>Mode:</strong> <span className="mode-badge">{turn.selected_mode}</span>
+                              <div className="mode-reasoning">{turn.mode_reasoning}</div>
+                            </div>
+                          )}
+                          {turn.extracted_info && turn.extracted_info.trim() && (
+                            <div className="extracted-info-box">
+                              <div className="box-header">📄 Step 1: Extracted from Files</div>
+                              <div className="box-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.extracted_info) }} />
+                            </div>
+                          )}
+                          {turn.online_search_response && turn.online_search_response.trim() && (
+                            <div className="online-search-box">
+                              <div className="box-header">🌐 {turn.extracted_info ? 'Step 2: Online Search' : 'Online Search'}</div>
+                              <div className="box-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.online_search_response) }} />
+                            </div>
+                          )}
+                          {!turn.extracted_info && !turn.online_search_response && !turn.selected_mode && (
+                            <div style={{ padding: '10px', color: '#6b7280', fontStyle: 'italic', textAlign: 'center' }}>
+                              Only search settings available for this query
+                            </div>
+                          )}
                         </div>
                       )}
-                      {turn.extracted_info && (
-                        <div className="extracted-info-box">
-                          <div className="box-header">📄 Step 1: Extracted from Files</div>
-                          <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.extracted_info) }} />
-                        </div>
-                      )}
-                      {turn.online_search_response && (
-                        <div className="online-search-box">
-                          <div className="box-header">🌐 {turn.extracted_info ? 'Step 2: Online Search' : 'Online Search'}</div>
-                          <div dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.online_search_response) }} />
-                        </div>
-                      )}
-                      {turn.answer && (
-                        <>
-                          {turn.extracted_info && <div className="answer-header">✨ Step 3: Comparative Analysis</div>}
-                          <div className="answer-content" dangerouslySetInnerHTML={{ __html: parseMarkdownToHTML(turn.answer) }} />
-                        </>
-                      )}
+
+                      {/* Sources - Always at the Bottom */}
                       {turn.results && turn.results.length > 0 && (
                         <div className="sources-container">
                           <button className="sources-toggle" onClick={(e) => { e.stopPropagation(); toggleSources(index); }}>

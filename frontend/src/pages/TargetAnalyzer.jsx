@@ -1,0 +1,1494 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
+import './TargetAnalyzer.css';
+
+function TargetAnalyzer() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [target, setTarget] = useState('RIPK2');
+  const [indication, setIndication] = useState('Ulcerative Colitis');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleAnalyze = async (e) => {
+    e.preventDefault();
+    if (!target || !indication) return;
+
+    setLoading(true);
+    setError(null);
+    setData(null);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const requestBody = {
+        target: target.trim(),
+        indication: indication.trim()
+      };
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      };
+
+      // Call all 12 individual endpoints in parallel (testing max concurrency)
+      console.log('Starting full parallel analysis (12 endpoints simultaneously)...');
+      const [
+        biologicalOverviewResponse,
+        therapeuticRationaleResponse,
+        preclinicalEvidenceResponse,
+        drugTrialLandscapeResponse,
+        patentIpResponse,
+        indicationPotentialResponse,
+        differentiationResponse,
+        unmetNeedsResponse,
+        indicationSpecificResponse,
+        risksResponse,
+        biomarkerStrategyResponse,
+        bdPotentialsResponse
+      ] = await Promise.all([
+        axios.post('/api/target-analyzer/biological-overview', requestBody, config),
+        axios.post('/api/target-analyzer/therapeutic-rationale', requestBody, config),
+        axios.post('/api/target-analyzer/preclinical-evidence', requestBody, config),
+        axios.post('/api/target-analyzer/drug-trial-landscape', requestBody, config),
+        axios.post('/api/target-analyzer/patent-ip', requestBody, config),
+        axios.post('/api/target-analyzer/indication-potential', requestBody, config),
+        axios.post('/api/target-analyzer/differentiation', requestBody, config),
+        axios.post('/api/target-analyzer/unmet-needs', requestBody, config),
+        axios.post('/api/target-analyzer/indication-specific-analysis', requestBody, config),
+        axios.post('/api/target-analyzer/risks', requestBody, config),
+        axios.post('/api/target-analyzer/biomarker-strategy', requestBody, config),
+        axios.post('/api/target-analyzer/bd-potentials', requestBody, config)
+      ]);
+      console.log('✓✓✓ All 12 endpoints completed successfully!');
+
+      // Merge results from all 12 endpoints
+      const mergedData = {
+        target: biologicalOverviewResponse.data.target,
+        indication: biologicalOverviewResponse.data.indication,
+        biological_overview: biologicalOverviewResponse.data.biological_overview,
+        therapeutic_rationale: therapeuticRationaleResponse.data.therapeutic_rationale,
+        preclinical_evidence: preclinicalEvidenceResponse.data.preclinical_evidence,
+        drug_trial_landscape: drugTrialLandscapeResponse.data.drug_trial_landscape,
+        patent_ip: patentIpResponse.data.patent_ip,
+        indication_potential: indicationPotentialResponse.data.indication_potential,
+        differentiation: differentiationResponse.data.differentiation,
+        unmet_needs: unmetNeedsResponse.data.unmet_needs,
+        indication_specific_analysis: indicationSpecificResponse.data.indication_specific_analysis,
+        risks: risksResponse.data.risks,
+        biomarker_strategy: biomarkerStrategyResponse.data.biomarker_strategy,
+        bd_potentials: bdPotentialsResponse.data.bd_potentials,
+      };
+
+      setData(mergedData);
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err.response?.data?.detail || 'Failed to generate analysis. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportHTML = () => {
+    const content = document.getElementById('exportable-content');
+    const sidebar = document.querySelector('.side-nav-bar');
+    if (!content || !sidebar) return;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${data.target} for ${data.indication} - Target Analysis</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    html { scroll-behavior: smooth; }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .results-header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .for-text {
+      color: #94a3b8;
+      font-weight: 300;
+    }
+
+    .results-layout {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+
+    /* Side Navigation Bar */
+    .side-nav-bar {
+      position: sticky;
+      top: 1.5rem;
+      width: 260px;
+      flex-shrink: 0;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    .side-nav-header {
+      padding: 1rem 1.25rem;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .side-nav-items {
+      display: flex;
+      flex-direction: column;
+      padding: 0.5rem;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.25rem;
+      background: transparent;
+      border-left: 3px solid transparent;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      color: #475569;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background: #f1f5f9;
+      border-left-color: #2563eb;
+      color: #1e40af;
+      transform: translateX(4px);
+    }
+
+    .nav-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #e2e8f0;
+      color: #64748b;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .nav-item:hover .nav-number {
+      background: #2563eb;
+      color: white;
+    }
+
+    .nav-text {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .results-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .section-card {
+      background: white;
+      border-radius: 10px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+    }
+
+    .section-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .section-card h3 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 1rem 0;
+      padding-bottom: 0.625rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .section-card h4 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0.75rem 0 0.5rem 0;
+    }
+
+    /* Biological Overview */
+    .bio-overview {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .subsection {
+      margin-bottom: 0.75rem;
+    }
+
+    .subsection h4 {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #334155;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .domains-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .domain-item {
+      background: #f8fafc;
+      padding: 0.625rem 0.875rem;
+      border-radius: 6px;
+      border-left: 3px solid #2563eb;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .mechanism-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .mechanism-list {
+      background: #f8fafc;
+      padding: 0.75rem 0.75rem 0.75rem 2rem;
+      border-radius: 6px;
+      margin: 0;
+    }
+
+    .mechanism-list li {
+      margin-bottom: 0.375rem;
+      line-height: 1.5;
+      font-size: 0.8125rem;
+    }
+
+    .mechanism-image {
+      background: white;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .mechanism-diagram {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      display: block;
+    }
+
+    .subsection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* Therapeutic Rationale */
+    .rationale-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .rationale-box {
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid;
+    }
+
+    .rationale-box.blue {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .rationale-box.indigo {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+    }
+
+    .rationale-box.violet {
+      background: #f5f3ff;
+      border-color: #ddd6fe;
+    }
+
+    /* Phase Distribution Bars */
+    .phase-distribution {
+      margin-top: 1rem;
+      background: #f8fafc;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+
+    .phase-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .phase-bar-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .phase-label {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      min-width: 100px;
+      text-transform: capitalize;
+    }
+
+    .phase-bar {
+      flex: 1;
+      height: 24px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .phase-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem;
+      color: white;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      transition: width 0.5s ease;
+    }
+
+    /* Score Display */
+    .potential-section {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .score-display {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .score-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .score-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-max {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+
+    /* Differentiation */
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .diff-box {
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid;
+    }
+
+    .diff-box.advantages {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .diff-box.disadvantages {
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    .diff-box h4 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .diff-box.advantages h4 {
+      color: #15803d;
+    }
+
+    .diff-box.disadvantages h4 {
+      color: #991b1b;
+    }
+
+    /* PubMed Links */
+    .pubmed-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.625rem;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .pubmed-link:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e3a8a;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    th, td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #334155;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    strong { font-weight: 600; }
+    ul, ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+    li { margin-bottom: 0.375rem; line-height: 1.5; font-size: 0.8125rem; }
+    p { line-height: 1.5; margin: 0.5rem 0; font-size: 0.8125rem; }
+
+    @media (max-width: 768px) {
+      .results-layout { flex-direction: column; }
+      .side-nav-bar { position: static; width: 100%; }
+      .mechanism-content,
+      .subsection-grid,
+      .rationale-grid,
+      .diff-grid { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { padding: 0; background: white; }
+      .side-nav-bar { display: none; }
+      .section-card { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="results-header">
+      <h1>${data.target} <span class="for-text">for</span> ${data.indication}</h1>
+    </div>
+
+    <div class="results-layout">
+      ${sidebar.outerHTML}
+
+      <div class="results-content" id="exportable-content">
+        ${content.innerHTML}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${data.target}_${data.indication}_Analysis.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = async () => {
+    // Dynamically import html2pdf
+    const html2pdf = (await import('html2pdf.js')).default;
+
+    const content = document.getElementById('exportable-content');
+    if (!content) return;
+
+    const opt = {
+      margin: 0.5,
+      filename: `${data.target}_${data.indication}_Analysis.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+
+    // Clone content and add title
+    const wrapper = document.createElement('div');
+    const title = document.createElement('h1');
+    title.textContent = `${data.target} for ${data.indication}`;
+    title.style.cssText = 'color: #0f172a; border-bottom: 3px solid #2563eb; padding-bottom: 1rem; margin-bottom: 1.5rem;';
+    wrapper.appendChild(title);
+    wrapper.appendChild(content.cloneNode(true));
+
+    html2pdf().set(opt).from(wrapper).save();
+  };
+
+  // Simple markdown renderer for bold, italic, code, and PMID links
+  const renderMarkdown = (text) => {
+    if (!text) return null;
+
+    // Split by markdown patterns while preserving them
+    const parts = [];
+    let lastIndex = 0;
+
+    // Regex to match **bold**, *italic*, `code`, and PMID: 12345678
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\(?\s*PMID:\s*\d+\s*\)?)/gi;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      const matched = match[0];
+      if (matched.startsWith('**') && matched.endsWith('**')) {
+        // Bold text
+        parts.push(<strong key={match.index}>{matched.slice(2, -2)}</strong>);
+      } else if (matched.startsWith('*') && matched.endsWith('*') && !matched.startsWith('**')) {
+        // Italic text
+        parts.push(<em key={match.index}>{matched.slice(1, -1)}</em>);
+      } else if (matched.startsWith('`') && matched.endsWith('`')) {
+        // Code text
+        parts.push(<code key={match.index}>{matched.slice(1, -1)}</code>);
+      } else if (matched.match(/PMID:\s*(\d+)/i)) {
+        // PMID link - extract the number
+        const pmidMatch = matched.match(/PMID:\s*(\d+)/i);
+        const pmid = pmidMatch[1];
+        const hasParens = matched.startsWith('(') && matched.endsWith(')');
+        const linkElement = (
+          <a
+            key={match.index}
+            href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pubmed-link"
+            style={{
+              color: '#2563eb',
+              textDecoration: 'none',
+              fontWeight: '500'
+            }}
+            title="View on PubMed"
+          >
+            PMID: {pmid}
+          </a>
+        );
+
+        if (hasParens) {
+          parts.push(<span key={`parens-${match.index}`}>({linkElement})</span>);
+        } else {
+          parts.push(linkElement);
+        }
+      }
+
+      lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return <>{parts}</>;
+  };
+
+  const renderPubMedLink = (pmid) => {
+    if (!pmid) return null;
+    return (
+      <a
+        href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="pubmed-link"
+        title="View on PubMed"
+      >
+        📚 PMID: {pmid}
+      </a>
+    );
+  };
+
+  const renderSection = (title, content) => (
+    <div className="section-card">
+      <h3>{title}</h3>
+      <div className="section-content">{content}</div>
+    </div>
+  );
+
+  return (
+    <div className="target-analyzer-container">
+      {/* Main Content */}
+      <main className="ta-main">
+        <div className="ta-header-section">
+          <button className="back-button" onClick={() => navigate('/')}>
+            ← Back to Home
+          </button>
+          <div className="ta-title-block">
+            <div className="ta-icon-wrapper">
+              <span className="ta-icon">🧬</span>
+            </div>
+            <h1>Target Analyzer</h1>
+            <p className="ta-subtitle">AI-powered drug target and indication analysis</p>
+          </div>
+        </div>
+        {!data && !loading ? (
+          <div className="ta-input-section">
+            <div className="ta-intro">
+              <h2>Accelerate Your Drug Discovery Research</h2>
+              <p>Generate comprehensive deep-dive reports on any drug target and indication pair in seconds using advanced AI.</p>
+            </div>
+
+            <div className="ta-form-card">
+              <form onSubmit={handleAnalyze} className="ta-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Target Molecule</label>
+                    <input
+                      type="text"
+                      value={target}
+                      onChange={(e) => setTarget(e.target.value)}
+                      placeholder="e.g. RIPK2, JAK1"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Indication / Disease</label>
+                    <input
+                      type="text"
+                      value={indication}
+                      onChange={(e) => setIndication(e.target.value)}
+                      placeholder="e.g. Ulcerative Colitis"
+                      required
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="analyze-btn">
+                  🔬 Start Deep Analysis
+                </button>
+              </form>
+            </div>
+
+            <div className="ta-features">
+              <div className="feature-item">
+                <h3>Competitive Landscape</h3>
+                <p>Real-time trial data & competitors</p>
+              </div>
+              <div className="feature-item">
+                <h3>Risk Assessment</h3>
+                <p>Clinical, technical & safety scoring</p>
+              </div>
+              <div className="feature-item">
+                <h3>Strategic Insights</h3>
+                <p>Differentiation & unmet needs</p>
+              </div>
+            </div>
+          </div>
+        ) : loading ? (
+          <div className="ta-loading">
+            <div className="spinner"></div>
+            <h2>Analyzing Target Potential</h2>
+            <p>Scouring databases for {target} in {indication}...</p>
+            <div className="loading-tags">
+              <span>Clinical Trials</span>
+              <span>•</span>
+              <span>Patents</span>
+              <span>•</span>
+              <span>Biological Mechanisms</span>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="ta-error">
+            <div className="error-icon">⚠️</div>
+            <h3>Analysis Failed</h3>
+            <p>{error}</p>
+            <button onClick={() => setError(null)}>Try Again</button>
+          </div>
+        ) : data ? (
+          <div className="ta-results">
+            <div className="results-header">
+              <h1>
+                {data.target} <span className="for-text">for</span> {data.indication}
+              </h1>
+              <div className="header-actions">
+                <button className="export-btn" onClick={handleExportHTML} title="Export as HTML">
+                  📄 HTML
+                </button>
+                <button className="export-btn" onClick={handleExportPDF} title="Export as PDF">
+                  📑 PDF
+                </button>
+                <button className="new-analysis-btn" onClick={() => setData(null)}>
+                  New Analysis
+                </button>
+              </div>
+            </div>
+
+            <div className="results-layout">
+              {/* Side Navigation Bar */}
+              <aside className="side-nav-bar">
+                <div className="side-nav-header">Sections</div>
+                <nav className="side-nav-items">
+                  <a href="#section-1" className="nav-item">
+                    <span className="nav-number">1</span>
+                    <span className="nav-text">Biological Overview</span>
+                  </a>
+                  <a href="#section-2" className="nav-item">
+                    <span className="nav-number">2</span>
+                    <span className="nav-text">Therapeutic Rationale</span>
+                  </a>
+                  <a href="#section-3" className="nav-item">
+                    <span className="nav-number">3</span>
+                    <span className="nav-text">Pre-clinical Evidence</span>
+                  </a>
+                  <a href="#section-4" className="nav-item">
+                    <span className="nav-number">4</span>
+                    <span className="nav-text">Drug/Trial Landscape</span>
+                  </a>
+                  <a href="#section-5" className="nav-item">
+                    <span className="nav-number">5</span>
+                    <span className="nav-text">Patent & IP</span>
+                  </a>
+                  <a href="#section-6" className="nav-item">
+                    <span className="nav-number">6</span>
+                    <span className="nav-text">Indication Potential</span>
+                  </a>
+                  <a href="#section-7" className="nav-item">
+                    <span className="nav-number">7</span>
+                    <span className="nav-text">Indication Analysis</span>
+                  </a>
+                  <a href="#section-8" className="nav-item">
+                    <span className="nav-number">8</span>
+                    <span className="nav-text">Differentiation</span>
+                  </a>
+                  <a href="#section-9" className="nav-item">
+                    <span className="nav-number">9</span>
+                    <span className="nav-text">Unmet Needs</span>
+                  </a>
+                  <a href="#section-10" className="nav-item">
+                    <span className="nav-number">10</span>
+                    <span className="nav-text">Risks</span>
+                  </a>
+                  <a href="#section-11" className="nav-item">
+                    <span className="nav-number">11</span>
+                    <span className="nav-text">Biomarker Strategy</span>
+                  </a>
+                  <a href="#section-12" className="nav-item">
+                    <span className="nav-number">12</span>
+                    <span className="nav-text">BD Potential</span>
+                  </a>
+                </nav>
+              </aside>
+
+              <div className="results-content" id="exportable-content">
+
+              {/* Biological Overview */}
+              <div id="section-1">
+              {renderSection(
+                '1. Biological Overview',
+                <div className="bio-overview">
+                  <div className="subsection">
+                    <h4>Structural Domains</h4>
+                    <div className="domains-list">
+                      {data.biological_overview.structural_domains.map((domain, i) => (
+                        <div key={i} className="domain-item">
+                          <strong>{domain.name}:</strong> {renderMarkdown(domain.description)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="subsection">
+                    <h4>Mechanism of Action</h4>
+                    <div className="mechanism-content">
+                      <ol className="mechanism-list">
+                        {data.biological_overview.mechanistic_insights.map((insight, i) => (
+                          <li key={i}>{renderMarkdown(insight)}</li>
+                        ))}
+                      </ol>
+                      {data.biological_overview.mechanism_image ? (
+                        <div className="mechanism-image">
+                          <img
+                            src={data.biological_overview.mechanism_image}
+                            alt="Mechanism of Action Diagram"
+                            className="mechanism-diagram"
+                          />
+                          <p className="image-caption">
+                            <span className="image-icon">🖼️</span> AI-generated schematic
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mechanism-placeholder">
+                          <span className="placeholder-icon">🖼️</span>
+                          <p>Diagram not available</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="subsection-grid">
+                    <div>
+                      <h4>Human Validation</h4>
+                      <p>{renderMarkdown(data.biological_overview.human_validation)}</p>
+                      {data.biological_overview.human_validation_pmid && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {renderPubMedLink(data.biological_overview.human_validation_pmid)}
+                          <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                            Note: AI-generated citations - verify independently
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4>Species Conservation</h4>
+                      <p>{renderMarkdown(data.biological_overview.species_conservation)}</p>
+                      {data.biological_overview.species_conservation_pmid && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {renderPubMedLink(data.biological_overview.species_conservation_pmid)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Therapeutic Rationale */}
+              <div id="section-2">
+              {renderSection(
+                '2. Therapeutic Rationale',
+                <div className="rationale-grid">
+                  <div className="rationale-box blue">
+                    <h4>Pathway Positioning</h4>
+                    <p>{renderMarkdown(data.therapeutic_rationale.pathway_positioning)}</p>
+                  </div>
+                  <div className="rationale-box indigo">
+                    <h4>Specificity vs Breadth</h4>
+                    <p>{renderMarkdown(data.therapeutic_rationale.specificity_vs_breadth)}</p>
+                  </div>
+                  <div className="rationale-box violet">
+                    <h4>Modality Comparison</h4>
+                    <p>{renderMarkdown(data.therapeutic_rationale.modality_comparison)}</p>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Pre-clinical Evidence */}
+              <div id="section-3">
+              {renderSection(
+                '3. Pre-clinical Evidence',
+                <div className="evidence-section">
+                  <div className="subsection">
+                    <h4>Human Genetic Evidence</h4>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong>Monogenic Gain-of-Function Mutations:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Variant</th>
+                            <th>Phenotype</th>
+                            <th>Effect Size</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
+                            <th>Citation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.human_genetics.monogenic_mutations.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.variant}</td>
+                              <td>{item.phenotype}</td>
+                              <td>{item.effect_size || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <strong>Common/Low-Frequency Variant Associations:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Variant</th>
+                            <th>Association</th>
+                            <th>Significance</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
+                            <th>Citation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.human_genetics.common_variants.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.variant}</td>
+                              <td>{item.association}</td>
+                              <td>{item.statistical_significance || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="subsection">
+                    <h4>Preclinical Animal Studies</h4>
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong>Loss-of-Function Models:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Model</th>
+                            <th>Outcome</th>
+                            <th>Magnitude</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
+                            <th>Citation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.animal_models.loss_of_function.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.model}</td>
+                              <td>{item.outcome}</td>
+                              <td>{item.phenotype_magnitude || '—'}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <strong>Gain-of-Function Models:</strong>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Model</th>
+                            <th>Outcome</th>
+                            <th>Quality</th>
+                            <th>Benchmark</th>
+                            <th>Citation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.preclinical_evidence.animal_models.gain_of_function.map((item, i) => (
+                            <tr key={i}>
+                              <td>{item.model}</td>
+                              <td>{item.outcome}</td>
+                              <td>
+                                {item.evidence_quality && (
+                                  <span className={`quality-badge quality-${item.evidence_quality.toLowerCase()}`}>
+                                    {item.evidence_quality}
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{item.benchmark_comparison || '—'}</td>
+                              <td>{item.pmid ? renderPubMedLink(item.pmid) : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Drug/Trial Landscape */}
+              <div id="section-4">
+              {renderSection(
+                '4. Drug/Trial Landscape',
+                <div className="landscape-section">
+                  <div className="subsection">
+                    <h4>Market Summary</h4>
+                    <p>{renderMarkdown(data.drug_trial_landscape.summary)}</p>
+                  </div>
+                  <div className="subsection">
+                    <h4>Key Competitive Assets</h4>
+                    <table className="competitors-table">
+                      <thead>
+                        <tr>
+                          <th>Company</th>
+                          <th>Molecule</th>
+                          <th>Phase</th>
+                          <th>Mechanism</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.drug_trial_landscape.competitors.map((comp, i) => (
+                          <tr key={i}>
+                            <td>{comp.company}</td>
+                            <td>{comp.molecule_name}</td>
+                            <td>
+                              <span className={`phase-badge phase-${comp.phase.toLowerCase().replace(/\s/g, '-')}`}>
+                                {comp.phase}
+                              </span>
+                            </td>
+                            <td>{comp.mechanism}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="phase-distribution">
+                    <h4>Pipeline Distribution</h4>
+                    <div className="phase-bars">
+                      {Object.entries(data.drug_trial_landscape.phase_count).map(([phase, count]) => (
+                        <div key={phase} className="phase-bar-item">
+                          <span className="phase-label">{phase.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                          <div className="phase-bar">
+                            <div className="phase-fill" style={{ width: `${Math.min(count * 10, 100)}%` }}>
+                              {count}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Patent & IP */}
+              <div id="section-5">
+              {renderSection(
+                '5. Patent & IP Landscape',
+                <div className="ip-section">
+                  <div className="subsection">
+                    <h4>Recent Filings</h4>
+                    <table className="patent-table">
+                      <thead>
+                        <tr>
+                          <th>Assignee</th>
+                          <th>Year</th>
+                          <th>Focus</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.patent_ip.recent_filings.map((filing, i) => (
+                          <tr key={i}>
+                            <td>{filing.assignee}</td>
+                            <td>{filing.year}</td>
+                            <td>{filing.focus}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="subsection">
+                    <h4>IP Strategy</h4>
+                    <div className="strategy-box">
+                      {renderMarkdown(data.patent_ip.strategy)}
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Indication Potential */}
+              <div id="section-6">
+              {renderSection(
+                '6. Indication Potential',
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                  <div className="score-circle">
+                    <span className="score-number">{data.indication_potential.score}</span>
+                    <span className="score-max">/10</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Scoring Rationale</h4>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>{renderMarkdown(data.indication_potential.reasoning)}</p>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Indication Specific Analysis */}
+              <div id="section-7">
+              {renderSection(
+                '7. Indication-Specific Therapeutic Landscape',
+                <div style={{
+                  background: '#f8fafc',
+                  padding: '1rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Major Drug Classes:</h4>
+                    <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                      {data.indication_specific_analysis.therapeutic_classes.map((tc, i) => (
+                        <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', lineHeight: '1.5' }}>
+                          <strong>{tc.class_name}:</strong> {tc.examples}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Treatment Guidelines:</h4>
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', lineHeight: '1.5', color: '#475569' }}>
+                      {renderMarkdown(data.indication_specific_analysis.treatment_guidelines)}
+                    </p>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Differentiation */}
+              <div id="section-8">
+              {renderSection(
+                '8. Key Differentiation',
+                <div className="diff-section">
+                  <p className="diff-analysis">{renderMarkdown(data.differentiation.analysis)}</p>
+
+                  {/* Efficacy/Safety Position */}
+                  {data.differentiation.efficacy_safety_position && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.875rem', color: '#334155' }}>Efficacy/Safety Frontier Position: </strong>
+                      <span className={`position-badge position-${data.differentiation.efficacy_safety_position.toLowerCase()}`}>
+                        {data.differentiation.efficacy_safety_position}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Quantified Gaps */}
+                  {data.differentiation.quantified_gaps && data.differentiation.quantified_gaps.length > 0 && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Quantified Competitive Advantages:</h4>
+                      <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
+                        {data.differentiation.quantified_gaps.map((gap, i) => (
+                          <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: '#059669' }}>{renderMarkdown(gap)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Competitive Scenarios */}
+                  {data.differentiation.competitive_scenarios && data.differentiation.competitive_scenarios.length > 0 && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Competitive Scenarios:</h4>
+                      <table className="evidence-table" style={{ marginTop: '0.5rem' }}>
+                        <thead>
+                          <tr>
+                            <th>Scenario</th>
+                            <th>Probability</th>
+                            <th>Impact</th>
+                            <th>Strategic Response</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.differentiation.competitive_scenarios.map((scenario, i) => (
+                            <tr key={i}>
+                              <td>{renderMarkdown(scenario.scenario)}</td>
+                              <td><span className="probability-badge">{scenario.probability}</span></td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{renderMarkdown(scenario.impact)}</td>
+                              <td style={{ fontSize: '0.8125rem', color: '#475569' }}>{renderMarkdown(scenario.strategic_response)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="diff-grid">
+                    <div className="diff-box advantages">
+                      <h4>✓ Advantages</h4>
+                      <ul>
+                        {data.differentiation.advantages.map((adv, i) => (
+                          <li key={i}>{renderMarkdown(adv)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="diff-box disadvantages">
+                      <h4>✗ Challenges</h4>
+                      <ul>
+                        {data.differentiation.disadvantages.map((dis, i) => (
+                          <li key={i}>{renderMarkdown(dis)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Unmet Needs */}
+              <div id="section-9">
+              {renderSection(
+                '9. Unmet Medical Needs',
+                <div className="unmet-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  <div className="unmet-box">
+                    <h4>📊 Incomplete Response</h4>
+                    <p>{renderMarkdown(data.unmet_needs.response_rates)}</p>
+                  </div>
+                  <div className="unmet-box">
+                    <h4>⚠️ Treatment Resistance</h4>
+                    <p>{renderMarkdown(data.unmet_needs.resistance)}</p>
+                  </div>
+                  <div className="unmet-box">
+                    <h4>🛡️ Safety Limitations</h4>
+                    <p>{renderMarkdown(data.unmet_needs.safety_limitations)}</p>
+                  </div>
+                  <div className="unmet-box">
+                    <h4>💊 Adherence Challenges</h4>
+                    <p>{renderMarkdown(data.unmet_needs.adherence_challenges)}</p>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Risk Assessment */}
+              <div id="section-10">
+              {renderSection(
+                '10. Risk Assessment',
+                <div className="risk-section">
+                  <div className="risk-analysis">
+                    <h4>Executive Summary</h4>
+                    <p>{renderMarkdown(data.risks.summary)}</p>
+                  </div>
+
+                  {data.risks.risk_items && data.risks.risk_items.length > 0 && (
+                    <div style={{ marginTop: '1.5rem' }}>
+                      <h4 style={{ fontSize: '0.9375rem', marginBottom: '1rem', color: '#0f172a' }}>Detailed Risk Analysis:</h4>
+                      <div className="risk-items-container">
+                        {data.risks.risk_items.map((risk, i) => (
+                          <div key={i} className="risk-item-card">
+                            <div className="risk-item-header">
+                              <span className={`risk-category-badge category-${risk.category.toLowerCase()}`}>
+                                {risk.category}
+                              </span>
+                              <div className="risk-scores-inline">
+                                <div className="risk-score-mini">
+                                  <span className="score-label">Probability:</span>
+                                  <div className="score-bar-mini">
+                                    <div
+                                      className={`score-fill-mini ${risk.probability > 50 ? 'high' : 'medium'}`}
+                                      style={{ width: `${risk.probability}%` }}
+                                    >
+                                      {risk.probability}%
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="risk-score-mini">
+                                  <span className="score-label">Impact:</span>
+                                  <div className="score-bar-mini">
+                                    <div
+                                      className={`score-fill-mini ${risk.impact > 50 ? 'high' : 'medium'}`}
+                                      style={{ width: `${risk.impact}%` }}
+                                    >
+                                      {risk.impact}%
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="risk-item-content">
+                              <div className="risk-field">
+                                <strong>Description:</strong>
+                                <p>{renderMarkdown(risk.description)}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Timeline:</strong>
+                                <p>{renderMarkdown(risk.timeline)}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Early Warning Signals:</strong>
+                                <p>{renderMarkdown(risk.early_warning_signals)}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Mitigation Strategies:</strong>
+                                <p>{renderMarkdown(risk.mitigation_strategies)}</p>
+                              </div>
+                              <div className="risk-field">
+                                <strong>Evidence Quality:</strong>
+                                <span className={`quality-badge quality-${risk.evidence_quality.toLowerCase()}`}>
+                                  {risk.evidence_quality}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+
+              {/* Biomarker Strategy */}
+              <div id="section-11">
+              {renderSection(
+                '11. Biomarker Strategy',
+                <div className="biomarker-section">
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Stratification Biomarkers:</h4>
+                    <ul style={{ paddingLeft: '1.5rem', listStyleType: 'disc' }}>
+                      {data.biomarker_strategy.stratification_biomarkers.map((biomarker, i) => (
+                        <li key={i} style={{ marginBottom: '0.375rem', fontSize: '0.8125rem' }}>{renderMarkdown(biomarker)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '0.9375rem', marginBottom: '0.5rem', color: '#0f172a' }}>Adaptive Design Considerations:</h4>
+                    <p style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}>{renderMarkdown(data.biomarker_strategy.adaptive_design)}</p>
+                  </div>
+                </div>
+              )}
+              </div>
+
+              {/* Business Development */}
+              <div id="section-12">
+              {renderSection(
+                '12. Business Development & Investment',
+                <div className="bd-section">
+                  <div className="subsection">
+                    <h4>Recent Activities</h4>
+                    <div className="bd-activities">
+                      {data.bd_potentials.activities.map((act, i) => (
+                        <div key={i} className="bd-activity-item">
+                          <div className="activity-icon">
+                            {act.company.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div className="activity-content">
+                            <h5>{act.company}</h5>
+                            <p>{renderMarkdown(act.description)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="subsection">
+                    <h4>Interested Parties</h4>
+                    <div className="interested-parties">
+                      {data.bd_potentials.interested_parties.map((party, i) => (
+                        <span key={i} className="party-tag">{party}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              </div>
+            </div>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+export default TargetAnalyzer;
