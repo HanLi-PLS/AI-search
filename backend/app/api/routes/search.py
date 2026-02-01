@@ -614,6 +614,50 @@ async def get_conversation_history(
         raise HTTPException(status_code=500, detail=f"Error fetching conversation history: {str(e)}")
 
 
+@router.put("/conversations/{conversation_id}")
+async def update_conversation_title(
+    conversation_id: str,
+    title: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update the title of a conversation (user must own it)
+
+    Args:
+        conversation_id: Conversation identifier
+        title: New title for the conversation
+        current_user: Authenticated user (from JWT token)
+
+    Returns:
+        Success status and updated conversation info
+    """
+    try:
+        # Validate title
+        if not title or not title.strip():
+            raise HTTPException(status_code=400, detail="Title cannot be empty")
+
+        if len(title) > 200:
+            raise HTTPException(status_code=400, detail="Title too long (max 200 characters)")
+
+        job_tracker = get_search_job_tracker()
+        success = job_tracker.update_conversation_title(conversation_id, title.strip(), user_id=current_user.id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "title": title.strip()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating conversation title: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating conversation title: {str(e)}")
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """

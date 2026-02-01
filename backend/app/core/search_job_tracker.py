@@ -106,6 +106,7 @@ class SearchJobTracker:
                     search_mode TEXT NOT NULL,
                     reasoning_mode TEXT NOT NULL,
                     conversation_id TEXT,
+                    conversation_title TEXT,
                     user_id INTEGER,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
@@ -141,6 +142,14 @@ class SearchJobTracker:
             # Add priority_order column if it doesn't exist (migration for existing databases)
             try:
                 conn.execute("ALTER TABLE search_jobs ADD COLUMN priority_order TEXT")
+                conn.commit()
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+
+            # Add conversation_title column if it doesn't exist (migration for existing databases)
+            try:
+                conn.execute("ALTER TABLE search_jobs ADD COLUMN conversation_title TEXT")
                 conn.commit()
             except sqlite3.OperationalError:
                 # Column already exists
@@ -385,7 +394,8 @@ class SearchJobTracker:
                         MIN(created_at) as first_search,
                         MAX(updated_at) as last_updated,
                         COUNT(*) as search_count,
-                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
+                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query,
+                        MAX(conversation_title) as custom_title
                     FROM search_jobs
                     WHERE conversation_id IS NOT NULL AND user_id = ?
                     GROUP BY conversation_id
@@ -400,7 +410,8 @@ class SearchJobTracker:
                         MIN(created_at) as first_search,
                         MAX(updated_at) as last_updated,
                         COUNT(*) as search_count,
-                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query
+                        MAX(CASE WHEN status = 'completed' THEN query ELSE NULL END) as last_query,
+                        MAX(conversation_title) as custom_title
                     FROM search_jobs
                     WHERE conversation_id IS NOT NULL
                     GROUP BY conversation_id
@@ -411,10 +422,12 @@ class SearchJobTracker:
 
             conversations = []
             for row in rows:
-                conversation_id, first_search, last_updated, search_count, last_query = row
+                conversation_id, first_search, last_updated, search_count, last_query, custom_title = row
+                # Use custom title if set, otherwise use auto-generated title from last query
+                title = custom_title if custom_title else ((last_query[:50] + '...') if last_query and len(last_query) > 50 else (last_query or 'Conversation'))
                 conversations.append({
                     'id': conversation_id,
-                    'title': (last_query[:50] + '...') if last_query and len(last_query) > 50 else (last_query or 'Conversation'),
+                    'title': title,
                     'createdAt': first_search,
                     'updatedAt': last_updated,
                     'searchCount': search_count
@@ -489,6 +502,52 @@ class SearchJobTracker:
                     })
 
             return history
+
+    def update_conversation_title(self, conversation_id: str, new_title: str, user_id: Optional[int] = None) -> bool:
+        """
+        Update the title for a conversation
+
+        Args:
+            conversation_id: Conversation identifier
+            new_title: New title for the conversation
+            user_id: Optional user ID to verify ownership
+
+        Returns:
+            True if conversation was found and updated, False otherwise
+        """
+        with self.lock:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                # Verify conversation exists and belongs to user
+                if user_id is not None:
+                    check_query = "SELECT COUNT(*) FROM search_jobs WHERE conversation_id = ? AND user_id = ?"
+                    result = conn.execute(check_query, (conversation_id, user_id)).fetchone()
+                else:
+                    check_query = "SELECT COUNT(*) FROM search_jobs WHERE conversation_id = ?"
+                    result = conn.execute(check_query, (conversation_id,)).fetchone()
+
+                if not result or result[0] == 0:
+                    logger.warning(f"Cannot update title for conversation {conversation_id}: not found")
+                    return False
+
+                # Update conversation_title for all searches in this conversation
+                if user_id is not None:
+                    update_query = """
+                        UPDATE search_jobs
+                        SET conversation_title = ?, updated_at = ?
+                        WHERE conversation_id = ? AND user_id = ?
+                    """
+                    conn.execute(update_query, (new_title, datetime.now().isoformat(), conversation_id, user_id))
+                else:
+                    update_query = """
+                        UPDATE search_jobs
+                        SET conversation_title = ?, updated_at = ?
+                        WHERE conversation_id = ?
+                    """
+                    conn.execute(update_query, (new_title, datetime.now().isoformat(), conversation_id))
+
+                conn.commit()
+                logger.info(f"Conversation {conversation_id} title updated to: {new_title}")
+                return True
 
 
 # Global search job tracker instance

@@ -14,7 +14,8 @@ function AISearch() {
     createNewConversation,
     updateCurrentConversation,
     switchConversation,
-    deleteConversation
+    deleteConversation,
+    renameConversation
   } = useChatHistory();
 
   const [conversationHistory, setConversationHistory] = useState([]);
@@ -22,6 +23,8 @@ function AISearch() {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editingConversationId, setEditingConversationId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const [topK, setTopK] = useState(10);
   const [searchMode, setSearchMode] = useState('auto');
   const [reasoningMode, setReasoningMode] = useState('non_reasoning');
@@ -661,6 +664,40 @@ function AISearch() {
     }
   }, [loadDocuments]);
 
+  const handleStartRename = useCallback((e, conversationId, currentTitle) => {
+    e.stopPropagation();
+    setEditingConversationId(conversationId);
+    setEditingTitle(currentTitle);
+  }, []);
+
+  const handleCancelRename = useCallback(() => {
+    setEditingConversationId(null);
+    setEditingTitle('');
+  }, []);
+
+  const handleSaveRename = useCallback(async (e, conversationId) => {
+    e.stopPropagation();
+    if (!editingTitle.trim()) {
+      alert('Title cannot be empty');
+      return;
+    }
+    try {
+      await renameConversation(conversationId, editingTitle.trim());
+      setEditingConversationId(null);
+      setEditingTitle('');
+    } catch (error) {
+      alert('Failed to rename conversation: ' + error.message);
+    }
+  }, [editingTitle, renameConversation]);
+
+  const handleRenameKeyDown = useCallback((e, conversationId) => {
+    if (e.key === 'Enter') {
+      handleSaveRename(e, conversationId);
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
+    }
+  }, [handleSaveRename, handleCancelRename]);
+
   return (
     <div className={`ai-search-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {sidebarCollapsed && (
@@ -681,15 +718,45 @@ function AISearch() {
             <div className="no-chat-history"><p>No chat history yet.<br/>Start a conversation!</p></div>
           ) : (
             conversations.map(conv => (
-              <div key={conv.id} className={`chat-history-item ${conv.id === currentConversationId ? 'active' : ''}`} onClick={() => switchConversation(conv.id)}>
+              <div key={conv.id} className={`chat-history-item ${conv.id === currentConversationId ? 'active' : ''} ${editingConversationId === conv.id ? 'editing' : ''}`} onClick={() => editingConversationId !== conv.id && switchConversation(conv.id)}>
                 <div className="chat-history-content">
-                  <div className="chat-history-title">{conv.title}</div>
+                  {editingConversationId === conv.id ? (
+                    <input
+                      type="text"
+                      className="chat-history-title-input"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  ) : (
+                    <div className="chat-history-title">{conv.title}</div>
+                  )}
                   <div className="chat-history-date">{formatDate(conv.updatedAt)}</div>
                   <div className="chat-history-count">{conv.history.length} message{conv.history.length !== 1 ? 's' : ''}</div>
                 </div>
-                <button className="chat-history-delete" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this conversation?')) deleteConversation(conv.id); }} title="Delete conversation">
-                  🗑️
-                </button>
+                <div className="chat-history-actions">
+                  {editingConversationId === conv.id ? (
+                    <>
+                      <button className="chat-history-save" onClick={(e) => handleSaveRename(e, conv.id)} title="Save">
+                        ✓
+                      </button>
+                      <button className="chat-history-cancel" onClick={(e) => { e.stopPropagation(); handleCancelRename(); }} title="Cancel">
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="chat-history-rename" onClick={(e) => handleStartRename(e, conv.id, conv.title)} title="Rename conversation">
+                        ✏️
+                      </button>
+                      <button className="chat-history-delete" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this conversation?')) deleteConversation(conv.id); }} title="Delete conversation">
+                        🗑️
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ))
           )}

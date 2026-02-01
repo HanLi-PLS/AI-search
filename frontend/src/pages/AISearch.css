@@ -1570,7 +1570,16 @@ section h2 {
     margin-top: 2px;
 }
 
-.chat-history-delete {
+.chat-history-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.chat-history-rename,
+.chat-history-delete,
+.chat-history-save,
+.chat-history-cancel {
     background: transparent;
     border: none;
     color: var(--text-tertiary);
@@ -1583,6 +1592,12 @@ section h2 {
     justify-content: center;
     transition: all 0.2s;
     flex-shrink: 0;
+    font-size: 14px;
+}
+
+.chat-history-rename:hover {
+    background: rgba(255, 105, 0, 0.1);
+    color: var(--pantone-1505u);
 }
 
 .chat-history-delete:hover {
@@ -1590,9 +1605,48 @@ section h2 {
     color: #EF4444;
 }
 
-.chat-history-delete svg {
+.chat-history-save:hover {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.chat-history-cancel:hover {
+    background: rgba(156, 163, 175, 0.1);
+    color: #6b7280;
+}
+
+.chat-history-delete svg,
+.chat-history-rename svg,
+.chat-history-save svg,
+.chat-history-cancel svg {
     width: 16px;
     height: 16px;
+}
+
+.chat-history-title-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--pantone-1505u);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 105, 0, 0.1);
+}
+
+.chat-history-title-input:focus {
+    box-shadow: 0 0 0 3px rgba(255, 105, 0, 0.2);
+}
+
+.chat-history-item.editing {
+    background: var(--hover-bg);
+    border-color: var(--pantone-1505u);
+}
+
+.chat-history-item.editing:hover {
+    background: var(--hover-bg);
 }
 
 .no-chat-history {
