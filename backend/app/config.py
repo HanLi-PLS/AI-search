@@ -69,14 +69,14 @@ class Settings(BaseSettings):
     AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT: str = os.getenv("AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT", "airflow/variables/CAPIQ_SNOWFLAKE_ACCOUNT_ID")
 
     # Vision Model Configuration (for image processing in PDFs)
-    VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
+    VISION_MODEL: str = os.getenv("VISION_MODEL", "gpt-5.2")  # or "gpt-4o"
 
     # Answer Generation Model Configuration (for answering questions)
-    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-5.1")  # Model for generating answers (gpt-5.1, gpt-4.1, gpt-4o, o3, etc)
+    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-5.2")  # Model for generating answers (gpt-5.2, gpt-4.1, gpt-4o, o3, etc)
     ANSWER_TEMPERATURE: float = float(os.getenv("ANSWER_TEMPERATURE", "0"))
 
     # Online Search Model Configuration (for web search)
-    ONLINE_SEARCH_MODEL: str = os.getenv("ONLINE_SEARCH_MODEL", "o4-mini")  # Model for online search (o4-mini, o3, etc)
+    ONLINE_SEARCH_MODEL: str = os.getenv("ONLINE_SEARCH_MODEL", "gpt-5.2")  # Model for online search (gpt-5.2, o3, etc)
 
     # AWS Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")

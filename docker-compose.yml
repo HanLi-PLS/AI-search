@@ -35,10 +35,10 @@ services:
       - USE_S3_STORAGE=true
       - AWS_S3_BUCKET=plfs-han-ai-search
       - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-      - VISION_MODEL=o4-mini
-      - ANSWER_MODEL=gpt-4.1
+      - VISION_MODEL=gpt-5.2
+      - ANSWER_MODEL=gpt-5.2
       - ANSWER_TEMPERATURE=0
-      - ONLINE_SEARCH_MODEL=o4-mini
+      - ONLINE_SEARCH_MODEL=gpt-5.2
       - MAX_CONCURRENT_VISION_CALLS=10
     depends_on:
       - qdrant
