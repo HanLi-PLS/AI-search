@@ -274,6 +274,43 @@ async def search_documents(
             logger.info(f"Auto mode selected: {selected_mode}")
             logger.info(f"Reasoning: {mode_reasoning}")
 
+            # If auto mode selected sectional_analysis, we need to process async
+            # because sectional analysis is a long-running operation
+            if actual_search_mode == "sectional_analysis":
+                logger.info(f"Auto mode detected sectional query, switching to async processing...")
+                job_id = f"search_{uuid.uuid4().hex}"
+                job_tracker = get_search_job_tracker()
+
+                import json as json_module
+                priority_order_str = json_module.dumps(search_request.priority_order) if search_request.priority_order else None
+
+                job_tracker.create_job(
+                    job_id=job_id,
+                    query=search_request.query,
+                    search_mode="sectional_analysis",  # Use the classified mode
+                    reasoning_mode=search_request.reasoning_mode,
+                    conversation_id=search_request.conversation_id,
+                    user_id=current_user.id,
+                    top_k=search_request.top_k,
+                    priority_order=priority_order_str
+                )
+
+                # Update the search request to use sectional_analysis mode
+                search_request_dict = search_request.dict()
+                search_request_dict["search_mode"] = "sectional_analysis"
+
+                background_tasks.add_task(process_search_job, job_id, search_request_dict)
+
+                return {
+                    "success": True,
+                    "job_id": job_id,
+                    "message": f"Query detected as multi-section document request. Processing in background.",
+                    "estimated_time": "10-20 minutes (multi-section processing)",
+                    "is_async": True,
+                    "selected_mode": "sectional_analysis",
+                    "mode_reasoning": mode_reasoning
+                }
+
         # Only search files if mode is not online_only
         if actual_search_mode != "online_only":
             vector_store = get_vector_store()
