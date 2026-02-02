@@ -1248,7 +1248,9 @@ Write the section now:"""
         reasoning_mode: str = "non_reasoning",
         conversation_history: Optional[List[Dict[str, Any]]] = None,
         progress_callback: Optional[callable] = None,
-        max_context_length: int = 8000
+        max_context_length: int = 8000,
+        search_function: Optional[callable] = None,
+        top_k: int = 20
     ) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Generate a comprehensive answer by dividing the query into sections,
@@ -1259,11 +1261,13 @@ Write the section now:"""
 
         Args:
             query: User's question containing an outline/sections
-            search_results: File search results
+            search_results: File search results (fallback if search_function not provided)
             reasoning_mode: The reasoning mode to use
             conversation_history: Previous conversation context
             progress_callback: Optional callback for progress updates (step_num, total_steps, section_name)
             max_context_length: Max chars for file context
+            search_function: Optional function to perform section-specific searches
+            top_k: Number of results to retrieve per section search
 
         Returns:
             Tuple of (combined_answer, all_online_responses, all_extracted_info)
@@ -1310,18 +1314,38 @@ Write the section now:"""
 
         for idx, section in enumerate(ordered_sections):
             section_name = section.get("name", f"Section {idx + 1}")
+            section_desc = section.get("description", "")
 
             # Calculate progress (parsing = 10%, sections = 80%, combining = 10%)
             section_progress = 10 + int((idx / total_sections) * 80)
             if progress_callback:
-                progress_callback(section_progress, 100, f"Writing {section_name}...")
+                progress_callback(section_progress, 100, f"Searching for {section_name}...")
 
             logger.info(f"[SECTIONAL] Processing section {idx + 1}/{total_sections}: {section_name}")
+
+            # Perform section-specific search if search function is provided
+            if search_function:
+                # Create a targeted search query for this section
+                section_search_query = f"{subject} {section_name} {section_desc}"
+                logger.info(f"[SECTIONAL] Section-specific search: '{section_search_query[:80]}...' with top_k={top_k}")
+
+                try:
+                    section_results = search_function(section_search_query, top_k)
+                    logger.info(f"[SECTIONAL] Found {len(section_results)} results for {section_name}")
+                except Exception as e:
+                    logger.error(f"[SECTIONAL] Section search failed: {str(e)}, using fallback results")
+                    section_results = search_results
+            else:
+                # Fallback to the original search results
+                section_results = search_results
+
+            if progress_callback:
+                progress_callback(section_progress + 2, 100, f"Writing {section_name}...")
 
             section_content, online_response, extracted_info = self.generate_section_content(
                 section=section,
                 subject=subject,
-                search_results=search_results,
+                search_results=section_results,
                 previous_sections=generated_sections,
                 formatting_instructions=formatting_instructions,
                 reasoning_mode=reasoning_mode,

@@ -128,12 +128,25 @@ def process_search_job(job_id: str, search_request_dict: dict):
                 scaled_progress = 25 + int((progress / total) * 70)
                 job_tracker.update_progress(job_id, scaled_progress, step_name)
 
+            # Create a search function for section-specific searches
+            def section_search_function(query: str, top_k: int):
+                return vector_store.search(
+                    query=query,
+                    top_k=top_k,
+                    file_types=search_request.file_types,
+                    date_from=search_request.date_from,
+                    date_to=search_request.date_to,
+                    conversation_id=search_request.conversation_id
+                )
+
             answer, online_search_response, extracted_info = answer_generator.generate_sectional_answer(
                 query=search_request.query,
-                search_results=results,
+                search_results=results,  # Fallback results
                 reasoning_mode=search_request.reasoning_mode,
                 conversation_history=conversation_history_dict,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                search_function=section_search_function,
+                top_k=search_request.top_k
             )
         else:
             answer, online_search_response, extracted_info = answer_generator.generate_answer(
