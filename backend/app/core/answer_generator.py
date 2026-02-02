@@ -1005,72 +1005,21 @@ Parse the query now:"""
                 "parse_error": str(e)
             }
 
-    def generate_section_content(
-        self,
-        section: Dict[str, Any],
-        subject: str,
-        search_results: List[Dict[str, Any]],
-        previous_sections: Dict[str, str],
-        formatting_instructions: str,
-        reasoning_mode: str,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
-        max_context_length: int = 8000
-    ) -> Tuple[str, Optional[str], Optional[str]]:
+    def generate_extraction_schema(self, section_name: str, subject: str, section_desc: str) -> str:
         """
-        Generate content for a single section using file search and online search.
+        Generate a detailed extraction checklist for a specific section.
+        This checklist guides both the search query and the extraction process.
 
         Args:
-            section: Section info with name, description, depends_on_others
-            subject: Main subject being analyzed
-            search_results: File search results
-            previous_sections: Dict of already generated sections
-            formatting_instructions: Formatting requirements
-            reasoning_mode: The reasoning mode to use
-            conversation_history: Previous conversation context
-            max_context_length: Max chars for file context
+            section_name: Name of the section (e.g., "Pipeline analysis")
+            subject: Main subject being analyzed (e.g., company name)
+            section_desc: Description of what the section needs
 
         Returns:
-            Tuple of (section_content, online_search_response, extracted_info)
+            Detailed extraction checklist as a string
         """
         import time
-        section_name = section.get("name", "Section")
-        section_desc = section.get("description", "")
-        depends_on_others = section.get("depends_on_others", False)
 
-        logger.info(f"[SECTIONAL] Generating section: {section_name}")
-
-        # Select model based on reasoning mode
-        if reasoning_mode == "reasoning_gpt5":
-            search_model = "gpt-5-pro"
-        elif reasoning_mode == "reasoning_gemini":
-            search_model = "gemini-3-pro-preview"
-        elif reasoning_mode == "deep_research":
-            search_model = "o3-deep-research"
-        else:
-            search_model = "gpt-5.2"
-
-        # Build file context
-        files_context_parts = []
-        current_length = 0
-
-        for idx, result in enumerate(search_results, 1):
-            content = result.get("content", "")
-            metadata = result.get("metadata", {})
-            source = metadata.get("source", "Unknown")
-
-            chunk = f"[Source {idx}: {source}]\n{content}\n"
-            chunk_length = len(chunk)
-
-            if current_length + chunk_length > max_context_length:
-                break
-
-            files_context_parts.append(chunk)
-            current_length += chunk_length
-
-        files_context = "\n".join(files_context_parts)
-
-        # Step 0: Generate section-specific extraction schema
-        # This creates a detailed, tailored checklist for what to extract for this specific section
         schema_prompt = f"""You are an expert analyst. For the section "{section_name}" about "{subject}", create a detailed extraction checklist.
 
 **Section**: {section_name}
@@ -1122,11 +1071,103 @@ Now create a similar detailed extraction checklist for the "{section_name}" sect
             )
             extraction_schema = schema_response.output_text
             logger.info(f"[SECTIONAL] Section {section_name} - Generated extraction schema in {time.time() - schema_start:.1f}s")
+            return extraction_schema
         except Exception as e:
             logger.error(f"[SECTIONAL] Section {section_name} - Schema generation failed: {str(e)}")
-            extraction_schema = f"Extract all relevant information for {section_name}"
+            return f"Extract all relevant information for {section_name}"
 
-        # Step 1: Extract information from files using the detailed schema
+    def build_search_query_from_schema(self, subject: str, section_name: str, extraction_schema: str) -> str:
+        """
+        Build an optimized search query using keywords from the extraction schema.
+
+        Args:
+            subject: Main subject being analyzed
+            section_name: Name of the section
+            extraction_schema: The detailed extraction checklist
+
+        Returns:
+            Optimized search query string
+        """
+        # Extract key terms from the schema (first 500 chars to avoid overly long queries)
+        schema_snippet = extraction_schema[:500] if len(extraction_schema) > 500 else extraction_schema
+
+        # Build search query combining subject, section name, and key schema terms
+        search_query = f"{subject} {section_name} {schema_snippet}"
+
+        # Limit total query length to prevent issues
+        if len(search_query) > 1000:
+            search_query = search_query[:1000]
+
+        return search_query
+
+    def generate_section_content(
+        self,
+        section: Dict[str, Any],
+        subject: str,
+        search_results: List[Dict[str, Any]],
+        previous_sections: Dict[str, str],
+        formatting_instructions: str,
+        reasoning_mode: str,
+        extraction_schema: str,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        max_context_length: int = 8000
+    ) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        Generate content for a single section using file search and online search.
+
+        Args:
+            section: Section info with name, description, depends_on_others
+            subject: Main subject being analyzed
+            search_results: File search results (already retrieved using schema-guided query)
+            previous_sections: Dict of already generated sections
+            formatting_instructions: Formatting requirements
+            reasoning_mode: The reasoning mode to use
+            extraction_schema: Pre-generated detailed checklist for extraction
+            conversation_history: Previous conversation context
+            max_context_length: Max chars for file context
+
+        Returns:
+            Tuple of (section_content, online_search_response, extracted_info)
+        """
+        import time
+        section_name = section.get("name", "Section")
+        section_desc = section.get("description", "")
+        depends_on_others = section.get("depends_on_others", False)
+
+        logger.info(f"[SECTIONAL] Generating section: {section_name}")
+
+        # Select model based on reasoning mode
+        if reasoning_mode == "reasoning_gpt5":
+            search_model = "gpt-5-pro"
+        elif reasoning_mode == "reasoning_gemini":
+            search_model = "gemini-3-pro-preview"
+        elif reasoning_mode == "deep_research":
+            search_model = "o3-deep-research"
+        else:
+            search_model = "gpt-5.2"
+
+        # Build file context
+        files_context_parts = []
+        current_length = 0
+
+        for idx, result in enumerate(search_results, 1):
+            content = result.get("content", "")
+            metadata = result.get("metadata", {})
+            source = metadata.get("source", "Unknown")
+
+            chunk = f"[Source {idx}: {source}]\n{content}\n"
+            chunk_length = len(chunk)
+
+            if current_length + chunk_length > max_context_length:
+                break
+
+            files_context_parts.append(chunk)
+            current_length += chunk_length
+
+        files_context = "\n".join(files_context_parts)
+
+        # Step 1: Extract information from files using the pre-generated extraction schema
+        # (Schema was generated earlier and used to guide the search query)
         extraction_prompt = f"""You are an expert analyst preparing a professional investment document.
 
 **Subject**: {subject}
@@ -1319,15 +1360,22 @@ Write the section now:"""
             # Calculate progress (parsing = 10%, sections = 80%, combining = 10%)
             section_progress = 10 + int((idx / total_sections) * 80)
             if progress_callback:
-                progress_callback(section_progress, 100, f"Searching for {section_name}...")
+                progress_callback(section_progress, 100, f"Generating checklist for {section_name}...")
 
             logger.info(f"[SECTIONAL] Processing section {idx + 1}/{total_sections}: {section_name}")
 
-            # Perform section-specific search if search function is provided
+            # Step A: Generate extraction schema FIRST (this guides the search)
+            extraction_schema = self.generate_extraction_schema(section_name, subject, section_desc)
+
+            # Step B: Build search query using the extraction schema
+            if progress_callback:
+                progress_callback(section_progress + 1, 100, f"Searching for {section_name}...")
+
+            # Perform section-specific search using schema-informed query
             if search_function:
-                # Create a targeted search query for this section
-                section_search_query = f"{subject} {section_name} {section_desc}"
-                logger.info(f"[SECTIONAL] Section-specific search: '{section_search_query[:80]}...' with top_k={top_k}")
+                # Create a targeted search query using keywords from the extraction schema
+                section_search_query = self.build_search_query_from_schema(subject, section_name, extraction_schema)
+                logger.info(f"[SECTIONAL] Schema-guided search: '{section_search_query[:100]}...' with top_k={top_k}")
 
                 try:
                     section_results = search_function(section_search_query, top_k)
@@ -1339,8 +1387,9 @@ Write the section now:"""
                 # Fallback to the original search results
                 section_results = search_results
 
+            # Step C: Generate section content using the schema and search results
             if progress_callback:
-                progress_callback(section_progress + 2, 100, f"Writing {section_name}...")
+                progress_callback(section_progress + 3, 100, f"Writing {section_name}...")
 
             section_content, online_response, extracted_info = self.generate_section_content(
                 section=section,
@@ -1349,6 +1398,7 @@ Write the section now:"""
                 previous_sections=generated_sections,
                 formatting_instructions=formatting_instructions,
                 reasoning_mode=reasoning_mode,
+                extraction_schema=extraction_schema,
                 conversation_history=conversation_history,
                 max_context_length=max_context_length
             )
