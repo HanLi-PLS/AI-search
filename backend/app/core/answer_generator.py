@@ -1069,25 +1069,84 @@ Parse the query now:"""
 
         files_context = "\n".join(files_context_parts)
 
-        # Step 1: Extract information from files relevant to this section
-        extraction_prompt = f"""You are an expert analyst preparing a professional document.
+        # Step 0: Generate section-specific extraction schema
+        # This creates a detailed, tailored checklist for what to extract for this specific section
+        schema_prompt = f"""You are an expert analyst. For the section "{section_name}" about "{subject}", create a detailed extraction checklist.
+
+**Section**: {section_name}
+**Subject**: {subject}
+**Section Description**: {section_desc}
+
+**Task**: Create a comprehensive extraction checklist that specifies EXACTLY what information should be extracted from documents to write this section. Be very specific and detailed.
+
+**Format your response as a numbered list of specific items to extract. Examples:**
+
+If the section is "Pipeline analysis":
+1. List all drug/product candidates with their names and codes
+2. For each candidate: current development phase (Preclinical, Phase 1, 2, 3, Approved)
+3. For each candidate: target indication(s) and patient population
+4. Key efficacy data points (response rates, survival data, biomarker results)
+5. Safety/tolerability profile and any notable adverse events
+6. Mechanism of action and therapeutic approach
+7. Competitive differentiation vs existing treatments
+8. Expected milestones and timeline (IND, data readouts, regulatory submissions)
+9. Manufacturing/CMC status
+10. Partnership or licensing status for each asset
+
+If the section is "Management Team":
+1. Names and titles of key executives (CEO, CSO, CMO, CFO, etc.)
+2. Professional background and prior company experience for each
+3. Scientific/medical credentials and publications
+4. Track record of drug development success
+5. Board members and their affiliations
+6. Scientific advisory board composition
+7. Any notable gaps in the team
+
+If the section is "Investment Thesis":
+1. Key compelling reasons to invest (unique technology, market opportunity, team strength)
+2. Competitive advantages and barriers to entry
+3. Market size and growth potential
+4. Unmet medical need being addressed
+5. Key risks (scientific, regulatory, commercial, financial)
+6. Risk mitigation strategies
+7. Catalysts and value inflection points
+
+Now create a similar detailed extraction checklist for the "{section_name}" section:"""
+
+        try:
+            schema_start = time.time()
+            schema_response = self.client.responses.create(
+                model="gpt-5.2",
+                input=schema_prompt,
+                service_tier="priority"
+            )
+            extraction_schema = schema_response.output_text
+            logger.info(f"[SECTIONAL] Section {section_name} - Generated extraction schema in {time.time() - schema_start:.1f}s")
+        except Exception as e:
+            logger.error(f"[SECTIONAL] Section {section_name} - Schema generation failed: {str(e)}")
+            extraction_schema = f"Extract all relevant information for {section_name}"
+
+        # Step 1: Extract information from files using the detailed schema
+        extraction_prompt = f"""You are an expert analyst preparing a professional investment document.
 
 **Subject**: {subject}
 **Current Section**: {section_name}
-**Section Requirements**: {section_desc}
 
-**Documents**:
+**EXTRACTION CHECKLIST - Extract the following specific items**:
+{extraction_schema}
+
+**SOURCE DOCUMENTS**:
 {files_context}
 
-**Task**: Extract all information from these documents that is relevant to writing the "{section_name}" section about {subject}.
+**Instructions**:
+- Go through each item in the extraction checklist systematically
+- For each checklist item, extract the relevant information from the documents
+- If information for an item is not found, explicitly note "[NOT FOUND]"
+- Include specific data points, numbers, dates, and direct quotes where available
+- Organize your extraction following the checklist structure
+- Be thorough - this extraction will be used to write the final section
 
-**Guidelines**:
-- Focus only on information relevant to this specific section
-- Be thorough and include all relevant data, facts, metrics
-- Organize the extracted information clearly
-- Note any gaps or missing information
-
-Extract the relevant information now:"""
+Begin systematic extraction:"""
 
         try:
             step1_start = time.time()
