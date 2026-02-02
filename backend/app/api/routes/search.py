@@ -33,6 +33,9 @@ limiter = Limiter(key_func=get_remote_address)
 # Modes that require background processing (long-running)
 ASYNC_SEARCH_MODES = ["reasoning_gpt5", "reasoning_gemini", "deep_research"]
 
+# Search modes that are always async (long-running regardless of reasoning mode)
+ASYNC_ONLY_SEARCH_MODES = ["sectional_analysis"]
+
 
 def process_search_job(job_id: str, search_request_dict: dict):
     """
@@ -115,14 +118,32 @@ def process_search_job(job_id: str, search_request_dict: dict):
         if search_request.conversation_history:
             conversation_history_dict = [turn.dict() for turn in search_request.conversation_history]
 
-        answer, online_search_response, extracted_info = answer_generator.generate_answer(
-            query=search_request.query,
-            search_results=results,
-            search_mode=actual_search_mode,
-            reasoning_mode=search_request.reasoning_mode,
-            priority_order=search_request.priority_order,
-            conversation_history=conversation_history_dict
-        )
+        # Handle sectional_analysis mode specially
+        if actual_search_mode == "sectional_analysis":
+            logger.info(f"[JOB {job_id}] Using sectional analysis (divide and conquer) mode...")
+
+            # Define progress callback for sectional processing
+            def progress_callback(progress: int, total: int, step_name: str):
+                # Scale progress: 25-95% for sectional processing
+                scaled_progress = 25 + int((progress / total) * 70)
+                job_tracker.update_progress(job_id, scaled_progress, step_name)
+
+            answer, online_search_response, extracted_info = answer_generator.generate_sectional_answer(
+                query=search_request.query,
+                search_results=results,
+                reasoning_mode=search_request.reasoning_mode,
+                conversation_history=conversation_history_dict,
+                progress_callback=progress_callback
+            )
+        else:
+            answer, online_search_response, extracted_info = answer_generator.generate_answer(
+                query=search_request.query,
+                search_results=results,
+                search_mode=actual_search_mode,
+                reasoning_mode=search_request.reasoning_mode,
+                priority_order=search_request.priority_order,
+                conversation_history=conversation_history_dict
+            )
 
         # Update progress to near completion
         job_tracker.update_progress(job_id, 95, "Finalizing results...")
@@ -183,7 +204,11 @@ async def search_documents(
         Search results with GPT-generated answer (sync mode) or job_id (async mode)
     """
     # Check if this is a long-running search that should be processed in background
-    is_async_mode = search_request.reasoning_mode in ASYNC_SEARCH_MODES
+    # Async modes: certain reasoning modes OR sectional_analysis search mode
+    is_async_mode = (
+        search_request.reasoning_mode in ASYNC_SEARCH_MODES or
+        search_request.search_mode in ASYNC_ONLY_SEARCH_MODES
+    )
 
     if is_async_mode:
         # Create background job for long-running search
@@ -215,7 +240,13 @@ async def search_documents(
         background_tasks.add_task(process_search_job, job_id, search_request_dict)
 
         # Return immediately with job_id
-        estimated_time = "5-10 minutes" if search_request.reasoning_mode == "reasoning_gpt5" else "15-30 minutes"
+        # Estimate time based on mode
+        if search_request.search_mode == "sectional_analysis":
+            estimated_time = "10-20 minutes (multi-section processing)"
+        elif search_request.reasoning_mode == "reasoning_gpt5":
+            estimated_time = "5-10 minutes"
+        else:
+            estimated_time = "15-30 minutes"
         return {
             "success": True,
             "job_id": job_id,

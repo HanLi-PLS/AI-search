@@ -63,6 +63,11 @@ class AnswerGenerator:
         try:
             logger.info(f"Classifying query: {query[:50]}...")
 
+            # First check if this is a sectional query (multi-section document request)
+            if self.detect_sectional_query(query):
+                logger.info(f"Query detected as sectional (multi-section document request)")
+                return "sectional_analysis", "Query contains an outline or multi-section structure (e.g., fact sheet, report), requiring divide-and-conquer processing where each section is analyzed separately and combined."
+
             classification_prompt = f"""You are an intelligent query router for a hybrid search system. Analyze the following user query and determine the best search strategy.
 
 **User Query**: "{query}"
@@ -857,6 +862,451 @@ If this is a follow-up question referring to previous conversation, use the cont
                 return f"Error generating answer: {str(e)}", online_search_response, None
 
         return "Invalid search mode specified.", None, None
+
+    def detect_sectional_query(self, query: str) -> bool:
+        """
+        Detect if a query is a sectional/outline-based query that requires
+        divide-and-conquer processing (e.g., multi-section fact sheets, reports).
+
+        Args:
+            query: User's question
+
+        Returns:
+            True if the query contains an outline/sections structure
+        """
+        # Keywords that suggest sectional/outline structure
+        sectional_keywords = [
+            "sections to include",
+            "outline below",
+            "following sections",
+            "in order:",
+            "fact sheet",
+            "factsheet",
+            "prepare a report",
+            "investment memo",
+            "due diligence",
+            "executive summary",
+            "sections:",
+            "format:",
+            "include the following",
+            "following outline",
+            "structured as follows",
+            "broken down into",
+            "divided into sections"
+        ]
+
+        query_lower = query.lower()
+
+        # Check for sectional keywords
+        for keyword in sectional_keywords:
+            if keyword in query_lower:
+                return True
+
+        # Check for numbered sections pattern (e.g., "1. Executive Summary; 2. Deal dynamics")
+        import re
+        numbered_pattern = r'\d+[\.\)]\s*[A-Z][a-z]+'
+        if len(re.findall(numbered_pattern, query)) >= 3:
+            return True
+
+        # Check for semicolon-separated sections pattern
+        if query.count(';') >= 3 and any(word in query_lower for word in ['section', 'include', 'analysis', 'summary']):
+            return True
+
+        return False
+
+    def parse_sections_from_query(self, query: str) -> Dict[str, Any]:
+        """
+        Parse a sectional query to extract the company/subject, outline structure,
+        and individual sections to process.
+
+        Args:
+            query: User's question containing an outline
+
+        Returns:
+            Dictionary with:
+            - subject: The main subject (e.g., company name)
+            - sections: List of section names/titles
+            - formatting_instructions: Any formatting requirements
+            - original_query: The full original query
+        """
+        try:
+            parse_prompt = f"""You are an expert query parser. Analyze this query and extract the structured components.
+
+**Query**: "{query}"
+
+**Task**: Parse this query to identify:
+1. The main SUBJECT (company name, product, topic being analyzed)
+2. The SECTIONS/OUTLINE structure (list each section title separately)
+3. Any FORMATTING INSTRUCTIONS (language, style, format requirements)
+4. Determine if any section should be written LAST because it summarizes other sections (e.g., "Executive Summary")
+
+**Important Notes**:
+- Extract section titles exactly as written in the query
+- Identify sections that depend on other sections' content (usually summaries)
+- Some sections like "Executive Summary" should be generated AFTER all other sections
+
+**Response Format (JSON)**:
+```json
+{{
+  "subject": "Company/Topic name extracted from query",
+  "sections": [
+    {{"name": "Section Title 1", "depends_on_others": false, "description": "Brief description of what this section needs"}},
+    {{"name": "Section Title 2", "depends_on_others": false, "description": "Brief description"}},
+    {{"name": "Executive Summary", "depends_on_others": true, "description": "Summarizes all other sections"}}
+  ],
+  "formatting_instructions": "Any formatting requirements extracted",
+  "summary_section": "Name of the section that should be written last (usually Executive Summary), or null if none"
+}}
+```
+
+Parse the query now:"""
+
+            logger.info(f"[SECTIONAL] Parsing query to extract sections...")
+            response = self.client.responses.create(
+                model="gpt-5.2",
+                input=parse_prompt,
+                service_tier="priority"
+            )
+
+            parse_text = response.output_text
+            logger.info(f"[SECTIONAL] Parse response: {parse_text[:500]}...")
+
+            # Extract JSON from response
+            import json
+            import re
+
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', parse_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                json_match = re.search(r'\{.*\}', parse_text, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    raise ValueError("Could not extract JSON from parse response")
+
+            parsed = json.loads(json_str)
+            parsed['original_query'] = query
+
+            logger.info(f"[SECTIONAL] Parsed subject: {parsed.get('subject')}")
+            logger.info(f"[SECTIONAL] Found {len(parsed.get('sections', []))} sections")
+
+            return parsed
+
+        except Exception as e:
+            logger.error(f"[SECTIONAL] Error parsing sectional query: {str(e)}")
+            # Return a fallback structure
+            return {
+                "subject": "Unknown",
+                "sections": [{"name": "Main Content", "depends_on_others": False, "description": "Complete analysis"}],
+                "formatting_instructions": "",
+                "summary_section": None,
+                "original_query": query,
+                "parse_error": str(e)
+            }
+
+    def generate_section_content(
+        self,
+        section: Dict[str, Any],
+        subject: str,
+        search_results: List[Dict[str, Any]],
+        previous_sections: Dict[str, str],
+        formatting_instructions: str,
+        reasoning_mode: str,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        max_context_length: int = 8000
+    ) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        Generate content for a single section using file search and online search.
+
+        Args:
+            section: Section info with name, description, depends_on_others
+            subject: Main subject being analyzed
+            search_results: File search results
+            previous_sections: Dict of already generated sections
+            formatting_instructions: Formatting requirements
+            reasoning_mode: The reasoning mode to use
+            conversation_history: Previous conversation context
+            max_context_length: Max chars for file context
+
+        Returns:
+            Tuple of (section_content, online_search_response, extracted_info)
+        """
+        import time
+        section_name = section.get("name", "Section")
+        section_desc = section.get("description", "")
+        depends_on_others = section.get("depends_on_others", False)
+
+        logger.info(f"[SECTIONAL] Generating section: {section_name}")
+
+        # Select model based on reasoning mode
+        if reasoning_mode == "reasoning_gpt5":
+            search_model = "gpt-5-pro"
+        elif reasoning_mode == "reasoning_gemini":
+            search_model = "gemini-3-pro-preview"
+        elif reasoning_mode == "deep_research":
+            search_model = "o3-deep-research"
+        else:
+            search_model = "gpt-5.2"
+
+        # Build file context
+        files_context_parts = []
+        current_length = 0
+
+        for idx, result in enumerate(search_results, 1):
+            content = result.get("content", "")
+            metadata = result.get("metadata", {})
+            source = metadata.get("source", "Unknown")
+
+            chunk = f"[Source {idx}: {source}]\n{content}\n"
+            chunk_length = len(chunk)
+
+            if current_length + chunk_length > max_context_length:
+                break
+
+            files_context_parts.append(chunk)
+            current_length += chunk_length
+
+        files_context = "\n".join(files_context_parts)
+
+        # Step 1: Extract information from files relevant to this section
+        extraction_prompt = f"""You are an expert analyst preparing a professional document.
+
+**Subject**: {subject}
+**Current Section**: {section_name}
+**Section Requirements**: {section_desc}
+
+**Documents**:
+{files_context}
+
+**Task**: Extract all information from these documents that is relevant to writing the "{section_name}" section about {subject}.
+
+**Guidelines**:
+- Focus only on information relevant to this specific section
+- Be thorough and include all relevant data, facts, metrics
+- Organize the extracted information clearly
+- Note any gaps or missing information
+
+Extract the relevant information now:"""
+
+        try:
+            step1_start = time.time()
+            extraction_response = self.client.responses.create(
+                model=self.model,
+                input=extraction_prompt,
+                service_tier="priority"
+            )
+            extracted_info = extraction_response.output_text
+            logger.info(f"[SECTIONAL] Section {section_name} - Extraction done in {time.time() - step1_start:.1f}s")
+        except Exception as e:
+            logger.error(f"[SECTIONAL] Section {section_name} - Extraction failed: {str(e)}")
+            extracted_info = f"Error extracting information: {str(e)}"
+
+        # Step 2: Online search for this section
+        online_search_prompt = f"""Search for information to supplement a "{section_name}" section about {subject}.
+
+**Section Requirements**: {section_desc}
+
+**Information already extracted from documents**:
+{extracted_info[:2000]}
+
+**Task**: Search online for:
+- Additional context about {subject} relevant to {section_name}
+- Industry comparisons, benchmarks, or competitive data
+- Recent news or developments
+- Any information that would strengthen this section
+
+Provide comprehensive search results:"""
+
+        try:
+            step2_start = time.time()
+            if reasoning_mode == "reasoning_gemini":
+                online_search_response = self.answer_with_gemini(online_search_prompt)
+            else:
+                online_search_response = self.answer_online_search(online_search_prompt, model=search_model)
+            logger.info(f"[SECTIONAL] Section {section_name} - Online search done in {time.time() - step2_start:.1f}s")
+        except Exception as e:
+            logger.error(f"[SECTIONAL] Section {section_name} - Online search failed: {str(e)}")
+            online_search_response = f"Error in online search: {str(e)}"
+
+        # Step 3: Generate section content
+        # Include previous sections context if this section depends on others
+        previous_context = ""
+        if depends_on_others and previous_sections:
+            previous_context = "\n**Previously Generated Sections**:\n"
+            for prev_name, prev_content in previous_sections.items():
+                # Truncate to avoid context overflow
+                truncated = prev_content[:1500] if len(prev_content) > 1500 else prev_content
+                previous_context += f"\n--- {prev_name} ---\n{truncated}\n"
+
+        generation_prompt = f"""You are an expert analyst writing a professional document.
+
+**Subject**: {subject}
+**Current Section**: {section_name}
+**Section Requirements**: {section_desc}
+**Formatting Instructions**: {formatting_instructions}
+{previous_context}
+
+**Information Extracted from Documents**:
+{extracted_info}
+
+**Online Search Results**:
+{online_search_response}
+
+**Task**: Write the "{section_name}" section for a professional document about {subject}.
+
+**Guidelines**:
+- Write in a professional, concise style appropriate for the document type
+- Use the formatting instructions provided
+- Synthesize information from both file extraction and online search
+- Be factual and objective - do not fabricate information
+- Use bullet points only when they improve clarity
+- Use tables where appropriate (e.g., for pipeline, milestones, financials)
+- Bold key facts and conclusions
+{f'- Since this section summarizes other sections, ensure it captures the key points from all previous sections' if depends_on_others else ''}
+
+Write the section now:"""
+
+        try:
+            step3_start = time.time()
+            generation_response = self.client.responses.create(
+                model=self.model,
+                input=generation_prompt,
+                service_tier="priority"
+            )
+            section_content = generation_response.output_text
+            logger.info(f"[SECTIONAL] Section {section_name} - Generation done in {time.time() - step3_start:.1f}s")
+        except Exception as e:
+            logger.error(f"[SECTIONAL] Section {section_name} - Generation failed: {str(e)}")
+            section_content = f"Error generating section: {str(e)}"
+
+        return section_content, online_search_response, extracted_info
+
+    def generate_sectional_answer(
+        self,
+        query: str,
+        search_results: List[Dict[str, Any]],
+        reasoning_mode: str = "non_reasoning",
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        progress_callback: Optional[callable] = None,
+        max_context_length: int = 8000
+    ) -> Tuple[str, Optional[str], Optional[str]]:
+        """
+        Generate a comprehensive answer by dividing the query into sections,
+        processing each section sequentially, and combining them into a final document.
+
+        This implements the "divide and conquer and union" approach for complex
+        multi-section queries like biotech VC fact sheets.
+
+        Args:
+            query: User's question containing an outline/sections
+            search_results: File search results
+            reasoning_mode: The reasoning mode to use
+            conversation_history: Previous conversation context
+            progress_callback: Optional callback for progress updates (step_num, total_steps, section_name)
+            max_context_length: Max chars for file context
+
+        Returns:
+            Tuple of (combined_answer, all_online_responses, all_extracted_info)
+        """
+        import time
+        total_start = time.time()
+
+        logger.info(f"[SECTIONAL] Starting sectional analysis for query: {query[:100]}...")
+
+        # Step 1: Parse the query to extract sections
+        if progress_callback:
+            progress_callback(0, 100, "Parsing query structure...")
+
+        parsed = self.parse_sections_from_query(query)
+        subject = parsed.get("subject", "Unknown")
+        sections = parsed.get("sections", [])
+        formatting_instructions = parsed.get("formatting_instructions", "")
+        summary_section = parsed.get("summary_section")
+
+        if not sections:
+            logger.warning("[SECTIONAL] No sections found, falling back to regular processing")
+            return self.generate_answer(
+                query=query,
+                search_results=search_results,
+                search_mode="sequential_analysis",
+                reasoning_mode=reasoning_mode,
+                conversation_history=conversation_history
+            )
+
+        logger.info(f"[SECTIONAL] Processing {len(sections)} sections for subject: {subject}")
+
+        # Separate summary section (to process last) from regular sections
+        regular_sections = [s for s in sections if not s.get("depends_on_others", False)]
+        summary_sections = [s for s in sections if s.get("depends_on_others", False)]
+
+        # Reorder: regular sections first, then summary sections
+        ordered_sections = regular_sections + summary_sections
+        total_sections = len(ordered_sections)
+
+        # Step 2: Process each section
+        generated_sections = {}
+        all_online_responses = []
+        all_extracted_info = []
+
+        for idx, section in enumerate(ordered_sections):
+            section_name = section.get("name", f"Section {idx + 1}")
+
+            # Calculate progress (parsing = 10%, sections = 80%, combining = 10%)
+            section_progress = 10 + int((idx / total_sections) * 80)
+            if progress_callback:
+                progress_callback(section_progress, 100, f"Writing {section_name}...")
+
+            logger.info(f"[SECTIONAL] Processing section {idx + 1}/{total_sections}: {section_name}")
+
+            section_content, online_response, extracted_info = self.generate_section_content(
+                section=section,
+                subject=subject,
+                search_results=search_results,
+                previous_sections=generated_sections,
+                formatting_instructions=formatting_instructions,
+                reasoning_mode=reasoning_mode,
+                conversation_history=conversation_history,
+                max_context_length=max_context_length
+            )
+
+            generated_sections[section_name] = section_content
+            if online_response:
+                all_online_responses.append(f"### {section_name}\n{online_response}")
+            if extracted_info:
+                all_extracted_info.append(f"### {section_name}\n{extracted_info}")
+
+        # Step 3: Combine all sections into final document
+        if progress_callback:
+            progress_callback(95, 100, "Combining sections...")
+
+        # Build the final document maintaining the original section order
+        final_document_parts = []
+
+        # Add title
+        final_document_parts.append(f"# {subject} - Investment Fact Sheet\n")
+
+        # Add sections in the order specified in the original query
+        for section in sections:
+            section_name = section.get("name")
+            if section_name in generated_sections:
+                final_document_parts.append(f"\n## {section_name}\n")
+                final_document_parts.append(generated_sections[section_name])
+
+        final_document = "\n".join(final_document_parts)
+
+        # Combine all online responses and extracted info
+        combined_online = "\n\n".join(all_online_responses) if all_online_responses else None
+        combined_extracted = "\n\n".join(all_extracted_info) if all_extracted_info else None
+
+        total_time = time.time() - total_start
+        logger.info(f"[SECTIONAL] Completed sectional analysis in {total_time:.1f}s")
+        logger.info(f"[SECTIONAL] Generated {len(generated_sections)} sections, {len(final_document)} chars total")
+
+        if progress_callback:
+            progress_callback(100, 100, "Complete")
+
+        return final_document, combined_online, combined_extracted
 
 
 def get_answer_generator() -> AnswerGenerator:
