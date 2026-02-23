@@ -123,6 +123,15 @@ class Settings(BaseSettings):
     RATE_LIMIT_UPLOAD: str = os.getenv("RATE_LIMIT_UPLOAD", "10/minute")  # File upload endpoints
     RATE_LIMIT_AUTH: str = os.getenv("RATE_LIMIT_AUTH", "5/minute")  # Login/register endpoints
 
+    # Email Configuration (for password reset, notifications)
+    # Using AWS SES - make sure your SES is out of sandbox mode for production
+    EMAIL_ENABLED: bool = os.getenv("EMAIL_ENABLED", "true").lower() == "true"
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@pivotalbiovpai.com")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Pivotal BioVP AI")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://pivotalbiovpai.com")
+    # AWS SES region (can be different from main AWS_REGION)
+    AWS_SES_REGION: str = os.getenv("AWS_SES_REGION", "us-west-2")
+
     # Supported file extensions
     SUPPORTED_EXTENSIONS: set = {
         ".pdf", ".txt", ".md", ".docx", ".doc",

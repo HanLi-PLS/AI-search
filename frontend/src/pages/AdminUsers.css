@@ -160,6 +160,11 @@
   color: white;
 }
 
+.action-button.reset-password {
+  background: #8b5cf6;
+  color: white;
+}
+
 .action-button.delete {
   background: #ef4444;
   color: white;

@@ -450,3 +450,37 @@ async def toggle_admin(
         "message": f"Admin status {status_text} for {user.email}",
         "user": user.to_dict()
     }
+
+
+class AdminResetPassword(BaseModel):
+    new_password: str = Field(..., min_length=6, description="New password (min 6 characters)")
+
+
+@router.post("/users/{user_id}/reset-password")
+async def admin_reset_password(
+    user_id: int,
+    data: AdminResetPassword,
+    current_user: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Reset password for a user (admin only)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Set the new password
+    user.set_password(data.new_password)
+    # Clear any existing reset tokens
+    user.reset_token = None
+    user.reset_token_expires = None
+    db.commit()
+
+    logger.info(f"Password reset for {user.email} by admin {current_user.email}")
+
+    return {
+        "message": f"Password has been reset for {user.email}",
+        "user": user.to_dict()
+    }

@@ -77,6 +77,13 @@ export const authAPI = {
     const response = await api.post(`/api/auth/users/${userId}/toggle-admin`);
     return response.data;
   },
+
+  resetPassword: async (userId, newPassword) => {
+    const response = await api.post(`/api/auth/users/${userId}/reset-password`, {
+      new_password: newPassword
+    });
+    return response.data;
+  },
 };
 
 export const stockAPI = {

@@ -78,6 +78,26 @@ function AdminUsers() {
     }
   };
 
+  const handleResetPassword = async (userId, email) => {
+    const newPassword = prompt(`Enter new password for ${email}:\n(Minimum 6 characters)`);
+    if (!newPassword) return;
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setActionLoading(userId);
+    try {
+      await authAPI.resetPassword(userId, newPassword);
+      alert(`Password has been reset for ${email}.\n\nNew password: ${newPassword}\n\nPlease share this with the user securely.`);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to reset password');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="admin-container">
@@ -156,6 +176,13 @@ function AdminUsers() {
                     disabled={actionLoading === user.id}
                   >
                     {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                  </button>
+                  <button
+                    className="action-button reset-password"
+                    onClick={() => handleResetPassword(user.id, user.email)}
+                    disabled={actionLoading === user.id}
+                  >
+                    Reset Password
                   </button>
                   <button
                     className="action-button delete"
