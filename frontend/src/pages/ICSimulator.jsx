@@ -15,6 +15,10 @@ function ICSimulator() {
   const [syncStatus, setSyncStatus] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Date range filter for selecting which meetings to use as learning base
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+
   // Upload meeting note state
   const [meetingDate, setMeetingDate] = useState('');
   const [uploadingMeeting, setUploadingMeeting] = useState(false);
@@ -73,7 +77,7 @@ function ICSimulator() {
     try {
       setError(null);
       setIsSyncing(true);
-      const res = await icSimulatorAPI.syncConfluence();
+      const res = await icSimulatorAPI.syncConfluence(200, historyDateFrom, historyDateTo);
       if (res.status === 'already_syncing') {
         setSyncStatus(res.progress);
       }
@@ -135,7 +139,9 @@ function ICSimulator() {
     setResult(null);
 
     try {
-      const data = await icSimulatorAPI.generateQuestions(projectDescription, projectFiles);
+      const data = await icSimulatorAPI.generateQuestions(
+        projectDescription, projectFiles, historyDateFrom, historyDateTo
+      );
       setResult(data);
     } catch (err) {
       setError(err.message || 'Failed to generate IC questions');
@@ -183,6 +189,42 @@ function ICSimulator() {
               <span className="ic-stats-label">Q&A segments</span>
               <span className="ic-stats-value">{stats.total_segments}</span>
             </div>
+          </div>
+
+          {/* Date Range Filter */}
+          <div className="ic-panel-card">
+            <h3>Meeting Date Range</h3>
+            <p className="ic-date-range-hint">
+              Filter which IC meetings to sync from Confluence and use as the learning base for question generation.
+            </p>
+            <div className="ic-date-range-row">
+              <div className="ic-date-field">
+                <label className="ic-date-label">From</label>
+                <input
+                  type="date"
+                  className="ic-date-input"
+                  value={historyDateFrom}
+                  onChange={(e) => setHistoryDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="ic-date-field">
+                <label className="ic-date-label">To</label>
+                <input
+                  type="date"
+                  className="ic-date-input"
+                  value={historyDateTo}
+                  onChange={(e) => setHistoryDateTo(e.target.value)}
+                />
+              </div>
+            </div>
+            {(historyDateFrom || historyDateTo) && (
+              <button
+                className="ic-clear-dates-btn"
+                onClick={() => { setHistoryDateFrom(''); setHistoryDateTo(''); }}
+              >
+                Clear dates (use all meetings)
+              </button>
+            )}
           </div>
 
           {/* Confluence Sync */}
@@ -386,6 +428,12 @@ function ICSimulator() {
                 <div className="ic-reference-meta" style={{ marginTop: '1rem' }}>
                   Model: {result.metadata.model}
                   {' · '}Historical segments used: {result.metadata.historical_segments_used}
+                  {(result.metadata.date_from || result.metadata.date_to) && (
+                    <span>
+                      {' · '}Date range: {result.metadata.date_from || 'earliest'}
+                      {' to '}{result.metadata.date_to || 'latest'}
+                    </span>
+                  )}
                 </div>
               )}
             </div>

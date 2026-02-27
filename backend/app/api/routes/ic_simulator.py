@@ -52,6 +52,8 @@ class GenerateQuestionsRequest(BaseModel):
 
 class SyncConfluenceRequest(BaseModel):
     limit: int = 200
+    date_from: str = ""   # e.g. "2024-01-01"
+    date_to: str = ""     # e.g. "2025-12-31"
 
 
 # ─── Confluence sync endpoints ───────────────────────────────────────────────
@@ -87,7 +89,12 @@ async def sync_confluence(
     }
 
     # Run sync in background thread
-    _sync_pool.submit(_run_confluence_sync, body.limit)
+    _sync_pool.submit(
+        _run_confluence_sync,
+        body.limit,
+        body.date_from or None,
+        body.date_to or None,
+    )
 
     return {
         "status": "started",
@@ -95,7 +102,7 @@ async def sync_confluence(
     }
 
 
-def _run_confluence_sync(limit: int):
+def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None):
     """Background worker to sync Confluence pages."""
     global _sync_status
     try:
@@ -105,8 +112,12 @@ def _run_confluence_sync(limit: int):
         client = get_confluence_client()
         store = get_ic_meeting_store()
 
-        # 1. Get list of meeting pages
-        pages = client.get_meeting_pages(limit=limit)
+        # 1. Get list of meeting pages (optionally filtered by date range)
+        pages = client.get_meeting_pages(
+            limit=limit,
+            date_from=date_from,
+            date_to=date_to,
+        )
         _sync_status["total_pages"] = len(pages)
 
         if not pages:
@@ -312,6 +323,8 @@ async def generate_questions(
     request: Request,
     project_description: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    date_from: str = Form(""),
+    date_to: str = Form(""),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -320,6 +333,8 @@ async def generate_questions(
     Accepts:
     - project_description: Text description of the project (form field)
     - files: Optional uploaded project documents (multipart files)
+    - date_from: Only use IC meetings on or after this date (e.g. "2024-01-01")
+    - date_to: Only use IC meetings on or before this date (e.g. "2025-12-31")
 
     Returns anticipated IC questions based on historical Q&A patterns.
     """
@@ -370,6 +385,8 @@ async def generate_questions(
     result = generate_ic_questions(
         project_description=project_description,
         uploaded_doc_texts=uploaded_doc_texts if uploaded_doc_texts else None,
+        date_from=date_from if date_from else None,
+        date_to=date_to if date_to else None,
     )
 
     return result

@@ -357,9 +357,12 @@ export const cancelSearchJob = async (jobId) => {
 
 // IC Simulator API
 export const icSimulatorAPI = {
-  // Sync meeting notes from Confluence
-  syncConfluence: async (limit = 200) => {
-    const response = await api.post('/api/ic-simulator/sync-confluence', { limit });
+  // Sync meeting notes from Confluence (optionally within a date range)
+  syncConfluence: async (limit = 200, dateFrom = '', dateTo = '') => {
+    const body = { limit };
+    if (dateFrom) body.date_from = dateFrom;
+    if (dateTo) body.date_to = dateTo;
+    const response = await api.post('/api/ic-simulator/sync-confluence', body);
     return response.data;
   },
 
@@ -398,13 +401,15 @@ export const icSimulatorAPI = {
     return response.data;
   },
 
-  // Generate anticipated IC questions
-  generateQuestions: async (projectDescription, files = []) => {
+  // Generate anticipated IC questions (optionally scoped to a date range of meetings)
+  generateQuestions: async (projectDescription, files = [], dateFrom = '', dateTo = '') => {
     const formData = new FormData();
     formData.append('project_description', projectDescription || '');
     for (const file of files) {
       formData.append('files', file);
     }
+    if (dateFrom) formData.append('date_from', dateFrom);
+    if (dateTo) formData.append('date_to', dateTo);
     const response = await api.post('/api/ic-simulator/generate-questions', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 300000, // 5 min timeout for LLM generation

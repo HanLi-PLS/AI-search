@@ -13,7 +13,7 @@ from datetime import datetime
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     VectorParams, Distance, PointStruct, Filter,
-    FieldCondition, MatchValue, TextIndexParams,
+    FieldCondition, MatchValue, Range, TextIndexParams,
     TextIndexType, TokenizerType, PointIdsList,
 )
 
@@ -146,17 +146,34 @@ class ICMeetingStore:
         )
         return len(points)
 
-    def search(self, query: str, top_k: int = 15) -> List[Dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 15,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Semantic search over IC meeting segments.
+
+        Args:
+            query: Search query text
+            top_k: Number of results to return
+            date_from: Only include meetings on or after this date (ISO format, e.g. "2024-01-01")
+            date_to: Only include meetings on or before this date (ISO format, e.g. "2025-12-31")
 
         Returns the most relevant historical Q&A segments for the given query.
         """
         query_embedding = self.embedding_generator.embed_text(query)
+
+        # Build date range filter
+        search_filter = self._build_date_filter(date_from, date_to)
+
         results = self.client.search(
             collection_name=self.collection_name,
             query_vector=query_embedding,
             limit=top_k,
+            query_filter=search_filter,
         )
 
         formatted = []
@@ -172,6 +189,35 @@ class ICMeetingStore:
             })
 
         return formatted
+
+    def _build_date_filter(
+        self,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> Optional[Filter]:
+        """Build a Qdrant filter for meeting_date range."""
+        if not date_from and not date_to:
+            return None
+
+        conditions = []
+        if date_from:
+            conditions.append(
+                FieldCondition(
+                    key="meeting_date",
+                    range=Range(gte=date_from),
+                )
+            )
+        if date_to:
+            # Append "T23:59:59" so that the end date is inclusive of the whole day
+            date_to_inclusive = date_to if "T" in date_to else date_to + "T23:59:59"
+            conditions.append(
+                FieldCondition(
+                    key="meeting_date",
+                    range=Range(lte=date_to_inclusive),
+                )
+            )
+
+        return Filter(must=conditions)
 
     def delete_by_page_id(self, page_id: str) -> int:
         """Delete all segments for a given page/document."""

@@ -46,6 +46,8 @@ def generate_ic_questions(
     project_description: str,
     uploaded_doc_texts: Optional[List[str]] = None,
     top_k_history: int = 20,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Generate anticipated IC questions for new project materials.
@@ -54,6 +56,8 @@ def generate_ic_questions(
         project_description: Text description or summary of the project
         uploaded_doc_texts: Optional list of extracted texts from uploaded documents
         top_k_history: Number of historical Q&A segments to retrieve
+        date_from: Only use IC meetings on or after this date (ISO, e.g. "2024-01-01")
+        date_to: Only use IC meetings on or before this date (ISO, e.g. "2025-12-31")
 
     Returns:
         Dict with keys: questions_markdown, historical_references, metadata
@@ -79,7 +83,12 @@ def generate_ic_questions(
 
     # 2. Retrieve relevant historical IC Q&A from vector store
     ic_store = get_ic_meeting_store()
-    historical_results = ic_store.search(project_context[:2000], top_k=top_k_history)
+    historical_results = ic_store.search(
+        project_context[:2000],
+        top_k=top_k_history,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
     # Build historical context string
     historical_context = ""
@@ -154,5 +163,7 @@ def generate_ic_questions(
             "model": settings.ANSWER_MODEL,
             "project_context_length": len(project_context),
             "historical_segments_used": len(historical_results),
+            "date_from": date_from,
+            "date_to": date_to,
         },
     }

@@ -60,12 +60,22 @@ class ConfluenceClient:
             logger.error(f"Confluence connection test failed: {e}")
             return {"status": "error", "message": str(e)}
 
-    def get_meeting_pages(self, limit: int = 200) -> List[Dict]:
+    def get_meeting_pages(
+        self,
+        limit: int = 200,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Fetch IC meeting note pages from Confluence.
 
         If CONFLUENCE_PARENT_PAGE_ID is set, fetches child pages of that parent.
         Otherwise, fetches all pages in the configured space.
+
+        Args:
+            limit: Max number of pages to fetch
+            date_from: Only include pages created on or after this date (YYYY-MM-DD)
+            date_to: Only include pages created on or before this date (YYYY-MM-DD)
 
         Returns:
             List of page metadata dicts with keys: page_id, title, created, updated
@@ -77,8 +87,8 @@ class ConfluenceClient:
         while start < limit:
             fetch_size = min(page_size, limit - start)
 
-            if self.parent_page_id:
-                # Fetch child pages of the parent
+            if self.parent_page_id and not date_from and not date_to:
+                # Fetch child pages of the parent (no date filtering via child API)
                 data = self._api_get(
                     f"/content/{self.parent_page_id}/child/page",
                     params={
@@ -88,8 +98,18 @@ class ConfluenceClient:
                     },
                 )
             else:
-                # Fetch all pages in the space
-                cql = f'space="{self.space_key}" AND type=page'
+                # Use CQL search (supports date filters)
+                cql_parts = [f'type=page']
+                if self.parent_page_id:
+                    cql_parts.append(f'ancestor={self.parent_page_id}')
+                elif self.space_key:
+                    cql_parts.append(f'space="{self.space_key}"')
+                if date_from:
+                    cql_parts.append(f'created >= "{date_from}"')
+                if date_to:
+                    cql_parts.append(f'created <= "{date_to}"')
+
+                cql = " AND ".join(cql_parts)
                 data = self._api_get(
                     "/content/search",
                     params={
