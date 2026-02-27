@@ -1,0 +1,577 @@
+.ic-simulator-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Header */
+.ic-header-section {
+  position: relative;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.ic-back-button {
+  position: absolute;
+  left: 1.5rem;
+  top: 2rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.ic-back-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(-4px);
+}
+
+.ic-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ic-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.ic-icon {
+  font-size: 3rem;
+}
+
+.ic-title-block h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  color: white;
+}
+
+.ic-subtitle {
+  font-size: 1.1rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+/* Main layout */
+.ic-main {
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.5rem 3rem;
+}
+
+/* Left Panel — Data Management */
+.ic-data-panel {
+  width: 340px;
+  flex-shrink: 0;
+}
+
+.ic-panel-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.25rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 1.25rem;
+}
+
+.ic-panel-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.ic-sync-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.ic-sync-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.ic-sync-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ic-sync-progress {
+  margin-top: 0.75rem;
+}
+
+.ic-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.ic-progress-fill {
+  height: 100%;
+  background: #4ade80;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.ic-progress-text {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.ic-stats-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ic-stats-label {
+  opacity: 0.7;
+}
+
+.ic-stats-value {
+  font-weight: 600;
+}
+
+/* Meeting list */
+.ic-meeting-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+}
+
+.ic-meeting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.85rem;
+}
+
+.ic-meeting-item:last-child {
+  border-bottom: none;
+}
+
+.ic-meeting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ic-meeting-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.ic-meeting-date {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.ic-meeting-delete {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.ic-meeting-delete:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.15);
+}
+
+/* Upload meeting */
+.ic-upload-area {
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.ic-upload-area:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 1;
+}
+
+.ic-upload-area.dragging {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.ic-date-input {
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  font-size: 0.85rem;
+}
+
+.ic-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* Right Panel — Question Generation */
+.ic-question-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.ic-input-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 1.25rem;
+}
+
+.ic-input-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.ic-description-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.ic-description-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ic-description-textarea:focus {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.ic-file-upload-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.ic-upload-btn {
+  padding: 0.6rem 1.2rem;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.ic-upload-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.ic-file-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+
+.ic-file-tag-remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.ic-file-tag-remove:hover {
+  color: #f87171;
+}
+
+.ic-generate-btn {
+  width: 100%;
+  padding: 0.9rem;
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(74, 222, 128, 0.3);
+}
+
+.ic-generate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(74, 222, 128, 0.4);
+}
+
+.ic-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Results Section */
+.ic-results-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ic-results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.ic-results-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.ic-copy-btn {
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.ic-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.ic-results-content {
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+.ic-results-content h2,
+.ic-results-content h3,
+.ic-results-content h4,
+.ic-results-content h5 {
+  color: white;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ic-results-content h2 { font-size: 1.3rem; }
+.ic-results-content h3 { font-size: 1.15rem; }
+.ic-results-content h4 { font-size: 1.05rem; }
+
+.ic-results-content ul, .ic-results-content ol {
+  padding-left: 1.5rem;
+}
+
+.ic-results-content li {
+  margin-bottom: 0.5rem;
+}
+
+.ic-results-content strong {
+  color: #4ade80;
+}
+
+.ic-results-content code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.ic-results-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.ic-results-content th,
+.ic-results-content td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: left;
+}
+
+.ic-results-content th {
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+
+/* Historical references */
+.ic-references-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.ic-references-section h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.ic-reference-item {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  border-left: 3px solid rgba(74, 222, 128, 0.6);
+}
+
+.ic-reference-title {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+.ic-reference-question {
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.ic-reference-meta {
+  opacity: 0.5;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Loading spinner */
+.ic-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  gap: 1rem;
+}
+
+.ic-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #4ade80;
+  border-radius: 50%;
+  animation: ic-spin 0.8s linear infinite;
+}
+
+@keyframes ic-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ic-loading-text {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+/* Error */
+.ic-error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+/* Empty state */
+.ic-empty-state {
+  text-align: center;
+  padding: 2rem;
+  opacity: 0.6;
+  font-size: 0.95rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .ic-main {
+    flex-direction: column;
+  }
+
+  .ic-data-panel {
+    width: 100%;
+  }
+
+  .ic-title-block h1 {
+    font-size: 1.8rem;
+  }
+
+  .ic-header-section {
+    padding: 1.5rem 1rem;
+  }
+
+  .ic-back-button {
+    position: static;
+    margin-bottom: 1rem;
+  }
+}

@@ -13,6 +13,7 @@ const StockDetail = lazy(() => import('./pages/StockDetail'));
 const Watchlist = lazy(() => import('./pages/Watchlist'));
 const AISearch = lazy(() => import('./pages/AISearch'));
 const TargetAnalyzer = lazy(() => import('./pages/TargetAnalyzer'));
+const ICSimulator = lazy(() => import('./pages/ICSimulator'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const AdminUsers = lazy(() => import('./pages/AdminUsers'));
@@ -57,6 +58,11 @@ function App() {
             <Route path="/target-analyzer" element={
               <ProtectedRoute>
                 <TargetAnalyzer />
+              </ProtectedRoute>
+            } />
+            <Route path="/ic-simulator" element={
+              <ProtectedRoute>
+                <ICSimulator />
               </ProtectedRoute>
             } />
 
