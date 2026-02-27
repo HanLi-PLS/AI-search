@@ -69,14 +69,14 @@ class Settings(BaseSettings):
     AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT: str = os.getenv("AWS_SECRET_NAME_SNOWFLAKE_ACCOUNT", "airflow/variables/CAPIQ_SNOWFLAKE_ACCOUNT_ID")
 
     # Vision Model Configuration (for image processing in PDFs)
-    VISION_MODEL: str = os.getenv("VISION_MODEL", "o4-mini")  # or "gpt-4o"
+    VISION_MODEL: str = os.getenv("VISION_MODEL", "gpt-5.2")  # or "gpt-4o"
 
     # Answer Generation Model Configuration (for answering questions)
-    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-5.1")  # Model for generating answers (gpt-5.1, gpt-4.1, gpt-4o, o3, etc)
+    ANSWER_MODEL: str = os.getenv("ANSWER_MODEL", "gpt-5.2")  # Model for generating answers (gpt-5.2, gpt-4.1, gpt-4o, o3, etc)
     ANSWER_TEMPERATURE: float = float(os.getenv("ANSWER_TEMPERATURE", "0"))
 
     # Online Search Model Configuration (for web search)
-    ONLINE_SEARCH_MODEL: str = os.getenv("ONLINE_SEARCH_MODEL", "o4-mini")  # Model for online search (o4-mini, o3, etc)
+    ONLINE_SEARCH_MODEL: str = os.getenv("ONLINE_SEARCH_MODEL", "gpt-5.2")  # Model for online search (gpt-5.2, o3, etc)
 
     # AWS Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = os.getenv("AWS_ACCESS_KEY_ID")
@@ -122,6 +122,15 @@ class Settings(BaseSettings):
     RATE_LIMIT_SEARCH: str = os.getenv("RATE_LIMIT_SEARCH", "20/minute")  # AI search endpoints
     RATE_LIMIT_UPLOAD: str = os.getenv("RATE_LIMIT_UPLOAD", "10/minute")  # File upload endpoints
     RATE_LIMIT_AUTH: str = os.getenv("RATE_LIMIT_AUTH", "5/minute")  # Login/register endpoints
+
+    # Email Configuration (for password reset, notifications)
+    # Using AWS SES - make sure your SES is out of sandbox mode for production
+    EMAIL_ENABLED: bool = os.getenv("EMAIL_ENABLED", "true").lower() == "true"
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@pivotalbiovpai.com")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Pivotal BioVP AI")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://pivotalbiovpai.com")
+    # AWS SES region (can be different from main AWS_REGION)
+    AWS_SES_REGION: str = os.getenv("AWS_SES_REGION", "us-west-2")
 
     # Supported file extensions
     SUPPORTED_EXTENSIONS: set = {

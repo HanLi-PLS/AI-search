@@ -33,6 +33,9 @@ limiter = Limiter(key_func=get_remote_address)
 # Modes that require background processing (long-running)
 ASYNC_SEARCH_MODES = ["reasoning_gpt5", "reasoning_gemini", "deep_research"]
 
+# Search modes that are always async (long-running regardless of reasoning mode)
+ASYNC_ONLY_SEARCH_MODES = ["sectional_analysis"]
+
 
 def process_search_job(job_id: str, search_request_dict: dict):
     """
@@ -115,14 +118,45 @@ def process_search_job(job_id: str, search_request_dict: dict):
         if search_request.conversation_history:
             conversation_history_dict = [turn.dict() for turn in search_request.conversation_history]
 
-        answer, online_search_response, extracted_info = answer_generator.generate_answer(
-            query=search_request.query,
-            search_results=results,
-            search_mode=actual_search_mode,
-            reasoning_mode=search_request.reasoning_mode,
-            priority_order=search_request.priority_order,
-            conversation_history=conversation_history_dict
-        )
+        # Handle sectional_analysis mode specially
+        if actual_search_mode == "sectional_analysis":
+            logger.info(f"[JOB {job_id}] Using sectional analysis (divide and conquer) mode...")
+
+            # Define progress callback for sectional processing
+            def progress_callback(progress: int, total: int, step_name: str):
+                # Scale progress: 25-95% for sectional processing
+                scaled_progress = 25 + int((progress / total) * 70)
+                job_tracker.update_progress(job_id, scaled_progress, step_name)
+
+            # Create a search function for section-specific searches
+            def section_search_function(query: str, top_k: int):
+                return vector_store.search(
+                    query=query,
+                    top_k=top_k,
+                    file_types=search_request.file_types,
+                    date_from=search_request.date_from,
+                    date_to=search_request.date_to,
+                    conversation_id=search_request.conversation_id
+                )
+
+            answer, online_search_response, extracted_info = answer_generator.generate_sectional_answer(
+                query=search_request.query,
+                search_results=results,  # Fallback results
+                reasoning_mode=search_request.reasoning_mode,
+                conversation_history=conversation_history_dict,
+                progress_callback=progress_callback,
+                search_function=section_search_function,
+                top_k=search_request.top_k
+            )
+        else:
+            answer, online_search_response, extracted_info = answer_generator.generate_answer(
+                query=search_request.query,
+                search_results=results,
+                search_mode=actual_search_mode,
+                reasoning_mode=search_request.reasoning_mode,
+                priority_order=search_request.priority_order,
+                conversation_history=conversation_history_dict
+            )
 
         # Update progress to near completion
         job_tracker.update_progress(job_id, 95, "Finalizing results...")
@@ -183,7 +217,11 @@ async def search_documents(
         Search results with GPT-generated answer (sync mode) or job_id (async mode)
     """
     # Check if this is a long-running search that should be processed in background
-    is_async_mode = search_request.reasoning_mode in ASYNC_SEARCH_MODES
+    # Async modes: certain reasoning modes OR sectional_analysis search mode
+    is_async_mode = (
+        search_request.reasoning_mode in ASYNC_SEARCH_MODES or
+        search_request.search_mode in ASYNC_ONLY_SEARCH_MODES
+    )
 
     if is_async_mode:
         # Create background job for long-running search
@@ -215,7 +253,13 @@ async def search_documents(
         background_tasks.add_task(process_search_job, job_id, search_request_dict)
 
         # Return immediately with job_id
-        estimated_time = "5-10 minutes" if search_request.reasoning_mode == "reasoning_gpt5" else "15-30 minutes"
+        # Estimate time based on mode
+        if search_request.search_mode == "sectional_analysis":
+            estimated_time = "10-20 minutes (multi-section processing)"
+        elif search_request.reasoning_mode == "reasoning_gpt5":
+            estimated_time = "5-10 minutes"
+        else:
+            estimated_time = "15-30 minutes"
         return {
             "success": True,
             "job_id": job_id,
@@ -242,6 +286,43 @@ async def search_documents(
             actual_search_mode = selected_mode
             logger.info(f"Auto mode selected: {selected_mode}")
             logger.info(f"Reasoning: {mode_reasoning}")
+
+            # If auto mode selected sectional_analysis, we need to process async
+            # because sectional analysis is a long-running operation
+            if actual_search_mode == "sectional_analysis":
+                logger.info(f"Auto mode detected sectional query, switching to async processing...")
+                job_id = f"search_{uuid.uuid4().hex}"
+                job_tracker = get_search_job_tracker()
+
+                import json as json_module
+                priority_order_str = json_module.dumps(search_request.priority_order) if search_request.priority_order else None
+
+                job_tracker.create_job(
+                    job_id=job_id,
+                    query=search_request.query,
+                    search_mode="sectional_analysis",  # Use the classified mode
+                    reasoning_mode=search_request.reasoning_mode,
+                    conversation_id=search_request.conversation_id,
+                    user_id=current_user.id,
+                    top_k=search_request.top_k,
+                    priority_order=priority_order_str
+                )
+
+                # Update the search request to use sectional_analysis mode
+                search_request_dict = search_request.dict()
+                search_request_dict["search_mode"] = "sectional_analysis"
+
+                background_tasks.add_task(process_search_job, job_id, search_request_dict)
+
+                return {
+                    "success": True,
+                    "job_id": job_id,
+                    "message": f"Query detected as multi-section document request. Processing in background.",
+                    "estimated_time": "10-20 minutes (multi-section processing)",
+                    "is_async": True,
+                    "selected_mode": "sectional_analysis",
+                    "mode_reasoning": mode_reasoning
+                }
 
         # Only search files if mode is not online_only
         if actual_search_mode != "online_only":
@@ -612,6 +693,85 @@ async def get_conversation_history(
     except Exception as e:
         logger.error(f"Error fetching conversation history: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching conversation history: {str(e)}")
+
+
+@router.put("/conversations/{conversation_id}")
+async def update_conversation_title(
+    conversation_id: str,
+    title: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update the title of a conversation (user must own it)
+
+    Args:
+        conversation_id: Conversation identifier
+        title: New title for the conversation
+        current_user: Authenticated user (from JWT token)
+
+    Returns:
+        Success status and updated conversation info
+    """
+    try:
+        # Validate title
+        if not title or not title.strip():
+            raise HTTPException(status_code=400, detail="Title cannot be empty")
+
+        if len(title) > 200:
+            raise HTTPException(status_code=400, detail="Title too long (max 200 characters)")
+
+        job_tracker = get_search_job_tracker()
+        success = job_tracker.update_conversation_title(conversation_id, title.strip(), user_id=current_user.id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "title": title.strip()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating conversation title: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating conversation title: {str(e)}")
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a conversation and all its associated search jobs (user must own it)
+
+    Args:
+        conversation_id: Conversation identifier
+        current_user: Authenticated user (from JWT token)
+
+    Returns:
+        Success status
+    """
+    try:
+        job_tracker = get_search_job_tracker()
+        success = job_tracker.delete_conversation(conversation_id, user_id=current_user.id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {
+            "success": True,
+            "conversation_id": conversation_id,
+            "message": "Conversation deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting conversation: {str(e)}")
 
 
 @router.get("/health", response_model=HealthResponse)

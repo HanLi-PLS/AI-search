@@ -14,7 +14,8 @@ function AISearch() {
     createNewConversation,
     updateCurrentConversation,
     switchConversation,
-    deleteConversation
+    deleteConversation,
+    renameConversation
   } = useChatHistory();
 
   const [conversationHistory, setConversationHistory] = useState([]);
@@ -22,9 +23,11 @@ function AISearch() {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editingConversationId, setEditingConversationId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const [topK, setTopK] = useState(10);
   const [searchMode, setSearchMode] = useState('auto');
-  const [reasoningMode, setReasoningMode] = useState('non_reasoning');
+  const [reasoningMode, setReasoningMode] = useState('reasoning_gemini');
   const [priorityOrder, setPriorityOrder] = useState('online_first');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
@@ -661,6 +664,50 @@ function AISearch() {
     }
   }, [loadDocuments]);
 
+  const handleStartRename = useCallback((e, conversationId, currentTitle) => {
+    e.stopPropagation();
+    setEditingConversationId(conversationId);
+    setEditingTitle(currentTitle);
+  }, []);
+
+  const handleCancelRename = useCallback(() => {
+    setEditingConversationId(null);
+    setEditingTitle('');
+  }, []);
+
+  const handleSaveRename = useCallback(async (e, conversationId) => {
+    e.stopPropagation();
+    if (!editingTitle.trim()) {
+      alert('Title cannot be empty');
+      return;
+    }
+    try {
+      await renameConversation(conversationId, editingTitle.trim());
+      setEditingConversationId(null);
+      setEditingTitle('');
+    } catch (error) {
+      alert('Failed to rename conversation: ' + error.message);
+    }
+  }, [editingTitle, renameConversation]);
+
+  const handleRenameKeyDown = useCallback((e, conversationId) => {
+    if (e.key === 'Enter') {
+      handleSaveRename(e, conversationId);
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
+    }
+  }, [handleSaveRename, handleCancelRename]);
+
+  const handleDeleteConversation = useCallback(async (e, conversationId) => {
+    e.stopPropagation();
+    if (!confirm('Delete this conversation?')) return;
+    try {
+      await deleteConversation(conversationId);
+    } catch (error) {
+      alert('Failed to delete conversation: ' + error.message);
+    }
+  }, [deleteConversation]);
+
   return (
     <div className={`ai-search-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {sidebarCollapsed && (
@@ -681,15 +728,45 @@ function AISearch() {
             <div className="no-chat-history"><p>No chat history yet.<br/>Start a conversation!</p></div>
           ) : (
             conversations.map(conv => (
-              <div key={conv.id} className={`chat-history-item ${conv.id === currentConversationId ? 'active' : ''}`} onClick={() => switchConversation(conv.id)}>
+              <div key={conv.id} className={`chat-history-item ${conv.id === currentConversationId ? 'active' : ''} ${editingConversationId === conv.id ? 'editing' : ''}`} onClick={() => editingConversationId !== conv.id && switchConversation(conv.id)}>
                 <div className="chat-history-content">
-                  <div className="chat-history-title">{conv.title}</div>
+                  {editingConversationId === conv.id ? (
+                    <input
+                      type="text"
+                      className="chat-history-title-input"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                  ) : (
+                    <div className="chat-history-title">{conv.title}</div>
+                  )}
                   <div className="chat-history-date">{formatDate(conv.updatedAt)}</div>
                   <div className="chat-history-count">{conv.history.length} message{conv.history.length !== 1 ? 's' : ''}</div>
                 </div>
-                <button className="chat-history-delete" onClick={(e) => { e.stopPropagation(); if (confirm('Delete this conversation?')) deleteConversation(conv.id); }} title="Delete conversation">
-                  🗑️
-                </button>
+                <div className="chat-history-actions">
+                  {editingConversationId === conv.id ? (
+                    <>
+                      <button className="chat-history-save" onClick={(e) => handleSaveRename(e, conv.id)} title="Save">
+                        ✓
+                      </button>
+                      <button className="chat-history-cancel" onClick={(e) => { e.stopPropagation(); handleCancelRename(); }} title="Cancel">
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="chat-history-rename" onClick={(e) => handleStartRename(e, conv.id, conv.title)} title="Rename conversation">
+                        ✏️
+                      </button>
+                      <button className="chat-history-delete" onClick={(e) => handleDeleteConversation(e, conv.id)} title="Delete conversation">
+                        🗑️
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ))
           )}
@@ -858,20 +935,20 @@ function AISearch() {
                 <option value="auto">Intelligent (Auto-select)</option><option value="files_only">Files Only</option>
                 <option value="online_only">Online Only</option><option value="both">Both (Files + Online)</option>
                 <option value="sequential_analysis">Sequential Analysis (Extract → Compare)</option>
+                <option value="sectional_analysis">Sectional Analysis (Fact Sheets / Reports)</option>
               </select></label>
             {searchMode === 'both' && (
               <label>Priority: <select value={priorityOrder} onChange={(e) => setPriorityOrder(e.target.value)} className="filter-select">
                   <option value="online_first">Online First</option><option value="files_first">Files First</option>
                 </select></label>
             )}
-            {searchMode !== 'files_only' && (
-              <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
-                  <option value="non_reasoning">Default (gpt-5.1)</option>
-                  <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
-                  <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
-                  <option value="deep_research">Deep Research (o3-deep-research)</option>
-                </select></label>
-            )}
+            <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
+                <option value="non_reasoning">Default (gpt-5.2)</option>
+                <option value="reasoning">Reasoning (gpt-5.2)</option>
+                <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
+                <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
+                <option value="deep_research">Deep Research (o3-deep-research)</option>
+              </select></label>
           </div>
         </section>
 
@@ -1153,8 +1230,10 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                                   turn.search_params.search_mode === 'online_only' ? 'Online Only' :
                                   turn.search_params.search_mode === 'both' ? 'Both (Files + Online)' :
                                   turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
+                                  turn.search_params.search_mode === 'sectional_analysis' ? 'Sectional Analysis (Divide & Conquer)' :
                                   turn.search_params.search_mode}</strong></span>
-                                <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.1)' :
+                                <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.2)' :
+                                  turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (gpt-5.2)' :
                                   turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
                                   turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
                                   turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :

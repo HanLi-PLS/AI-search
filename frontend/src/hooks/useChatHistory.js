@@ -294,7 +294,12 @@ export const useChatHistory = () => {
     await loadConversationHistory(conversationId);
   };
 
-  const deleteConversation = (conversationId) => {
+  const deleteConversation = async (conversationId) => {
+    // Store original state for rollback
+    const originalConversations = conversations;
+    const originalConversationId = currentConversationId;
+
+    // Optimistically update UI
     const updated = conversations.filter(c => c.id !== conversationId);
 
     if (conversationId === currentConversationId) {
@@ -313,12 +318,84 @@ export const useChatHistory = () => {
         setConversations([newConv]);
         setCurrentConversationId(newConv.id);
         saveToLocalStorage([newConv], newConv.id);
-        return;
       }
+    } else {
+      setConversations(updated);
+      saveToLocalStorage(updated, currentConversationId);
     }
 
-    setConversations(updated);
-    saveToLocalStorage(updated, currentConversationId);
+    // Call backend API to persist deletion
+    try {
+      const token = localStorage.getItem('authToken');
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+        method: 'DELETE',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete conversation from backend');
+      }
+
+      console.log('Conversation deleted successfully from backend');
+    } catch (error) {
+      console.error('Error deleting conversation from backend:', error);
+      // Revert optimistic update on error
+      setConversations(originalConversations);
+      setCurrentConversationId(originalConversationId);
+      saveToLocalStorage(originalConversations, originalConversationId);
+      throw error;
+    }
+  };
+
+  const renameConversation = async (conversationId, newTitle) => {
+    try {
+      // Optimistically update UI
+      const updated = conversations.map(conv => {
+        if (conv.id === conversationId) {
+          return { ...conv, title: newTitle, updatedAt: new Date().toISOString() };
+        }
+        return conv;
+      });
+      setConversations(updated);
+      saveToLocalStorage(updated, currentConversationId);
+
+      // Call backend API to persist the change
+      const token = localStorage.getItem('authToken');
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}?title=${encodeURIComponent(newTitle)}`, {
+        method: 'PUT',
+        headers
+      });
+
+      if (!response.ok) {
+        // Revert on error
+        throw new Error('Failed to update conversation title');
+      }
+
+      const data = await response.json();
+      console.log('Conversation renamed successfully:', data);
+      return true;
+    } catch (error) {
+      console.error('Error renaming conversation:', error);
+      // Revert the optimistic update on error
+      const original = conversations;
+      setConversations(original);
+      saveToLocalStorage(original, currentConversationId);
+      throw error;
+    }
   };
 
   return {
@@ -329,6 +406,7 @@ export const useChatHistory = () => {
     createNewConversation,
     updateCurrentConversation,
     switchConversation,
-    deleteConversation
+    deleteConversation,
+    renameConversation
   };
 };
