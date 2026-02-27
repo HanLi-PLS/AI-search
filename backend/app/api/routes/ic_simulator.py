@@ -6,6 +6,9 @@ Provides routes for:
 - Uploading IC meeting notes manually
 - Listing synced meetings
 - Generating anticipated IC questions for new project materials
+- Running cognitive extraction pipeline (Layer 1)
+- Managing cognitive profiles
+- Incremental profile updates
 """
 import os
 import uuid
@@ -29,8 +32,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-# Thread pool for background sync work
-_sync_pool = ThreadPoolExecutor(max_workers=2)
+# Thread pool for background work (sync, extraction)
+_worker_pool = ThreadPoolExecutor(max_workers=2)
 
 # In-memory sync status tracker
 _sync_status = {
@@ -42,18 +45,45 @@ _sync_status = {
     "error": None,
 }
 
+# In-memory extraction status tracker
+_extraction_status = {
+    "is_running": False,
+    "stage": "",          # "pass1_pass2", "pass3", "pass4"
+    "current": 0,
+    "total": 0,
+    "detail": "",
+    "error": None,
+    "started_at": None,
+    "completed_at": None,
+}
+
 
 # ─── Request / Response models ───────────────────────────────────────────────
 
 class GenerateQuestionsRequest(BaseModel):
     project_description: str = ""
-    # uploaded files are handled via multipart form, not JSON
 
 
 class SyncConfluenceRequest(BaseModel):
     limit: int = 200
     date_from: str = ""   # e.g. "2024-01-01"
     date_to: str = ""     # e.g. "2025-12-31"
+
+
+class RunExtractionRequest(BaseModel):
+    """Request to run the cognitive extraction pipeline."""
+    date_from: str = ""        # e.g. "2024-01-01"
+    date_to: str = ""          # e.g. "2025-12-31"
+    source: str = "confluence"  # "confluence" or "indexed" (from already-synced data)
+    limit: int = 200
+
+
+class IncrementalUpdateRequest(BaseModel):
+    """Request to incrementally update cognitive profile with new meetings."""
+    date_from: str = ""
+    date_to: str = ""
+    source: str = "confluence"
+    limit: int = 200
 
 
 # ─── Confluence sync endpoints ───────────────────────────────────────────────
@@ -89,7 +119,7 @@ async def sync_confluence(
     }
 
     # Run sync in background thread
-    _sync_pool.submit(
+    _worker_pool.submit(
         _run_confluence_sync,
         body.limit,
         body.date_from or None,
@@ -330,13 +360,16 @@ async def generate_questions(
     """
     Generate anticipated IC questions for new project materials.
 
+    Automatically uses cognitive simulation (Mode 2) when a cognitive profile
+    exists, or falls back to legacy RAG mode (Mode 1).
+
     Accepts:
     - project_description: Text description of the project (form field)
     - files: Optional uploaded project documents (multipart files)
     - date_from: Only use IC meetings on or after this date (e.g. "2024-01-01")
     - date_to: Only use IC meetings on or before this date (e.g. "2025-12-31")
 
-    Returns anticipated IC questions based on historical Q&A patterns.
+    Returns anticipated IC questions based on cognitive simulation or historical patterns.
     """
     from backend.app.core.document_processor import DocumentProcessor
     from backend.app.core.ic_question_generator import generate_ic_questions
@@ -390,3 +423,446 @@ async def generate_questions(
     )
 
     return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Cognitive Extraction Pipeline Endpoints (Layer 1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/extraction/run")
+@limiter.limit("2/minute")
+async def run_extraction(
+    request: Request,
+    body: RunExtractionRequest = RunExtractionRequest(),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Run the full cognitive extraction pipeline (Pass 1-4) on IC meeting notes.
+
+    This is the heavy-lift operation that builds the IC cognitive profile.
+    Runs in background — poll /extraction/status for progress.
+
+    Args (JSON body):
+    - date_from: Only process meetings from this date (YYYY-MM-DD)
+    - date_to: Only process meetings up to this date (YYYY-MM-DD)
+    - source: "confluence" to fetch from Confluence, "indexed" to use already-synced data
+    - limit: Max number of meetings to process (default 200)
+    """
+    global _extraction_status
+
+    if _extraction_status["is_running"]:
+        return {
+            "status": "already_running",
+            "message": "An extraction is already in progress.",
+            "progress": _extraction_status,
+        }
+
+    _extraction_status = {
+        "is_running": True,
+        "stage": "starting",
+        "current": 0,
+        "total": 0,
+        "detail": "Initializing extraction pipeline...",
+        "error": None,
+        "started_at": datetime.utcnow().isoformat(),
+        "completed_at": None,
+    }
+
+    _worker_pool.submit(
+        _run_extraction_worker,
+        body.source,
+        body.date_from or None,
+        body.date_to or None,
+        body.limit,
+        False,  # not incremental
+    )
+
+    return {
+        "status": "started",
+        "message": "Cognitive extraction pipeline started in background.",
+    }
+
+
+@router.post("/extraction/incremental")
+@limiter.limit("5/minute")
+async def run_incremental_update(
+    request: Request,
+    body: IncrementalUpdateRequest = IncrementalUpdateRequest(),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Incrementally update the cognitive profile with new meetings.
+
+    Only processes meetings that haven't been extracted yet. Updates the
+    existing cognitive profile rather than rebuilding from scratch.
+
+    Use this after syncing new meetings from Confluence to incorporate
+    them into the IC intelligence model.
+    """
+    global _extraction_status
+
+    if _extraction_status["is_running"]:
+        return {
+            "status": "already_running",
+            "message": "An extraction is already in progress.",
+            "progress": _extraction_status,
+        }
+
+    _extraction_status = {
+        "is_running": True,
+        "stage": "starting",
+        "current": 0,
+        "total": 0,
+        "detail": "Initializing incremental update...",
+        "error": None,
+        "started_at": datetime.utcnow().isoformat(),
+        "completed_at": None,
+    }
+
+    _worker_pool.submit(
+        _run_extraction_worker,
+        body.source,
+        body.date_from or None,
+        body.date_to or None,
+        body.limit,
+        True,  # incremental
+    )
+
+    return {
+        "status": "started",
+        "message": "Incremental cognitive update started in background.",
+    }
+
+
+def _run_extraction_worker(
+    source: str,
+    date_from: Optional[str],
+    date_to: Optional[str],
+    limit: int,
+    incremental: bool,
+):
+    """Background worker for cognitive extraction pipeline."""
+    global _extraction_status
+
+    def progress_callback(stage, current, total, detail):
+        _extraction_status["stage"] = stage
+        _extraction_status["current"] = current
+        _extraction_status["total"] = total
+        _extraction_status["detail"] = detail
+
+    try:
+        meetings = _fetch_meetings_for_extraction(source, date_from, date_to, limit)
+
+        if not meetings:
+            _extraction_status["is_running"] = False
+            _extraction_status["error"] = "No meetings found for extraction."
+            return
+
+        _extraction_status["total"] = len(meetings)
+
+        if incremental:
+            from backend.app.core.ic_cognitive_extractor import run_incremental_update
+            result = run_incremental_update(
+                new_meetings=meetings,
+                progress_callback=progress_callback,
+            )
+        else:
+            from backend.app.core.ic_cognitive_extractor import run_full_extraction
+            result = run_full_extraction(
+                meetings=meetings,
+                date_from=date_from,
+                date_to=date_to,
+                progress_callback=progress_callback,
+            )
+
+        _extraction_status["is_running"] = False
+        _extraction_status["completed_at"] = datetime.utcnow().isoformat()
+        _extraction_status["detail"] = (
+            f"Extraction complete. "
+            f"Result: {json.dumps(_summarize_result(result), default=str)}"
+        )
+
+        logger.info(f"Extraction pipeline complete: {_summarize_result(result)}")
+
+    except Exception as e:
+        logger.error(f"Extraction pipeline failed: {e}", exc_info=True)
+        _extraction_status["is_running"] = False
+        _extraction_status["error"] = str(e)
+
+
+import json
+
+
+def _fetch_meetings_for_extraction(
+    source: str,
+    date_from: Optional[str],
+    date_to: Optional[str],
+    limit: int,
+) -> list:
+    """
+    Fetch meeting texts for the extraction pipeline.
+
+    Two modes:
+    - "confluence": Fetch directly from Confluence API
+    - "indexed": Use meetings already synced to the Qdrant store,
+                 re-fetching full text from Confluence by page_id
+    """
+    if source == "confluence":
+        from backend.app.services.confluence import get_confluence_client
+        client = get_confluence_client()
+
+        pages = client.get_meeting_pages(
+            limit=limit, date_from=date_from, date_to=date_to
+        )
+
+        meetings = []
+        for page_meta in pages:
+            try:
+                page_content = client.get_page_content(page_meta["page_id"])
+                meetings.append({
+                    "page_id": page_meta["page_id"],
+                    "title": page_content["title"],
+                    "meeting_date": page_content.get("created", ""),
+                    "body_text": page_content["body_text"],
+                })
+            except Exception as e:
+                logger.error(
+                    f"Error fetching page {page_meta['page_id']}: {e}"
+                )
+
+        return meetings
+
+    elif source == "indexed":
+        # Use already-indexed meetings, re-fetch full text from Confluence
+        from backend.app.core.ic_meeting_store import get_ic_meeting_store
+        from backend.app.services.confluence import get_confluence_client
+
+        store = get_ic_meeting_store()
+        indexed_meetings = store.list_meetings()
+        client = get_confluence_client()
+
+        # Apply date filtering
+        if date_from:
+            indexed_meetings = [
+                m for m in indexed_meetings
+                if m.get("meeting_date", "") >= date_from
+            ]
+        if date_to:
+            indexed_meetings = [
+                m for m in indexed_meetings
+                if m.get("meeting_date", "") <= date_to
+            ]
+
+        meetings = []
+        for m in indexed_meetings[:limit]:
+            page_id = m["page_id"]
+            try:
+                # For Confluence-sourced meetings, re-fetch full text
+                if m.get("source") == "confluence":
+                    page_content = client.get_page_content(page_id)
+                    meetings.append({
+                        "page_id": page_id,
+                        "title": page_content["title"],
+                        "meeting_date": page_content.get("created", ""),
+                        "body_text": page_content["body_text"],
+                    })
+                else:
+                    # For uploaded meetings, we'd need to re-read from stored data
+                    # For now, reconstruct from indexed segments
+                    logger.warning(
+                        f"Uploaded meeting {page_id}: reconstructing from segments"
+                    )
+                    _reconstruct_from_segments(store, page_id, m, meetings)
+            except Exception as e:
+                logger.error(f"Error fetching page {page_id}: {e}")
+
+        return meetings
+
+    else:
+        raise ValueError(f"Unknown source: {source}. Use 'confluence' or 'indexed'.")
+
+
+def _reconstruct_from_segments(store, page_id, meeting_meta, meetings_list):
+    """Reconstruct meeting text from stored Qdrant segments (fallback for uploads)."""
+    from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+    all_points, _ = store.client.scroll(
+        collection_name=store.collection_name,
+        scroll_filter=Filter(
+            must=[FieldCondition(key="page_id", match=MatchValue(value=page_id))]
+        ),
+        limit=1000,
+        with_payload=True,
+        with_vectors=False,
+    )
+    if all_points:
+        sorted_points = sorted(
+            all_points,
+            key=lambda p: p.payload.get("chunk_index", 0),
+        )
+        full_text = "\n\n".join(
+            p.payload.get("raw_text", p.payload.get("content", ""))
+            for p in sorted_points
+        )
+        meetings_list.append({
+            "page_id": page_id,
+            "title": meeting_meta.get("title", ""),
+            "meeting_date": meeting_meta.get("meeting_date", ""),
+            "body_text": full_text,
+        })
+
+
+def _summarize_result(result: dict) -> dict:
+    """Create a compact summary of extraction results for status reporting."""
+    if "status" in result:
+        return result
+    summary = result.get("summary", {})
+    return {
+        "meetings_processed": summary.get("meetings_processed", result.get("new_meetings_processed", 0)),
+        "total_qa_items": summary.get("total_qa_items", result.get("new_qa_items", 0)),
+        "profile_updated": result.get("profile_updated", result.get("pass3_profile") is not None),
+        "calibration_updated": result.get("calibration_updated", result.get("pass4_calibration") is not None),
+    }
+
+
+@router.get("/extraction/status")
+async def get_extraction_status(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the current cognitive extraction pipeline status."""
+    return _extraction_status
+
+
+# ─── Cognitive Profile Management ─────────────────────────────────────────────
+
+@router.get("/cognitive/profile")
+async def get_cognitive_profile(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get the current IC cognitive profile.
+
+    Returns the committee-level cognitive profile including:
+    - Core priorities and decision patterns
+    - Member-level profiles (if attribution data available)
+    - Collective patterns, kill criteria, blind spots
+    """
+    from backend.app.core.ic_cognitive_store import load_cognitive_profile, get_profile_summary
+
+    profile = load_cognitive_profile()
+    summary = get_profile_summary()
+
+    if not profile:
+        return {
+            "status": "no_profile",
+            "message": (
+                "No cognitive profile exists yet. "
+                "Run the extraction pipeline first: POST /ic-simulator/extraction/run"
+            ),
+            "summary": summary,
+        }
+
+    return {
+        "status": "ok",
+        "profile": profile,
+        "summary": summary,
+    }
+
+
+@router.get("/cognitive/calibration")
+async def get_calibration_set(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the current calibration set (annotated exemplar meetings)."""
+    from backend.app.core.ic_cognitive_store import load_calibration_set
+
+    calibration = load_calibration_set()
+    if not calibration:
+        return {
+            "status": "no_calibration",
+            "message": "No calibration set exists yet. Run the extraction pipeline first.",
+        }
+
+    return {
+        "status": "ok",
+        "calibration": calibration,
+        "num_examples": len(calibration.get("examples", [])),
+    }
+
+
+@router.get("/cognitive/extracts")
+async def list_extracts(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """List all per-meeting extracts (Pass 1+2 outputs)."""
+    from backend.app.core.ic_cognitive_store import list_meeting_extracts
+
+    extracts = list_meeting_extracts()
+    return {
+        "total": len(extracts),
+        "extracts": extracts,
+    }
+
+
+@router.get("/cognitive/extracts/{page_id}")
+async def get_extract(
+    page_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Get the full structured extract for a specific meeting."""
+    from backend.app.core.ic_cognitive_store import load_meeting_extract
+
+    extract = load_meeting_extract(page_id)
+    if not extract:
+        raise HTTPException(status_code=404, detail=f"No extract found for page_id: {page_id}")
+
+    return extract
+
+
+@router.delete("/cognitive/extracts/{page_id}")
+async def delete_extract(
+    page_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a specific meeting extract."""
+    from backend.app.core.ic_cognitive_store import delete_meeting_extract
+
+    deleted = delete_meeting_extract(page_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"No extract found for page_id: {page_id}")
+
+    return {"status": "deleted", "page_id": page_id}
+
+
+@router.get("/cognitive/versions")
+async def list_profile_versions(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """List all historical versions of the cognitive profile."""
+    from backend.app.core.ic_cognitive_store import list_profile_versions
+
+    versions = list_profile_versions()
+    return {"versions": versions, "total": len(versions)}
+
+
+@router.get("/cognitive/summary")
+async def get_intelligence_summary(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get a high-level summary of the IC cognitive intelligence state.
+
+    Shows whether a profile exists, how many meetings were analyzed,
+    calibration set status, and when the last extraction was run.
+    """
+    from backend.app.core.ic_cognitive_store import get_profile_summary
+
+    return get_profile_summary()
