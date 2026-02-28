@@ -291,20 +291,21 @@ def generate_ic_questions(
     top_k_history: int = 20,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    mode: str = "auto",
 ) -> Dict[str, Any]:
     """
     Generate anticipated IC questions for new project materials.
 
-    Automatically selects the best mode:
-    - Mode 2 (Cognitive Simulation) if a cognitive profile exists
-    - Mode 1 (Legacy RAG) as fallback
-
     Args:
         project_description: Text description or summary of the project
         uploaded_doc_texts: Optional list of extracted texts from uploaded documents
-        top_k_history: Number of historical Q&A segments to retrieve (Mode 1 only)
+        top_k_history: Number of historical Q&A segments to retrieve (Legacy mode only)
         date_from: Only use IC meetings on or after this date
         date_to: Only use IC meetings on or before this date
+        mode: "auto" (default), "cognitive", or "legacy"
+              - auto: Use cognitive simulation if profile exists, else legacy RAG
+              - cognitive: Force cognitive simulation (fails if no profile)
+              - legacy: Force legacy RAG mode
 
     Returns:
         Dict with keys: questions_markdown, historical_references, metadata
@@ -319,20 +320,36 @@ def generate_ic_questions(
             "metadata": {"error": "No project context provided"},
         }
 
-    # Check if cognitive profile is available
+    # Load cognitive profile
     profile = load_cognitive_profile()
     calibration = load_calibration_set()
 
-    if profile:
-        logger.info("Cognitive profile found — using Mode 2 (Cognitive Simulation)")
-        return _generate_cognitive_mode(
-            project_context, profile, calibration
-        )
-    else:
-        logger.info("No cognitive profile — falling back to Mode 1 (Legacy RAG)")
-        return _generate_legacy_mode(
-            project_context, top_k_history, date_from, date_to
-        )
+    # Mode selection
+    if mode == "cognitive":
+        if not profile:
+            return {
+                "questions_markdown": (
+                    "**Cognitive Simulation mode selected but no profile exists yet.**\n\n"
+                    "Please run the extraction pipeline first (sync meetings, then wait for "
+                    "auto-extraction to complete), or switch to Legacy RAG mode."
+                ),
+                "historical_references": [],
+                "metadata": {"error": "No cognitive profile available", "mode": "cognitive"},
+            }
+        logger.info("Mode explicitly set to Cognitive Simulation")
+        return _generate_cognitive_mode(project_context, profile, calibration)
+
+    elif mode == "legacy":
+        logger.info("Mode explicitly set to Legacy RAG")
+        return _generate_legacy_mode(project_context, top_k_history, date_from, date_to)
+
+    else:  # auto
+        if profile:
+            logger.info("Cognitive profile found — using Mode 2 (Cognitive Simulation)")
+            return _generate_cognitive_mode(project_context, profile, calibration)
+        else:
+            logger.info("No cognitive profile — falling back to Mode 1 (Legacy RAG)")
+            return _generate_legacy_mode(project_context, top_k_history, date_from, date_to)
 
 
 def _build_project_context(

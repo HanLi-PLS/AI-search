@@ -33,6 +33,7 @@ function ICSimulator() {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [generationMode, setGenerationMode] = useState('auto');
 
   const projectFileRef = useRef(null);
   const syncTimerRef = useRef(null);
@@ -168,7 +169,7 @@ function ICSimulator() {
 
     try {
       const data = await icSimulatorAPI.generateQuestions(
-        projectDescription, projectFiles, historyDateFrom, historyDateTo
+        projectDescription, projectFiles, historyDateFrom, historyDateTo, generationMode
       );
       setResult(data);
     } catch (err) {
@@ -407,6 +408,31 @@ function ICSimulator() {
               ))}
             </div>
 
+            {/* Generation Mode Selector */}
+            <div className="ic-mode-selector">
+              <label className="ic-mode-label">Generation Mode</label>
+              <div className="ic-mode-buttons">
+                {[
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'cognitive', label: 'Cognitive Simulation' },
+                  { value: 'legacy', label: 'Legacy RAG' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`ic-mode-btn ${generationMode === opt.value ? 'active' : ''}`}
+                    onClick={() => setGenerationMode(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="ic-mode-hint">
+                {generationMode === 'auto' && 'Uses Cognitive Simulation if a profile exists, otherwise Legacy RAG.'}
+                {generationMode === 'cognitive' && 'Uses the extracted IC committee cognitive profile to simulate questions.'}
+                {generationMode === 'legacy' && 'Uses semantic search over historical Q&A segments to generate questions.'}
+              </p>
+            </div>
+
             <button
               className="ic-generate-btn"
               onClick={handleGenerate}
@@ -472,8 +498,16 @@ function ICSimulator() {
               {/* Metadata */}
               {result.metadata && (
                 <div className="ic-reference-meta" style={{ marginTop: '1rem' }}>
+                  {result.metadata.mode && (
+                    <span>
+                      Mode: {result.metadata.mode === 'cognitive_simulation' ? 'Cognitive Simulation' : 'Legacy RAG'}
+                      {' · '}
+                    </span>
+                  )}
                   Model: {result.metadata.model}
-                  {' · '}Historical segments used: {result.metadata.historical_segments_used}
+                  {result.metadata.historical_segments_used != null && (
+                    <span>{' · '}Historical segments used: {result.metadata.historical_segments_used}</span>
+                  )}
                   {(result.metadata.date_from || result.metadata.date_to) && (
                     <span>
                       {' · '}Date range: {result.metadata.date_from || 'earliest'}

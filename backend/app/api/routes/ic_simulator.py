@@ -387,19 +387,18 @@ async def generate_questions(
     files: list[UploadFile] = File(default=[]),
     date_from: str = Form(""),
     date_to: str = Form(""),
+    mode: str = Form("auto"),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate anticipated IC questions for new project materials.
-
-    Automatically uses cognitive simulation (Mode 2) when a cognitive profile
-    exists, or falls back to legacy RAG mode (Mode 1).
 
     Accepts:
     - project_description: Text description of the project (form field)
     - files: Optional uploaded project documents (multipart files)
     - date_from: Only use IC meetings on or after this date (e.g. "2024-01-01")
     - date_to: Only use IC meetings on or before this date (e.g. "2025-12-31")
+    - mode: "auto" (default), "cognitive", or "legacy"
 
     Returns anticipated IC questions based on cognitive simulation or historical patterns.
     """
@@ -456,6 +455,7 @@ async def generate_questions(
         uploaded_doc_texts=uploaded_doc_texts if uploaded_doc_texts else None,
         date_from=date_from if date_from else None,
         date_to=date_to if date_to else None,
+        mode=mode if mode else "auto",
     )
 
     return result

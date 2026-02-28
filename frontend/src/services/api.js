@@ -408,7 +408,7 @@ export const icSimulatorAPI = {
   },
 
   // Generate anticipated IC questions (optionally scoped to a date range of meetings)
-  generateQuestions: async (projectDescription, files = [], dateFrom = '', dateTo = '') => {
+  generateQuestions: async (projectDescription, files = [], dateFrom = '', dateTo = '', mode = 'auto') => {
     const formData = new FormData();
     formData.append('project_description', projectDescription || '');
     for (const file of files) {
@@ -416,6 +416,7 @@ export const icSimulatorAPI = {
     }
     if (dateFrom) formData.append('date_from', dateFrom);
     if (dateTo) formData.append('date_to', dateTo);
+    formData.append('mode', mode);
     const response = await api.post('/api/ic-simulator/generate-questions', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 300000, // 5 min timeout for LLM generation
