@@ -43,6 +43,8 @@ _sync_status = {
     "pages_processed": 0,
     "last_sync": None,
     "error": None,
+    "auto_extraction_triggered": False,
+    "new_pages_synced": 0,
 }
 
 # In-memory extraction status tracker
@@ -116,6 +118,8 @@ async def sync_confluence(
         "pages_processed": 0,
         "last_sync": None,
         "error": None,
+        "auto_extraction_triggered": False,
+        "new_pages_synced": 0,
     }
 
     # Run sync in background thread
@@ -204,11 +208,39 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
         _sync_status["is_syncing"] = False
         _sync_status["last_sync"] = datetime.utcnow().isoformat()
         _sync_status["progress"] = 100
+        _sync_status["new_pages_synced"] = new_pages
 
         logger.info(
             f"Confluence sync complete: {new_pages} new pages, "
             f"{total_segments} segments indexed"
         )
+
+        # Auto-trigger incremental extraction if new meetings were added
+        if new_pages > 0 and not _extraction_status["is_running"]:
+            logger.info(
+                f"Auto-triggering incremental extraction for {new_pages} new meetings"
+            )
+            _sync_status["auto_extraction_triggered"] = True
+
+            _extraction_status.update({
+                "is_running": True,
+                "stage": "starting",
+                "current": 0,
+                "total": 0,
+                "detail": f"Auto-triggered: extracting {new_pages} new meetings...",
+                "error": None,
+                "started_at": datetime.utcnow().isoformat(),
+                "completed_at": None,
+            })
+
+            _worker_pool.submit(
+                _run_extraction_worker,
+                "indexed",   # source: use already-synced meetings
+                None,        # date_from
+                None,        # date_to
+                0,           # limit (0 = no limit)
+                True,        # incremental
+            )
 
     except Exception as e:
         logger.error(f"Confluence sync failed: {e}", exc_info=True)

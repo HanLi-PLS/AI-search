@@ -401,6 +401,12 @@ export const icSimulatorAPI = {
     return response.data;
   },
 
+  // Get extraction pipeline status
+  getExtractionStatus: async () => {
+    const response = await api.get('/api/ic-simulator/extraction/status');
+    return response.data;
+  },
+
   // Generate anticipated IC questions (optionally scoped to a date range of meetings)
   generateQuestions: async (projectDescription, files = [], dateFrom = '', dateTo = '') => {
     const formData = new FormData();

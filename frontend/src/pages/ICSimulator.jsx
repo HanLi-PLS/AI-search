@@ -14,6 +14,8 @@ function ICSimulator() {
   const [stats, setStats] = useState({ total_segments: 0, total_meetings: 0 });
   const [syncStatus, setSyncStatus] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [extractionStatus, setExtractionStatus] = useState(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   // Date range filter for selecting which meetings to use as learning base
   const [historyDateFrom, setHistoryDateFrom] = useState('');
@@ -34,6 +36,7 @@ function ICSimulator() {
 
   const projectFileRef = useRef(null);
   const syncTimerRef = useRef(null);
+  const extractionTimerRef = useRef(null);
 
   // Load meetings on mount
   useEffect(() => {
@@ -51,6 +54,10 @@ function ICSimulator() {
             setIsSyncing(false);
             clearInterval(syncTimerRef.current);
             loadMeetings();
+            // Start polling extraction if auto-triggered
+            if (status.auto_extraction_triggered) {
+              setIsExtracting(true);
+            }
           }
         } catch {
           // ignore polling errors
@@ -61,6 +68,27 @@ function ICSimulator() {
       if (syncTimerRef.current) clearInterval(syncTimerRef.current);
     };
   }, [isSyncing]);
+
+  // Poll extraction status when extracting
+  useEffect(() => {
+    if (isExtracting) {
+      extractionTimerRef.current = setInterval(async () => {
+        try {
+          const status = await icSimulatorAPI.getExtractionStatus();
+          setExtractionStatus(status);
+          if (!status.is_running) {
+            setIsExtracting(false);
+            clearInterval(extractionTimerRef.current);
+          }
+        } catch {
+          // ignore polling errors
+        }
+      }, 3000);
+    }
+    return () => {
+      if (extractionTimerRef.current) clearInterval(extractionTimerRef.current);
+    };
+  }, [isExtracting]);
 
   const loadMeetings = async () => {
     try {
@@ -253,6 +281,24 @@ function ICSimulator() {
             {syncStatus?.error && (
               <div className="ic-error" style={{ marginTop: '0.75rem' }}>
                 {syncStatus.error}
+              </div>
+            )}
+            {/* Auto-extraction progress */}
+            {isExtracting && extractionStatus && (
+              <div className="ic-sync-progress" style={{ marginTop: '0.75rem' }}>
+                <span className="ic-progress-text" style={{ color: '#7c5cfc', fontWeight: 500 }}>
+                  Updating IC profile: {extractionStatus.detail || extractionStatus.stage || 'starting...'}
+                </span>
+              </div>
+            )}
+            {extractionStatus && !isExtracting && extractionStatus.completed_at && syncStatus?.auto_extraction_triggered && (
+              <div style={{ marginTop: '0.75rem', color: '#22c55e', fontSize: '0.85rem' }}>
+                IC profile updated automatically with {syncStatus.new_pages_synced} new meeting{syncStatus.new_pages_synced !== 1 ? 's' : ''}.
+              </div>
+            )}
+            {extractionStatus?.error && (
+              <div className="ic-error" style={{ marginTop: '0.5rem' }}>
+                Profile update failed: {extractionStatus.error}
               </div>
             )}
           </div>
