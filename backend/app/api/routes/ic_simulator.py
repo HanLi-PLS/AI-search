@@ -306,7 +306,7 @@ async def upload_meeting_note(
 
         # Process file to extract text
         processor = DocumentProcessor()
-        documents = processor.process_file(str(temp_path), file.filename)
+        documents = processor.process_file(temp_path, file.filename)
 
         # Combine extracted text
         full_text = "\n\n".join(doc.page_content for doc in documents)
@@ -398,11 +398,15 @@ async def generate_questions(
                 with open(temp_path, "wb") as f:
                     f.write(content)
 
-                documents = processor.process_file(str(temp_path), upload_file.filename)
+                documents = processor.process_file(temp_path, upload_file.filename)
                 full_text = "\n\n".join(doc.page_content for doc in documents)
                 uploaded_doc_texts.append(full_text)
             except Exception as e:
                 logger.error(f"Error processing file {upload_file.filename}: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to process file '{upload_file.filename}': {e}",
+                )
             finally:
                 if temp_path.exists():
                     os.remove(temp_path)
