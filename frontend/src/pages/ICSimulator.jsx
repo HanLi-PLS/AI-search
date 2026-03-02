@@ -421,45 +421,29 @@ function ICSimulator() {
               ))}
             </div>
 
-            {/* Generation Mode Selector */}
-            <div className="ic-mode-selector">
-              <label className="ic-mode-label">Generation Mode</label>
-              <div className="ic-mode-buttons">
-                {[
-                  { value: 'cognitive', label: 'Cognitive Simulation' },
-                  { value: 'legacy', label: 'Legacy RAG' },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`ic-mode-btn ${generationMode === opt.value ? 'active' : ''}`}
-                    onClick={() => setGenerationMode(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {/* Generation Mode + Model selectors in one row */}
+            <div className="ic-options-row">
+              <div className="ic-option-group">
+                <label className="ic-mode-label">Generation Mode</label>
+                <select
+                  className="ic-select"
+                  value={generationMode}
+                  onChange={(e) => setGenerationMode(e.target.value)}
+                >
+                  <option value="cognitive">Cognitive Simulation</option>
+                  <option value="legacy">Legacy RAG</option>
+                </select>
               </div>
-              <p className="ic-mode-hint">
-                {generationMode === 'cognitive' && 'Uses the extracted IC committee cognitive profile to simulate questions.'}
-                {generationMode === 'legacy' && 'Uses semantic search over historical Q&A segments to generate questions.'}
-              </p>
-            </div>
-
-            {/* Model Selector */}
-            <div className="ic-mode-selector">
-              <label className="ic-mode-label">Model</label>
-              <div className="ic-mode-buttons">
-                {[
-                  { value: 'gpt-5.2', label: 'GPT-5.2' },
-                  { value: 'gemini-pro-latest', label: 'Gemini Pro' },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`ic-mode-btn ${selectedModel === opt.value ? 'active' : ''}`}
-                    onClick={() => setSelectedModel(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+              <div className="ic-option-group">
+                <label className="ic-mode-label">Model</label>
+                <select
+                  className="ic-select"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  <option value="gpt-5.2">GPT-5.2</option>
+                  <option value="gemini-pro-latest">Gemini Pro</option>
+                </select>
               </div>
             </div>
 
