@@ -10,6 +10,7 @@ Provides routes for:
 - Managing cognitive profiles
 - Incremental profile updates
 """
+import json
 import os
 import uuid
 import logging
@@ -26,7 +27,7 @@ from slowapi.util import get_remote_address
 from backend.app.config import settings
 from backend.app.models.user import User
 from backend.app.api.routes.auth import get_current_user
-from backend.app.core.shared_status import read_status, write_status, update_status
+from backend.app.core.shared_status import read_status, write_status, update_status, claim_if_idle
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +136,13 @@ async def sync_confluence(
     })
 
     # Run sync in background thread
-    _worker_pool.submit(
+    future = _worker_pool.submit(
         _run_confluence_sync,
         body.limit,
         body.date_from or None,
         body.date_to or None,
     )
+    future.add_done_callback(_log_worker_exception)
 
     return {
         "status": "started",
@@ -231,15 +233,11 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
             f"{total_segments} segments indexed"
         )
 
-        # Auto-trigger incremental extraction if new meetings were added
-        ext_st = _get_extraction_status()
-        if new_pages > 0 and not ext_st["is_running"]:
-            logger.info(
-                f"Auto-triggering incremental extraction for {new_pages} new meetings"
-            )
-            update_status("sync", auto_extraction_triggered=True)
-
-            write_status("extraction", {
+        # Auto-trigger incremental extraction if new meetings were added.
+        # Use claim_if_idle to atomically check + set, preventing races
+        # with concurrent manual extraction requests.
+        if new_pages > 0:
+            claimed = claim_if_idle("extraction", "is_running", {
                 "is_running": True,
                 "stage": "starting",
                 "current": 0,
@@ -249,15 +247,23 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
                 "started_at": datetime.utcnow().isoformat(),
                 "completed_at": None,
             })
-
-            _worker_pool.submit(
-                _run_extraction_worker,
-                "indexed",   # source: use already-synced meetings
-                None,        # date_from
-                None,        # date_to
-                0,           # limit (0 = no limit)
-                True,        # incremental
-            )
+            if claimed:
+                logger.info(
+                    f"Auto-triggering incremental extraction for {new_pages} new meetings"
+                )
+                update_status("sync", auto_extraction_triggered=True)
+                _worker_pool.submit(
+                    _run_extraction_worker,
+                    "indexed",   # source: use already-synced meetings
+                    None,        # date_from
+                    None,        # date_to
+                    0,           # limit (0 = no limit)
+                    True,        # incremental
+                )
+            else:
+                logger.info(
+                    "Skipping auto-extraction: another extraction is already running"
+                )
 
     except Exception as e:
         logger.error(f"Confluence sync failed: {e}", exc_info=True)
@@ -662,9 +668,6 @@ def _run_extraction_worker(
         update_status("extraction", is_running=False, error=error_detail)
 
 
-import json
-
-
 def _fetch_meetings_for_extraction(
     source: str,
     date_from: Optional[str],
@@ -744,7 +747,9 @@ def _fetch_meetings_for_extraction(
                     logger.warning(
                         f"Uploaded meeting {page_id}: reconstructing from segments"
                     )
-                    _reconstruct_from_segments(store, page_id, m, meetings)
+                    reconstructed = _reconstruct_from_segments(store, page_id, m)
+                    if reconstructed:
+                        meetings.append(reconstructed)
             except Exception as e:
                 logger.error(f"Error fetching page {page_id}: {e}")
 
@@ -754,8 +759,11 @@ def _fetch_meetings_for_extraction(
         raise ValueError(f"Unknown source: {source}. Use 'confluence' or 'indexed'.")
 
 
-def _reconstruct_from_segments(store, page_id, meeting_meta, meetings_list):
-    """Reconstruct meeting text from stored Qdrant segments (fallback for uploads)."""
+def _reconstruct_from_segments(store, page_id, meeting_meta) -> Optional[dict]:
+    """Reconstruct meeting text from stored Qdrant segments (fallback for uploads).
+
+    Returns a meeting dict if segments were found, None otherwise.
+    """
     from qdrant_client.models import Filter, FieldCondition, MatchValue
 
     all_points, _ = store.client.scroll(
@@ -767,21 +775,23 @@ def _reconstruct_from_segments(store, page_id, meeting_meta, meetings_list):
         with_payload=True,
         with_vectors=False,
     )
-    if all_points:
-        sorted_points = sorted(
-            all_points,
-            key=lambda p: p.payload.get("chunk_index", 0),
-        )
-        full_text = "\n\n".join(
-            p.payload.get("raw_text", p.payload.get("content", ""))
-            for p in sorted_points
-        )
-        meetings_list.append({
-            "page_id": page_id,
-            "title": meeting_meta.get("title", ""),
-            "meeting_date": meeting_meta.get("meeting_date", ""),
-            "body_text": full_text,
-        })
+    if not all_points:
+        return None
+
+    sorted_points = sorted(
+        all_points,
+        key=lambda p: p.payload.get("chunk_index", 0),
+    )
+    full_text = "\n\n".join(
+        p.payload.get("raw_text", p.payload.get("content", ""))
+        for p in sorted_points
+    )
+    return {
+        "page_id": page_id,
+        "title": meeting_meta.get("title", ""),
+        "meeting_date": meeting_meta.get("meeting_date", ""),
+        "body_text": full_text,
+    }
 
 
 def _summarize_result(result: dict) -> dict:

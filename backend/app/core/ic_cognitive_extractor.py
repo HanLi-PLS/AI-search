@@ -21,6 +21,19 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from backend.app.config import settings
+
+# Module-level OpenAI client cache (reuses HTTP connection pool)
+_openai_client: Optional[OpenAI] = None
+_openai_client_key: Optional[str] = None
+
+
+def _get_openai_client(api_key: str) -> OpenAI:
+    """Return a cached OpenAI client, recreating only if the API key changes."""
+    global _openai_client, _openai_client_key
+    if _openai_client is None or _openai_client_key != api_key:
+        _openai_client = OpenAI(api_key=api_key)
+        _openai_client_key = api_key
+    return _openai_client
 from backend.app.core.ic_cognitive_store import (
     delete_meeting_extract,
     get_meeting_extracts_by_date,
@@ -60,7 +73,7 @@ def _llm_call(
         The model's response text
     """
     api_key = settings.get_openai_api_key()
-    client = OpenAI(api_key=api_key)
+    client = _get_openai_client(api_key)
 
     kwargs: Dict[str, Any] = {
         "model": settings.ANSWER_MODEL,
@@ -79,15 +92,45 @@ def _llm_call(
 
 
 def _parse_json_response(text: str) -> Dict[str, Any]:
-    """Parse JSON from LLM response, handling markdown code fences."""
+    """Parse JSON from LLM response, handling markdown code fences and edge cases."""
     text = text.strip()
+
+    # Strip markdown code fences (```json ... ```)
     if text.startswith("```"):
-        # Strip markdown code fences
         lines = text.split("\n")
-        # Remove first line (```json) and last line (```)
         lines = [l for l in lines if not l.strip().startswith("```")]
-        text = "\n".join(lines)
-    return json.loads(text)
+        text = "\n".join(lines).strip()
+
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: find the first { ... } or [ ... ] block in the response
+    start = text.find("{")
+    if start == -1:
+        start = text.find("[")
+    if start != -1:
+        # Find the matching closing bracket
+        bracket = text[start]
+        close = "}" if bracket == "{" else "]"
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == bracket:
+                depth += 1
+            elif text[i] == close:
+                depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    break
+
+    raise ValueError(
+        f"Could not parse JSON from LLM response. "
+        f"Response starts with: {text[:200]!r}"
+    )
 
 
 # ── Pass 1: Structural Extraction ──────────────────────────────────────────
@@ -155,7 +198,7 @@ def run_pass1(meeting_text: str, meeting_title: str, meeting_date: str) -> Dict[
 
     logger.info(f"Pass 1 (Structural Extraction): {meeting_title} ({len(meeting_text)} chars)")
 
-    response = _llm_call(PASS1_SYSTEM_PROMPT, user_message)
+    response = _llm_call(PASS1_SYSTEM_PROMPT, user_message, response_format="json")
     result = _parse_json_response(response)
 
     # Attach metadata
@@ -231,7 +274,7 @@ def run_pass2(pass1_extract: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Pass 2 (Reasoning Extraction): {title}")
 
     user_message = json.dumps(pass1_extract, indent=2, ensure_ascii=False)
-    response = _llm_call(PASS2_SYSTEM_PROMPT, user_message)
+    response = _llm_call(PASS2_SYSTEM_PROMPT, user_message, response_format="json")
     result = _parse_json_response(response)
 
     # Preserve metadata from pass 1 that the LLM might have dropped
@@ -354,6 +397,56 @@ attributed meeting notes.
 """
 
 
+# Approximate char budget per batch (~4 chars/token, targeting ~60K tokens of content)
+_BATCH_CHAR_BUDGET = 240000
+_BATCH_MAX_MEETINGS = 20  # hard cap even for small meetings
+
+
+def _estimate_extract_size(extract: Dict[str, Any]) -> int:
+    """Estimate the serialized size of a meeting extract for batching."""
+    qa_items = extract.get("qa_items", [])
+    # Quick estimate: count chars in key fields instead of full json.dumps
+    size = len(extract.get("meeting_cognitive_summary", ""))
+    size += len(str(extract.get("key_concerns_raised", [])))
+    size += len(str(extract.get("positive_signals", [])))
+    for q in qa_items:
+        size += len(q.get("question", "")) + len(q.get("answer_summary", ""))
+        size += len(q.get("underlying_concern", "")) + len(q.get("what_satisfies", ""))
+    return max(size, 500)  # minimum 500 chars per meeting
+
+
+def _build_content_aware_batches(
+    extracts: List[Dict[str, Any]],
+) -> List[List[Dict[str, Any]]]:
+    """
+    Split extracts into batches based on estimated content size rather than
+    a fixed meeting count.  This prevents large meetings (50+ Q&A items)
+    from blowing context limits while allowing more small meetings per batch.
+    """
+    batches: List[List[Dict[str, Any]]] = []
+    current_batch: List[Dict[str, Any]] = []
+    current_size = 0
+
+    for ext in extracts:
+        ext_size = _estimate_extract_size(ext)
+
+        if current_batch and (
+            current_size + ext_size > _BATCH_CHAR_BUDGET
+            or len(current_batch) >= _BATCH_MAX_MEETINGS
+        ):
+            batches.append(current_batch)
+            current_batch = []
+            current_size = 0
+
+        current_batch.append(ext)
+        current_size += ext_size
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
 def run_pass3(
     extracts: List[Dict[str, Any]],
     existing_profile: Optional[Dict[str, Any]] = None,
@@ -381,18 +474,17 @@ def run_pass3(
     total_meetings = len(extracts)
     logger.info(f"Pass 3 (Cross-Meeting Synthesis): {total_meetings} meetings")
 
-    BATCH_SIZE = 15  # Process in batches to stay within context limits
+    batches = _build_content_aware_batches(extracts)
 
-    if total_meetings <= BATCH_SIZE:
+    if len(batches) == 1:
         # Single-shot synthesis
-        profile = _synthesize_batch(extracts)
+        profile = _synthesize_batch(batches[0])
     else:
         # Map-reduce: synthesize batches, then merge
         batch_profiles = []
-        for i in range(0, total_meetings, BATCH_SIZE):
-            batch = extracts[i : i + BATCH_SIZE]
+        for batch_idx, batch in enumerate(batches, 1):
             logger.info(
-                f"Pass 3: Synthesizing batch {i // BATCH_SIZE + 1} "
+                f"Pass 3: Synthesizing batch {batch_idx}/{len(batches)} "
                 f"({len(batch)} meetings)"
             )
             batch_profile = _synthesize_batch(batch)
@@ -441,7 +533,7 @@ def _synthesize_batch(extracts: List[Dict[str, Any]]) -> Dict[str, Any]:
         + json.dumps(meetings_summary, indent=2, ensure_ascii=False)
     )
 
-    response = _llm_call(PASS3_SYSTEM_PROMPT, user_message, temperature=0.1)
+    response = _llm_call(PASS3_SYSTEM_PROMPT, user_message, temperature=0.1, response_format="json")
     profile = _parse_json_response(response)
 
     # Add metadata
@@ -488,7 +580,7 @@ def _merge_profiles(
         + json.dumps(batch_profiles, indent=2, ensure_ascii=False)
     )
 
-    response = _llm_call(MERGE_SYSTEM_PROMPT, user_message, temperature=0.1)
+    response = _llm_call(MERGE_SYSTEM_PROMPT, user_message, temperature=0.1, response_format="json")
     merged = _parse_json_response(response)
 
     # Ensure correct totals
@@ -548,7 +640,8 @@ def _merge_with_existing(
     )
 
     response = _llm_call(
-        INCREMENTAL_MERGE_SYSTEM_PROMPT, user_message, temperature=0.1
+        INCREMENTAL_MERGE_SYSTEM_PROMPT, user_message, temperature=0.1,
+        response_format="json",
     )
     merged = _parse_json_response(response)
 
@@ -686,7 +779,7 @@ def run_pass4(extracts: List[Dict[str, Any]]) -> Dict[str, Any]:
         + json.dumps(summaries, indent=2, ensure_ascii=False)
     )
 
-    response = _llm_call(PASS4_SYSTEM_PROMPT, user_message, temperature=0.2)
+    response = _llm_call(PASS4_SYSTEM_PROMPT, user_message, temperature=0.2, response_format="json")
     calibration = _parse_json_response(response)
 
     # Enrich each selected example with the full extract data

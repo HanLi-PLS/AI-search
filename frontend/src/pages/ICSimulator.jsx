@@ -39,9 +39,21 @@ function ICSimulator() {
   const syncTimerRef = useRef(null);
   const extractionTimerRef = useRef(null);
 
-  // Load meetings on mount
+  // Load meetings and check extraction status on mount
   useEffect(() => {
     loadMeetings();
+    // Resume extraction polling if an extraction was running before page load
+    (async () => {
+      try {
+        const status = await icSimulatorAPI.getExtractionStatus();
+        if (status && status.is_running) {
+          setExtractionStatus(status);
+          setIsExtracting(true);
+        }
+      } catch {
+        // ignore — extraction status endpoint may not be available
+      }
+    })();
   }, []);
 
   // Poll sync status when syncing

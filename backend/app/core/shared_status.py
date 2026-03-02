@@ -63,6 +63,38 @@ def write_status(namespace: str, status: Dict[str, Any]) -> None:
         logger.error("shared_status write error: %s", exc)
 
 
+def claim_if_idle(namespace: str, guard_field: str, new_status: Dict[str, Any]) -> bool:
+    """
+    Atomically set *new_status* for *namespace* only if *guard_field* is falsy.
+
+    Returns True if the claim succeeded, False if the guard was already set
+    (i.e., someone else is already running).  Used to prevent race conditions
+    when multiple workers might try to start the same background task.
+    """
+    _ensure_file()
+    try:
+        with open(_STATUS_FILE, "r+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = {}
+                ns = data.get(namespace, {})
+                if ns.get(guard_field):
+                    return False  # already running
+                data[namespace] = new_status
+                f.seek(0)
+                f.truncate()
+                json.dump(data, f, default=str)
+                return True
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+    except OSError as exc:
+        logger.error("shared_status claim_if_idle error: %s", exc)
+        return False
+
+
 def update_status(namespace: str, **fields) -> None:
     """Merge *fields* into the existing status dict for *namespace*."""
     _ensure_file()

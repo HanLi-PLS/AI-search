@@ -11,10 +11,11 @@ Profiles are stored in data/ic_profiles/ as JSON files, version-controlled
 and human-reviewable. No vector database needed — the distilled intelligence
 fits in a single LLM context window.
 """
+import fcntl
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -36,17 +37,25 @@ def _ensure_dirs():
 
 
 def _save_json(path: Path, data: Any):
-    """Write JSON with pretty-printing for human readability."""
+    """Write JSON with pretty-printing for human readability (exclusive lock)."""
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def _load_json(path: Path) -> Any:
-    """Load a JSON file, return None if missing."""
+    """Load a JSON file, return None if missing (shared lock)."""
     if not path.exists():
         return None
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        fcntl.flock(f, fcntl.LOCK_SH)
+        try:
+            return json.load(f)
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 # ── Per-meeting extracts (Pass 1 & 2 outputs) ──────────────────────────────
@@ -60,7 +69,7 @@ def save_meeting_extract(page_id: str, extract: Dict[str, Any]):
         extract: Dict containing structural + reasoning extraction results
     """
     _ensure_dirs()
-    extract["extracted_at"] = datetime.utcnow().isoformat()
+    extract["extracted_at"] = datetime.now(timezone.utc).isoformat()
     path = EXTRACTS_DIR / f"{page_id}.json"
     _save_json(path, extract)
     logger.info(f"Saved meeting extract: {path.name}")
@@ -141,16 +150,18 @@ def save_cognitive_profile(profile: Dict[str, Any]):
     current_path = PROFILES_DIR / "cognitive_profile.json"
 
     # Version the existing profile before overwriting
-    if current_path.exists():
-        existing = _load_json(current_path)
-        if existing:
-            version_ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            version_path = VERSIONS_DIR / f"cognitive_profile_{version_ts}.json"
-            shutil.copy2(current_path, version_path)
-            logger.info(f"Versioned previous profile: {version_path.name}")
+    existing = _load_json(current_path) if current_path.exists() else None
+    if existing:
+        version_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        version_path = VERSIONS_DIR / f"cognitive_profile_{version_ts}.json"
+        shutil.copy2(current_path, version_path)
+        logger.info(f"Versioned previous profile: {version_path.name}")
 
-    profile["updated_at"] = datetime.utcnow().isoformat()
-    profile["version"] = _next_version_number()
+    # Compute next version from what we already loaded (avoids redundant read)
+    next_version = (existing["version"] + 1) if existing and "version" in existing else 1
+
+    profile["updated_at"] = datetime.now(timezone.utc).isoformat()
+    profile["version"] = next_version
     _save_json(current_path, profile)
     logger.info(f"Saved cognitive profile v{profile['version']}")
 
@@ -185,11 +196,11 @@ def save_calibration_set(calibration: Dict[str, Any]):
 
     # Version existing
     if current_path.exists():
-        version_ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        version_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         version_path = VERSIONS_DIR / f"calibration_set_{version_ts}.json"
         shutil.copy2(current_path, version_path)
 
-    calibration["updated_at"] = datetime.utcnow().isoformat()
+    calibration["updated_at"] = datetime.now(timezone.utc).isoformat()
     _save_json(current_path, calibration)
     logger.info(f"Saved calibration set ({len(calibration.get('examples', []))} examples)")
 
@@ -209,7 +220,7 @@ def save_extraction_state(state: Dict[str, Any]):
     synthesis was run.
     """
     _ensure_dirs()
-    state["saved_at"] = datetime.utcnow().isoformat()
+    state["saved_at"] = datetime.now(timezone.utc).isoformat()
     _save_json(PROFILES_DIR / "extraction_state.json", state)
 
 
@@ -219,14 +230,6 @@ def load_extraction_state() -> Optional[Dict[str, Any]]:
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
-
-def _next_version_number() -> int:
-    """Determine the next version number for the cognitive profile."""
-    current = load_cognitive_profile()
-    if current and "version" in current:
-        return current["version"] + 1
-    return 1
-
 
 def get_profile_summary() -> Dict[str, Any]:
     """

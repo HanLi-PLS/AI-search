@@ -21,6 +21,19 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from backend.app.config import settings
+
+# Module-level OpenAI client cache (reuses HTTP connection pool)
+_openai_client: Optional[OpenAI] = None
+_openai_client_key: Optional[str] = None
+
+
+def _get_openai_client(api_key: str) -> OpenAI:
+    """Return a cached OpenAI client, recreating only if the API key changes."""
+    global _openai_client, _openai_client_key
+    if _openai_client is None or _openai_client_key != api_key:
+        _openai_client = OpenAI(api_key=api_key)
+        _openai_client_key = api_key
+    return _openai_client
 from backend.app.core.ic_cognitive_store import (
     load_calibration_set,
     load_cognitive_profile,
@@ -366,6 +379,20 @@ def _build_project_context(
     return "\n\n".join(parts)
 
 
+_STAGE_B_CONTEXT_LIMIT = 30000
+
+
+def _truncate_with_warning(text: str, limit: int) -> str:
+    """Truncate text for Stage B grounding, logging a warning when content is cut."""
+    if len(text) <= limit:
+        return text
+    logger.warning(
+        f"Stage B: project context truncated from {len(text)} to {limit} chars "
+        f"({len(text) - limit} chars dropped)"
+    )
+    return text[:limit]
+
+
 # ── Mode 2: Cognitive Simulation ──────────────────────────────────────────
 
 def _generate_cognitive_mode(
@@ -379,61 +406,75 @@ def _generate_cognitive_mode(
     Stage B: Simulate IC behavior using cognitive profile
     """
     api_key = settings.get_openai_api_key()
-    client = OpenAI(api_key=api_key)
+    client = _get_openai_client(api_key)
 
-    # ── Stage A: Deal Decomposition ──
-    logger.info(
-        f"Stage A (Deal Decomposition): {len(project_context)} chars of materials"
-    )
+    try:
+        # ── Stage A: Deal Decomposition ──
+        logger.info(
+            f"Stage A (Deal Decomposition): {len(project_context)} chars of materials"
+        )
 
-    stage_a_response = client.chat.completions.create(
-        model=settings.ANSWER_MODEL,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": STAGE_A_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    "## Project Materials for IC Review\n\n"
-                    + project_context
-                    + "\n\n---\n"
-                    "Produce a thorough deal decomposition analysis."
-                ),
-            },
-        ],
-    )
+        stage_a_response = client.chat.completions.create(
+            model=settings.ANSWER_MODEL,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": STAGE_A_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        "## Project Materials for IC Review\n\n"
+                        + project_context
+                        + "\n\n---\n"
+                        "Produce a thorough deal decomposition analysis."
+                    ),
+                },
+            ],
+        )
 
-    deal_decomposition = stage_a_response.choices[0].message.content
-    logger.info(f"Stage A complete: {len(deal_decomposition)} chars of analysis")
+        deal_decomposition = stage_a_response.choices[0].message.content
+        logger.info(f"Stage A complete: {len(deal_decomposition)} chars of analysis")
 
-    # ── Stage B: IC Simulation ──
-    logger.info("Stage B (IC Simulation): generating questions from cognitive profile")
+        # ── Stage B: IC Simulation ──
+        logger.info("Stage B (IC Simulation): generating questions from cognitive profile")
 
-    stage_b_system = _build_stage_b_system_prompt(profile, calibration)
+        stage_b_system = _build_stage_b_system_prompt(profile, calibration)
 
-    stage_b_response = client.chat.completions.create(
-        model=settings.ANSWER_MODEL,
-        temperature=0.3,
-        messages=[
-            {"role": "system", "content": stage_b_system},
-            {
-                "role": "user",
-                "content": (
-                    "## Deal Decomposition Analysis\n\n"
-                    + deal_decomposition
-                    + "\n\n## Original Project Materials (for reference)\n\n"
-                    + project_context[:30000]  # Include materials for grounding
-                    + "\n\n---\n"
-                    "Based on the deal decomposition and your deep understanding "
-                    "of this IC's cognitive patterns, generate your full IC simulation "
-                    "with opening reactions, primary questions, follow-up trees, "
-                    "and meta-read."
-                ),
-            },
-        ],
-    )
+        stage_b_response = client.chat.completions.create(
+            model=settings.ANSWER_MODEL,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": stage_b_system},
+                {
+                    "role": "user",
+                    "content": (
+                        "## Deal Decomposition Analysis\n\n"
+                        + deal_decomposition
+                        + "\n\n## Original Project Materials (for reference)\n\n"
+                        + _truncate_with_warning(project_context, _STAGE_B_CONTEXT_LIMIT)
+                        + "\n\n---\n"
+                        "Based on the deal decomposition and your deep understanding "
+                        "of this IC's cognitive patterns, generate your full IC simulation "
+                        "with opening reactions, primary questions, follow-up trees, "
+                        "and meta-read."
+                    ),
+                },
+            ],
+        )
 
-    simulation_output = stage_b_response.choices[0].message.content
+        simulation_output = stage_b_response.choices[0].message.content
+
+    except Exception as e:
+        logger.error(f"Cognitive simulation LLM call failed: {e}", exc_info=True)
+        return {
+            "questions_markdown": (
+                "**Error during cognitive simulation.**\n\n"
+                f"The LLM call failed: {type(e).__name__}: {e}\n\n"
+                "Please try again. If the problem persists, check your API key "
+                "and model configuration."
+            ),
+            "historical_references": [],
+            "metadata": {"error": str(e), "mode": "cognitive_simulation"},
+        }
 
     return {
         "questions_markdown": simulation_output,
@@ -489,11 +530,22 @@ def _generate_legacy_mode(
 
     # Call LLM
     api_key = settings.get_openai_api_key()
-    client = OpenAI(api_key=api_key)
+    client = _get_openai_client(api_key)
+
+    # Guard against very large contexts exceeding model limits
+    _LEGACY_CONTEXT_LIMIT = 80000
+    if len(project_context) > _LEGACY_CONTEXT_LIMIT:
+        logger.warning(
+            f"Legacy mode: project context truncated from {len(project_context)} "
+            f"to {_LEGACY_CONTEXT_LIMIT} chars for LLM message"
+        )
+        project_context_for_llm = project_context[:_LEGACY_CONTEXT_LIMIT]
+    else:
+        project_context_for_llm = project_context
 
     user_message_parts = [
         "## New Project Materials\n",
-        project_context,
+        project_context_for_llm,
     ]
 
     if historical_context:
@@ -518,16 +570,29 @@ def _generate_legacy_mode(
         f"Historical refs: {len(historical_results)}"
     )
 
-    response = client.chat.completions.create(
-        model=settings.ANSWER_MODEL,
-        temperature=0.3,
-        messages=[
-            {"role": "system", "content": LEGACY_SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ],
-    )
+    try:
+        response = client.chat.completions.create(
+            model=settings.ANSWER_MODEL,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": LEGACY_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+        )
 
-    answer = response.choices[0].message.content
+        answer = response.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Legacy RAG LLM call failed: {e}", exc_info=True)
+        return {
+            "questions_markdown": (
+                "**Error during question generation.**\n\n"
+                f"The LLM call failed: {type(e).__name__}: {e}\n\n"
+                "Please try again. If the problem persists, check your API key "
+                "and model configuration."
+            ),
+            "historical_references": [],
+            "metadata": {"error": str(e), "mode": "legacy_rag"},
+        }
 
     # Build references list
     references = []
