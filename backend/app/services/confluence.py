@@ -87,38 +87,29 @@ class ConfluenceClient:
         while start < limit:
             fetch_size = min(page_size, limit - start)
 
-            if self.parent_page_id and not date_from and not date_to:
-                # Fetch child pages of the parent (no date filtering via child API)
-                data = self._api_get(
-                    f"/content/{self.parent_page_id}/child/page",
-                    params={
-                        "start": start,
-                        "limit": fetch_size,
-                        "expand": "version,history",
-                    },
-                )
-            else:
-                # Use CQL search (supports date filters)
-                cql_parts = [f'type=page']
-                if self.parent_page_id:
-                    cql_parts.append(f'ancestor={self.parent_page_id}')
-                elif self.space_key:
-                    cql_parts.append(f'space="{self.space_key}"')
-                if date_from:
-                    cql_parts.append(f'created >= "{date_from}"')
-                if date_to:
-                    cql_parts.append(f'created <= "{date_to}"')
+            # Always use CQL search — the ancestor query fetches all
+            # descendants (including grandchildren), not just direct
+            # children, which is needed for year-grouped page trees.
+            cql_parts = [f'type=page']
+            if self.parent_page_id:
+                cql_parts.append(f'ancestor={self.parent_page_id}')
+            elif self.space_key:
+                cql_parts.append(f'space="{self.space_key}"')
+            if date_from:
+                cql_parts.append(f'created >= "{date_from}"')
+            if date_to:
+                cql_parts.append(f'created <= "{date_to}"')
 
-                cql = " AND ".join(cql_parts)
-                data = self._api_get(
-                    "/content/search",
-                    params={
-                        "cql": cql,
-                        "start": start,
-                        "limit": fetch_size,
-                        "expand": "version,history",
-                    },
-                )
+            cql = " AND ".join(cql_parts)
+            data = self._api_get(
+                "/content/search",
+                params={
+                    "cql": cql,
+                    "start": start,
+                    "limit": fetch_size,
+                    "expand": "version,history",
+                },
+            )
 
             results = data.get("results", [])
             if not results:
