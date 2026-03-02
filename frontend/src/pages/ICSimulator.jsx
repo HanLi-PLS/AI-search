@@ -446,17 +446,17 @@ function ICSimulator() {
                   <option value="gemini-pro-latest">Gemini Pro</option>
                 </select>
               </div>
-              <div className="ic-option-group ic-segments-group">
-                <label className="ic-mode-label">Segments: {topKSegments}</label>
-                <input
-                  type="range"
-                  className="ic-range"
-                  min={5}
-                  max={50}
-                  step={5}
+              <div className="ic-option-group">
+                <label className="ic-mode-label">Segments</label>
+                <select
+                  className="ic-select"
                   value={topKSegments}
                   onChange={(e) => setTopKSegments(Number(e.target.value))}
-                />
+                >
+                  {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50].map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
