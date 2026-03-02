@@ -26,6 +26,7 @@ from slowapi.util import get_remote_address
 from backend.app.config import settings
 from backend.app.models.user import User
 from backend.app.api.routes.auth import get_current_user
+from backend.app.core.shared_status import read_status, write_status, update_status
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,8 @@ limiter = Limiter(key_func=get_remote_address)
 # Thread pool for background work (sync, extraction)
 _worker_pool = ThreadPoolExecutor(max_workers=2)
 
-# In-memory sync status tracker
-_sync_status = {
+# Default shapes for status dicts (used when no shared state exists yet)
+_SYNC_DEFAULTS = {
     "is_syncing": False,
     "progress": 0,
     "total_pages": 0,
@@ -47,10 +48,9 @@ _sync_status = {
     "new_pages_synced": 0,
 }
 
-# In-memory extraction status tracker
-_extraction_status = {
+_EXTRACTION_DEFAULTS = {
     "is_running": False,
-    "stage": "",          # "pass1_pass2", "pass3", "pass4"
+    "stage": "",
     "current": 0,
     "total": 0,
     "detail": "",
@@ -58,6 +58,18 @@ _extraction_status = {
     "started_at": None,
     "completed_at": None,
 }
+
+
+def _get_sync_status():
+    """Read sync status from shared store, with defaults."""
+    s = read_status("sync")
+    return {**_SYNC_DEFAULTS, **s} if s else dict(_SYNC_DEFAULTS)
+
+
+def _get_extraction_status():
+    """Read extraction status from shared store, with defaults."""
+    s = read_status("extraction")
+    return {**_EXTRACTION_DEFAULTS, **s} if s else dict(_EXTRACTION_DEFAULTS)
 
 
 # ─── Request / Response models ───────────────────────────────────────────────
@@ -101,17 +113,17 @@ async def sync_confluence(
     Trigger a sync of IC meeting notes from Confluence.
     Fetches pages, parses Q&A segments, and indexes them in the vector store.
     """
-    global _sync_status
+    sync_st = _get_sync_status()
 
-    if _sync_status["is_syncing"]:
+    if sync_st["is_syncing"]:
         return {
             "status": "already_syncing",
             "message": "A sync is already in progress.",
-            "progress": _sync_status,
+            "progress": sync_st,
         }
 
     # Reset status
-    _sync_status = {
+    write_status("sync", {
         "is_syncing": True,
         "progress": 0,
         "total_pages": 0,
@@ -120,7 +132,7 @@ async def sync_confluence(
         "error": None,
         "auto_extraction_triggered": False,
         "new_pages_synced": 0,
-    }
+    })
 
     # Run sync in background thread
     _worker_pool.submit(
@@ -138,7 +150,6 @@ async def sync_confluence(
 
 def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None):
     """Background worker to sync Confluence pages."""
-    global _sync_status
     try:
         from backend.app.services.confluence import get_confluence_client, parse_meeting_qna
         from backend.app.core.ic_meeting_store import get_ic_meeting_store
@@ -152,11 +163,10 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
             date_from=date_from,
             date_to=date_to,
         )
-        _sync_status["total_pages"] = len(pages)
+        update_status("sync", total_pages=len(pages))
 
         if not pages:
-            _sync_status["is_syncing"] = False
-            _sync_status["error"] = "No pages found in Confluence."
+            update_status("sync", is_syncing=False, error="No pages found in Confluence.")
             return
 
         # 2. Get already-indexed page IDs to skip
@@ -171,8 +181,10 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
 
             # Skip already indexed pages
             if page_id in existing_page_ids:
-                _sync_status["pages_processed"] = i + 1
-                _sync_status["progress"] = int((i + 1) / len(pages) * 100)
+                update_status("sync",
+                    pages_processed=i + 1,
+                    progress=int((i + 1) / len(pages) * 100),
+                )
                 continue
 
             try:
@@ -202,13 +214,17 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
             except Exception as e:
                 logger.error(f"Error processing page {page_id}: {e}")
 
-            _sync_status["pages_processed"] = i + 1
-            _sync_status["progress"] = int((i + 1) / len(pages) * 100)
+            update_status("sync",
+                pages_processed=i + 1,
+                progress=int((i + 1) / len(pages) * 100),
+            )
 
-        _sync_status["is_syncing"] = False
-        _sync_status["last_sync"] = datetime.utcnow().isoformat()
-        _sync_status["progress"] = 100
-        _sync_status["new_pages_synced"] = new_pages
+        update_status("sync",
+            is_syncing=False,
+            last_sync=datetime.utcnow().isoformat(),
+            progress=100,
+            new_pages_synced=new_pages,
+        )
 
         logger.info(
             f"Confluence sync complete: {new_pages} new pages, "
@@ -216,13 +232,14 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
         )
 
         # Auto-trigger incremental extraction if new meetings were added
-        if new_pages > 0 and not _extraction_status["is_running"]:
+        ext_st = _get_extraction_status()
+        if new_pages > 0 and not ext_st["is_running"]:
             logger.info(
                 f"Auto-triggering incremental extraction for {new_pages} new meetings"
             )
-            _sync_status["auto_extraction_triggered"] = True
+            update_status("sync", auto_extraction_triggered=True)
 
-            _extraction_status.update({
+            write_status("extraction", {
                 "is_running": True,
                 "stage": "starting",
                 "current": 0,
@@ -244,8 +261,7 @@ def _run_confluence_sync(limit: int, date_from: str = None, date_to: str = None)
 
     except Exception as e:
         logger.error(f"Confluence sync failed: {e}", exc_info=True)
-        _sync_status["is_syncing"] = False
-        _sync_status["error"] = str(e)
+        update_status("sync", is_syncing=False, error=str(e))
 
 
 @router.get("/sync-status")
@@ -254,7 +270,7 @@ async def get_sync_status(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current Confluence sync status."""
-    return _sync_status
+    return _get_sync_status()
 
 
 @router.get("/confluence-test")
@@ -484,16 +500,16 @@ async def run_extraction(
     - source: "confluence" to fetch from Confluence, "indexed" to use already-synced data
     - limit: Max number of meetings to process (default 200)
     """
-    global _extraction_status
+    ext_st = _get_extraction_status()
 
-    if _extraction_status["is_running"]:
+    if ext_st["is_running"]:
         return {
             "status": "already_running",
             "message": "An extraction is already in progress.",
-            "progress": _extraction_status,
+            "progress": ext_st,
         }
 
-    _extraction_status = {
+    write_status("extraction", {
         "is_running": True,
         "stage": "starting",
         "current": 0,
@@ -502,7 +518,7 @@ async def run_extraction(
         "error": None,
         "started_at": datetime.utcnow().isoformat(),
         "completed_at": None,
-    }
+    })
 
     future = _worker_pool.submit(
         _run_extraction_worker,
@@ -536,16 +552,16 @@ async def run_incremental_update(
     Use this after syncing new meetings from Confluence to incorporate
     them into the IC intelligence model.
     """
-    global _extraction_status
+    ext_st = _get_extraction_status()
 
-    if _extraction_status["is_running"]:
+    if ext_st["is_running"]:
         return {
             "status": "already_running",
             "message": "An extraction is already in progress.",
-            "progress": _extraction_status,
+            "progress": ext_st,
         }
 
-    _extraction_status = {
+    write_status("extraction", {
         "is_running": True,
         "stage": "starting",
         "current": 0,
@@ -554,7 +570,7 @@ async def run_incremental_update(
         "error": None,
         "started_at": datetime.utcnow().isoformat(),
         "completed_at": None,
-    }
+    })
 
     future = _worker_pool.submit(
         _run_extraction_worker,
@@ -590,15 +606,12 @@ def _run_extraction_worker(
     incremental: bool,
 ):
     """Background worker for cognitive extraction pipeline."""
-    global _extraction_status
-
     import traceback as _tb
 
     def progress_callback(stage, current, total, detail):
-        _extraction_status["stage"] = stage
-        _extraction_status["current"] = current
-        _extraction_status["total"] = total
-        _extraction_status["detail"] = detail
+        update_status("extraction",
+            stage=stage, current=current, total=total, detail=detail,
+        )
 
     try:
         logger.info(
@@ -609,12 +622,13 @@ def _run_extraction_worker(
         logger.info(f"Fetched {len(meetings) if meetings else 0} meetings for extraction")
 
         if not meetings:
-            _extraction_status["is_running"] = False
-            _extraction_status["error"] = "No meetings found for extraction."
+            update_status("extraction",
+                is_running=False, error="No meetings found for extraction.",
+            )
             logger.warning("Extraction aborted: no meetings found")
             return
 
-        _extraction_status["total"] = len(meetings)
+        update_status("extraction", total=len(meetings))
 
         if incremental:
             from backend.app.core.ic_cognitive_extractor import run_incremental_update
@@ -631,11 +645,13 @@ def _run_extraction_worker(
                 progress_callback=progress_callback,
             )
 
-        _extraction_status["is_running"] = False
-        _extraction_status["completed_at"] = datetime.utcnow().isoformat()
-        _extraction_status["detail"] = (
-            f"Extraction complete. "
-            f"Result: {json.dumps(_summarize_result(result), default=str)}"
+        update_status("extraction",
+            is_running=False,
+            completed_at=datetime.utcnow().isoformat(),
+            detail=(
+                f"Extraction complete. "
+                f"Result: {json.dumps(_summarize_result(result), default=str)}"
+            ),
         )
 
         logger.info(f"Extraction pipeline complete: {_summarize_result(result)}")
@@ -643,8 +659,7 @@ def _run_extraction_worker(
     except Exception as e:
         error_detail = f"{type(e).__name__}: {e}\n{_tb.format_exc()}"
         logger.error(f"Extraction pipeline failed: {error_detail}")
-        _extraction_status["is_running"] = False
-        _extraction_status["error"] = error_detail
+        update_status("extraction", is_running=False, error=error_detail)
 
 
 import json
@@ -788,7 +803,7 @@ async def get_extraction_status(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current cognitive extraction pipeline status."""
-    return _extraction_status
+    return _get_extraction_status()
 
 
 # ─── Cognitive Profile Management ─────────────────────────────────────────────
