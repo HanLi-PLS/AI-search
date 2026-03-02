@@ -411,6 +411,7 @@ async def generate_questions(
     date_to: str = Form(""),
     mode: str = Form("auto"),
     model_id: str = Form(""),
+    top_k: int = Form(20),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -474,9 +475,13 @@ async def generate_questions(
         )
 
     # Generate questions
+    # Clamp top_k to a sensible range
+    clamped_top_k = max(5, min(50, top_k))
+
     result = generate_ic_questions(
         project_description=project_description,
         uploaded_doc_texts=uploaded_doc_texts if uploaded_doc_texts else None,
+        top_k_history=clamped_top_k,
         date_from=date_from if date_from else None,
         date_to=date_to if date_to else None,
         mode=mode if mode else "auto",

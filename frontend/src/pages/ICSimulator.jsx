@@ -35,6 +35,7 @@ function ICSimulator() {
   const [error, setError] = useState(null);
   const [generationMode, setGenerationMode] = useState('cognitive');
   const [selectedModel, setSelectedModel] = useState('gpt-5.2');
+  const [topKSegments, setTopKSegments] = useState(20);
 
   const projectFileRef = useRef(null);
   const syncTimerRef = useRef(null);
@@ -182,7 +183,7 @@ function ICSimulator() {
 
     try {
       const data = await icSimulatorAPI.generateQuestions(
-        projectDescription, projectFiles, historyDateFrom, historyDateTo, generationMode, selectedModel
+        projectDescription, projectFiles, historyDateFrom, historyDateTo, generationMode, selectedModel, topKSegments
       );
       setResult(data);
     } catch (err) {
@@ -444,6 +445,18 @@ function ICSimulator() {
                   <option value="gpt-5.2">GPT-5.2</option>
                   <option value="gemini-pro-latest">Gemini Pro</option>
                 </select>
+              </div>
+              <div className="ic-option-group ic-segments-group">
+                <label className="ic-mode-label">Segments: {topKSegments}</label>
+                <input
+                  type="range"
+                  className="ic-range"
+                  min={5}
+                  max={50}
+                  step={5}
+                  value={topKSegments}
+                  onChange={(e) => setTopKSegments(Number(e.target.value))}
+                />
               </div>
             </div>
 

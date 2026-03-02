@@ -146,18 +146,29 @@ to understand:
 IP strength, commercial viability, team quality, valuation)
 - The depth and style of questioning
 - Follow-up patterns and probing tendencies
+- Which specific IC members tend to ask which types of questions
 
 Based on the new project materials provided by the user, generate a comprehensive \
-list of anticipated IC questions. For each question:
-1. State the question clearly
-2. Explain why the IC would likely ask this (referencing historical patterns where relevant)
-3. Suggest what a strong answer should address
-4. Rate the priority (High / Medium / Low) based on how frequently similar questions \
-appeared in historical meetings
+list of anticipated IC questions.
 
-Organize questions by category (e.g., Science & Mechanism, Clinical Development, \
+## Output format
+
+Organize questions by **topic category** (e.g., Science & Mechanism, Clinical Development, \
 Competitive Landscape, Commercial Potential, Team & Execution, Financial & Valuation, \
-IP & Regulatory).
+IP & Regulatory). Under each category heading, list the questions.
+
+For **each question** include:
+1. **The Question** — State it clearly, as the IC member would phrase it
+2. **Likely Asked By** — Name the specific IC member(s) most likely to raise this \
+question, based on the historical Q&A patterns (e.g., "Dr. X — frequently probes \
+clinical endpoints" or "Committee" if no clear individual attribution). If the \
+historical records mention member names, use them; otherwise attribute to roles \
+(e.g., "Senior Partner", "Scientific Advisor").
+3. **Rationale** — Explain why the IC would likely ask this (referencing historical \
+patterns where relevant)
+4. **Priority** — High / Medium / Low based on how frequently similar questions \
+appeared in historical meetings
+5. **What a Strong Answer Should Cover** — Specific elements the answer must address
 
 Be specific, not generic. Tailor questions to the actual content of the project materials.\
 """
