@@ -410,6 +410,7 @@ async def generate_questions(
     date_from: str = Form(""),
     date_to: str = Form(""),
     mode: str = Form("auto"),
+    model_id: str = Form(""),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -421,6 +422,7 @@ async def generate_questions(
     - date_from: Only use IC meetings on or after this date (e.g. "2024-01-01")
     - date_to: Only use IC meetings on or before this date (e.g. "2025-12-31")
     - mode: "auto" (default), "cognitive", or "legacy"
+    - model_id: LLM model (e.g. "gpt-5.2", "gemini-pro-latest"). Empty = default.
 
     Returns anticipated IC questions based on cognitive simulation or historical patterns.
     """
@@ -478,6 +480,7 @@ async def generate_questions(
         date_from=date_from if date_from else None,
         date_to=date_to if date_to else None,
         mode=mode if mode else "auto",
+        model_id=model_id if model_id else "",
     )
 
     return result

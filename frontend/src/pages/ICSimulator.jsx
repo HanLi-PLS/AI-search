@@ -34,6 +34,7 @@ function ICSimulator() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [generationMode, setGenerationMode] = useState('cognitive');
+  const [selectedModel, setSelectedModel] = useState('gpt-5.2');
 
   const projectFileRef = useRef(null);
   const syncTimerRef = useRef(null);
@@ -181,7 +182,7 @@ function ICSimulator() {
 
     try {
       const data = await icSimulatorAPI.generateQuestions(
-        projectDescription, projectFiles, historyDateFrom, historyDateTo, generationMode
+        projectDescription, projectFiles, historyDateFrom, historyDateTo, generationMode, selectedModel
       );
       setResult(data);
     } catch (err) {
@@ -441,6 +442,25 @@ function ICSimulator() {
                 {generationMode === 'cognitive' && 'Uses the extracted IC committee cognitive profile to simulate questions.'}
                 {generationMode === 'legacy' && 'Uses semantic search over historical Q&A segments to generate questions.'}
               </p>
+            </div>
+
+            {/* Model Selector */}
+            <div className="ic-mode-selector">
+              <label className="ic-mode-label">Model</label>
+              <div className="ic-mode-buttons">
+                {[
+                  { value: 'gpt-5.2', label: 'GPT-5.2' },
+                  { value: 'gemini-pro-latest', label: 'Gemini Pro' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`ic-mode-btn ${selectedModel === opt.value ? 'active' : ''}`}
+                    onClick={() => setSelectedModel(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <button

@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     CONFLUENCE_SPACE_KEY: str = os.getenv("CONFLUENCE_SPACE_KEY", "")
     CONFLUENCE_PARENT_PAGE_ID: str = os.getenv("CONFLUENCE_PARENT_PAGE_ID", "")
 
+    # IC Simulator Model Configuration
+    IC_SIMULATOR_GEMINI_MODEL: str = os.getenv("IC_SIMULATOR_GEMINI_MODEL", "gemini-pro-latest")
+
     # IC Meeting Qdrant Collection
     IC_MEETINGS_COLLECTION_NAME: str = os.getenv("IC_MEETINGS_COLLECTION_NAME", "ic_meetings")
 

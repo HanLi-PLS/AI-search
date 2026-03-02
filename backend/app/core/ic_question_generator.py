@@ -21,8 +21,24 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from backend.app.config import settings
+from backend.app.core.ic_cognitive_store import (
+    load_calibration_set,
+    load_cognitive_profile,
+)
+from backend.app.core.ic_meeting_store import get_ic_meeting_store
 
-# Module-level OpenAI client cache (reuses HTTP connection pool)
+# Gemini imports (optional — gracefully degrade if not installed)
+try:
+    from google import genai
+    from google.genai import types as genai_types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+# ── Client caches ─────────────────────────────────────────────────────────
+
 _openai_client: Optional[OpenAI] = None
 _openai_client_key: Optional[str] = None
 
@@ -34,13 +50,87 @@ def _get_openai_client(api_key: str) -> OpenAI:
         _openai_client = OpenAI(api_key=api_key)
         _openai_client_key = api_key
     return _openai_client
-from backend.app.core.ic_cognitive_store import (
-    load_calibration_set,
-    load_cognitive_profile,
-)
-from backend.app.core.ic_meeting_store import get_ic_meeting_store
 
-logger = logging.getLogger(__name__)
+
+_gemini_client = None
+_gemini_client_key: Optional[str] = None
+
+
+def _get_gemini_client(api_key: str):
+    """Return a cached Gemini client, recreating only if the API key changes."""
+    global _gemini_client, _gemini_client_key
+    if _gemini_client is None or _gemini_client_key != api_key:
+        _gemini_client = genai.Client(api_key=api_key)
+        _gemini_client_key = api_key
+    return _gemini_client
+
+
+def _get_gemini_api_key() -> str:
+    """Load the Gemini API key from AWS Secrets Manager or env var (same as answer_generator)."""
+    try:
+        from backend.app.utils.aws_secrets import get_key
+        return get_key("googleai-api-key", settings.AWS_REGION)
+    except Exception:
+        if settings.GEMINI_API_KEY:
+            return settings.GEMINI_API_KEY
+        raise ValueError(
+            "Gemini API key not configured. Set GEMINI_API_KEY env var "
+            "or configure AWS Secrets Manager with 'googleai-api-key'."
+        )
+
+
+def _is_gemini_model(model_id: str) -> bool:
+    """Check whether a model ID refers to a Gemini model."""
+    return model_id.startswith("gemini")
+
+
+# ── Unified LLM call ─────────────────────────────────────────────────────
+
+def _llm_generate(
+    system_prompt: str,
+    user_message: str,
+    model_id: str,
+    temperature: float = 0.3,
+) -> str:
+    """
+    Call either OpenAI or Gemini depending on *model_id*.
+
+    For OpenAI models: uses chat.completions.create with system/user messages.
+    For Gemini models: uses models.generate_content with system_instruction.
+    """
+    if _is_gemini_model(model_id):
+        if not GEMINI_AVAILABLE:
+            raise RuntimeError(
+                "Gemini model requested but google-genai library is not installed. "
+                "Install with: pip install google-genai"
+            )
+        api_key = _get_gemini_api_key()
+        client = _get_gemini_client(api_key)
+
+        response = client.models.generate_content(
+            model=model_id,
+            contents=user_message,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=temperature,
+                response_modalities=["TEXT"],
+            ),
+        )
+        return response.text
+    else:
+        # OpenAI path
+        api_key = settings.get_openai_api_key()
+        client = _get_openai_client(api_key)
+
+        response = client.chat.completions.create(
+            model=model_id,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        return response.choices[0].message.content
 
 # ── Mode 1: Legacy RAG-based system prompt (kept as fallback) ─────────────
 
@@ -298,6 +388,13 @@ def _build_stage_b_system_prompt(
 
 # ── Main entry point ─────────────────────────────────────────────────────
 
+def _resolve_model_id(model_id: str) -> str:
+    """Resolve a model_id to the actual model name to use for API calls."""
+    if not model_id or model_id == "default":
+        return settings.ANSWER_MODEL
+    return model_id
+
+
 def generate_ic_questions(
     project_description: str,
     uploaded_doc_texts: Optional[List[str]] = None,
@@ -305,6 +402,7 @@ def generate_ic_questions(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     mode: str = "auto",
+    model_id: str = "",
 ) -> Dict[str, Any]:
     """
     Generate anticipated IC questions for new project materials.
@@ -319,10 +417,15 @@ def generate_ic_questions(
               - auto: Use cognitive simulation if profile exists, else legacy RAG
               - cognitive: Force cognitive simulation (fails if no profile)
               - legacy: Force legacy RAG mode
+        model_id: LLM model to use (e.g. "gpt-5.2", "gemini-pro-latest").
+                  Empty string or "default" uses settings.ANSWER_MODEL.
 
     Returns:
         Dict with keys: questions_markdown, historical_references, metadata
     """
+    resolved_model = _resolve_model_id(model_id)
+    logger.info(f"IC question generation: model={resolved_model}")
+
     # Build project context — NO truncation for cognitive mode
     project_context = _build_project_context(project_description, uploaded_doc_texts)
 
@@ -350,19 +453,19 @@ def generate_ic_questions(
                 "metadata": {"error": "No cognitive profile available", "mode": "cognitive"},
             }
         logger.info("Mode explicitly set to Cognitive Simulation")
-        return _generate_cognitive_mode(project_context, profile, calibration)
+        return _generate_cognitive_mode(project_context, profile, calibration, resolved_model)
 
     elif mode == "legacy":
         logger.info("Mode explicitly set to Legacy RAG")
-        return _generate_legacy_mode(project_context, top_k_history, date_from, date_to)
+        return _generate_legacy_mode(project_context, top_k_history, date_from, date_to, resolved_model)
 
     else:  # auto
         if profile:
             logger.info("Cognitive profile found — using Mode 2 (Cognitive Simulation)")
-            return _generate_cognitive_mode(project_context, profile, calibration)
+            return _generate_cognitive_mode(project_context, profile, calibration, resolved_model)
         else:
             logger.info("No cognitive profile — falling back to Mode 1 (Legacy RAG)")
-            return _generate_legacy_mode(project_context, top_k_history, date_from, date_to)
+            return _generate_legacy_mode(project_context, top_k_history, date_from, date_to, resolved_model)
 
 
 def _build_project_context(
@@ -399,39 +502,32 @@ def _generate_cognitive_mode(
     project_context: str,
     profile: Dict[str, Any],
     calibration: Optional[Dict[str, Any]],
+    model_id: str = "",
 ) -> Dict[str, Any]:
     """
     Two-stage cognitive simulation:
     Stage A: Decompose the deal materials
     Stage B: Simulate IC behavior using cognitive profile
     """
-    api_key = settings.get_openai_api_key()
-    client = _get_openai_client(api_key)
+    model = model_id or settings.ANSWER_MODEL
 
     try:
         # ── Stage A: Deal Decomposition ──
         logger.info(
-            f"Stage A (Deal Decomposition): {len(project_context)} chars of materials"
+            f"Stage A (Deal Decomposition): {len(project_context)} chars of materials, model={model}"
         )
 
-        stage_a_response = client.chat.completions.create(
-            model=settings.ANSWER_MODEL,
+        deal_decomposition = _llm_generate(
+            system_prompt=STAGE_A_SYSTEM_PROMPT,
+            user_message=(
+                "## Project Materials for IC Review\n\n"
+                + project_context
+                + "\n\n---\n"
+                "Produce a thorough deal decomposition analysis."
+            ),
+            model_id=model,
             temperature=0.2,
-            messages=[
-                {"role": "system", "content": STAGE_A_SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        "## Project Materials for IC Review\n\n"
-                        + project_context
-                        + "\n\n---\n"
-                        "Produce a thorough deal decomposition analysis."
-                    ),
-                },
-            ],
         )
-
-        deal_decomposition = stage_a_response.choices[0].message.content
         logger.info(f"Stage A complete: {len(deal_decomposition)} chars of analysis")
 
         # ── Stage B: IC Simulation ──
@@ -439,29 +535,22 @@ def _generate_cognitive_mode(
 
         stage_b_system = _build_stage_b_system_prompt(profile, calibration)
 
-        stage_b_response = client.chat.completions.create(
-            model=settings.ANSWER_MODEL,
+        simulation_output = _llm_generate(
+            system_prompt=stage_b_system,
+            user_message=(
+                "## Deal Decomposition Analysis\n\n"
+                + deal_decomposition
+                + "\n\n## Original Project Materials (for reference)\n\n"
+                + _truncate_with_warning(project_context, _STAGE_B_CONTEXT_LIMIT)
+                + "\n\n---\n"
+                "Based on the deal decomposition and your deep understanding "
+                "of this IC's cognitive patterns, generate your full IC simulation "
+                "with opening reactions, primary questions, follow-up trees, "
+                "and meta-read."
+            ),
+            model_id=model,
             temperature=0.3,
-            messages=[
-                {"role": "system", "content": stage_b_system},
-                {
-                    "role": "user",
-                    "content": (
-                        "## Deal Decomposition Analysis\n\n"
-                        + deal_decomposition
-                        + "\n\n## Original Project Materials (for reference)\n\n"
-                        + _truncate_with_warning(project_context, _STAGE_B_CONTEXT_LIMIT)
-                        + "\n\n---\n"
-                        "Based on the deal decomposition and your deep understanding "
-                        "of this IC's cognitive patterns, generate your full IC simulation "
-                        "with opening reactions, primary questions, follow-up trees, "
-                        "and meta-read."
-                    ),
-                },
-            ],
         )
-
-        simulation_output = stage_b_response.choices[0].message.content
 
     except Exception as e:
         logger.error(f"Cognitive simulation LLM call failed: {e}", exc_info=True)
@@ -482,7 +571,7 @@ def _generate_cognitive_mode(
         "historical_references": [],
         "metadata": {
             "mode": "cognitive_simulation",
-            "model": settings.ANSWER_MODEL,
+            "model": model,
             "project_context_length": len(project_context),
             "profile_version": profile.get("version"),
             "profile_meetings_analyzed": profile.get("meetings_analyzed", 0),
@@ -503,8 +592,11 @@ def _generate_legacy_mode(
     top_k_history: int,
     date_from: Optional[str],
     date_to: Optional[str],
+    model_id: str = "",
 ) -> Dict[str, Any]:
     """Original RAG-based question generation (fallback when no profile exists)."""
+    model = model_id or settings.ANSWER_MODEL
+
     # Retrieve relevant historical IC Q&A from vector store
     ic_store = get_ic_meeting_store()
     historical_results = ic_store.search(
@@ -527,10 +619,6 @@ def _generate_legacy_mode(
             part += f"\n{result['content']}"
             history_parts.append(part)
         historical_context = "\n\n".join(history_parts)
-
-    # Call LLM
-    api_key = settings.get_openai_api_key()
-    client = _get_openai_client(api_key)
 
     # Guard against very large contexts exceeding model limits
     _LEGACY_CONTEXT_LIMIT = 80000
@@ -567,20 +655,16 @@ def _generate_legacy_mode(
     logger.info(
         f"Generating IC questions (legacy mode). "
         f"Project context: {len(project_context)} chars, "
-        f"Historical refs: {len(historical_results)}"
+        f"Historical refs: {len(historical_results)}, model={model}"
     )
 
     try:
-        response = client.chat.completions.create(
-            model=settings.ANSWER_MODEL,
+        answer = _llm_generate(
+            system_prompt=LEGACY_SYSTEM_PROMPT,
+            user_message=user_message,
+            model_id=model,
             temperature=0.3,
-            messages=[
-                {"role": "system", "content": LEGACY_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
         )
-
-        answer = response.choices[0].message.content
     except Exception as e:
         logger.error(f"Legacy RAG LLM call failed: {e}", exc_info=True)
         return {
@@ -610,7 +694,7 @@ def _generate_legacy_mode(
         "historical_references": references,
         "metadata": {
             "mode": "legacy_rag",
-            "model": settings.ANSWER_MODEL,
+            "model": model,
             "project_context_length": len(project_context),
             "historical_segments_used": len(historical_results),
             "date_from": date_from,
