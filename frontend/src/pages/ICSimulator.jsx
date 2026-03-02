@@ -33,7 +33,7 @@ function ICSimulator() {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  const [generationMode, setGenerationMode] = useState('auto');
+  const [generationMode, setGenerationMode] = useState('cognitive');
 
   const projectFileRef = useRef(null);
   const syncTimerRef = useRef(null);
@@ -413,7 +413,6 @@ function ICSimulator() {
               <label className="ic-mode-label">Generation Mode</label>
               <div className="ic-mode-buttons">
                 {[
-                  { value: 'auto', label: 'Auto' },
                   { value: 'cognitive', label: 'Cognitive Simulation' },
                   { value: 'legacy', label: 'Legacy RAG' },
                 ].map((opt) => (
@@ -427,7 +426,6 @@ function ICSimulator() {
                 ))}
               </div>
               <p className="ic-mode-hint">
-                {generationMode === 'auto' && 'Uses Cognitive Simulation if a profile exists, otherwise Legacy RAG.'}
                 {generationMode === 'cognitive' && 'Uses the extracted IC committee cognitive profile to simulate questions.'}
                 {generationMode === 'legacy' && 'Uses semantic search over historical Q&A segments to generate questions.'}
               </p>
