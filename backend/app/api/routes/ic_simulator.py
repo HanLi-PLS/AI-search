@@ -504,7 +504,7 @@ async def run_extraction(
         "completed_at": None,
     }
 
-    _worker_pool.submit(
+    future = _worker_pool.submit(
         _run_extraction_worker,
         body.source,
         body.date_from or None,
@@ -512,6 +512,7 @@ async def run_extraction(
         body.limit,
         False,  # not incremental
     )
+    future.add_done_callback(_log_worker_exception)
 
     return {
         "status": "started",
@@ -555,7 +556,7 @@ async def run_incremental_update(
         "completed_at": None,
     }
 
-    _worker_pool.submit(
+    future = _worker_pool.submit(
         _run_extraction_worker,
         body.source,
         body.date_from or None,
@@ -563,11 +564,22 @@ async def run_incremental_update(
         body.limit,
         True,  # incremental
     )
+    future.add_done_callback(_log_worker_exception)
 
     return {
         "status": "started",
         "message": "Incremental cognitive update started in background.",
     }
+
+
+def _log_worker_exception(future):
+    """Log any unhandled exception from a thread pool worker."""
+    exc = future.exception()
+    if exc:
+        logger.error(
+            f"Extraction worker raised unhandled exception: {type(exc).__name__}: {exc}",
+            exc_info=exc,
+        )
 
 
 def _run_extraction_worker(
@@ -580,6 +592,8 @@ def _run_extraction_worker(
     """Background worker for cognitive extraction pipeline."""
     global _extraction_status
 
+    import traceback as _tb
+
     def progress_callback(stage, current, total, detail):
         _extraction_status["stage"] = stage
         _extraction_status["current"] = current
@@ -587,11 +601,17 @@ def _run_extraction_worker(
         _extraction_status["detail"] = detail
 
     try:
+        logger.info(
+            f"Extraction worker started: source={source}, "
+            f"incremental={incremental}, limit={limit}"
+        )
         meetings = _fetch_meetings_for_extraction(source, date_from, date_to, limit)
+        logger.info(f"Fetched {len(meetings) if meetings else 0} meetings for extraction")
 
         if not meetings:
             _extraction_status["is_running"] = False
             _extraction_status["error"] = "No meetings found for extraction."
+            logger.warning("Extraction aborted: no meetings found")
             return
 
         _extraction_status["total"] = len(meetings)
@@ -621,9 +641,10 @@ def _run_extraction_worker(
         logger.info(f"Extraction pipeline complete: {_summarize_result(result)}")
 
     except Exception as e:
-        logger.error(f"Extraction pipeline failed: {e}", exc_info=True)
+        error_detail = f"{type(e).__name__}: {e}\n{_tb.format_exc()}"
+        logger.error(f"Extraction pipeline failed: {error_detail}")
         _extraction_status["is_running"] = False
-        _extraction_status["error"] = str(e)
+        _extraction_status["error"] = error_detail
 
 
 import json
