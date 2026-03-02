@@ -734,9 +734,11 @@ def run_full_extraction(
         "summary": {
             "total_meetings": total,
             "meetings_processed": 0,
+            "meetings_failed": 0,
             "total_qa_items": 0,
             "date_from": date_from,
             "date_to": date_to,
+            "errors": [],
         },
     }
 
@@ -746,10 +748,11 @@ def run_full_extraction(
     # ── Pass 1 + Pass 2: Per-meeting extraction ──
     for i, meeting in enumerate(meetings):
         page_id = meeting["page_id"]
+        title = meeting.get("title", page_id)
         if progress_callback:
             progress_callback(
                 "pass1_pass2", i + 1, total,
-                f"Extracting: {meeting.get('title', page_id)}"
+                f"Extracting: {title}"
             )
 
         try:
@@ -765,12 +768,26 @@ def run_full_extraction(
             )
             processed_ids.append(page_id)
         except Exception as e:
-            logger.error(f"Failed to extract meeting {page_id}: {e}")
+            import traceback
+            error_msg = f"{type(e).__name__}: {e}"
+            logger.error(f"Failed to extract meeting {page_id} ({title}): {error_msg}")
+            results["summary"]["meetings_failed"] += 1
+            # Keep first 5 errors to avoid huge payloads
+            if len(results["summary"]["errors"]) < 5:
+                results["summary"]["errors"].append({
+                    "page_id": page_id,
+                    "title": title,
+                    "error": error_msg,
+                })
 
     results["summary"]["meetings_processed"] = len(results["pass1_pass2_results"])
 
     if not results["pass1_pass2_results"]:
-        logger.error("No meetings were successfully extracted")
+        logger.error(
+            f"No meetings were successfully extracted. "
+            f"{results['summary']['meetings_failed']}/{total} failed. "
+            f"First error: {results['summary']['errors'][0] if results['summary']['errors'] else 'unknown'}"
+        )
         return results
 
     # ── Pass 3: Cross-meeting synthesis ──

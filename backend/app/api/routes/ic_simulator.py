@@ -789,12 +789,17 @@ def _summarize_result(result: dict) -> dict:
     if "status" in result:
         return result
     summary = result.get("summary", {})
-    return {
+    compact = {
         "meetings_processed": summary.get("meetings_processed", result.get("new_meetings_processed", 0)),
         "total_qa_items": summary.get("total_qa_items", result.get("new_qa_items", 0)),
         "profile_updated": result.get("profile_updated", result.get("pass3_profile") is not None),
         "calibration_updated": result.get("calibration_updated", result.get("pass4_calibration") is not None),
     }
+    # Surface failure details when meetings failed
+    if summary.get("meetings_failed"):
+        compact["meetings_failed"] = summary["meetings_failed"]
+        compact["errors"] = summary.get("errors", [])
+    return compact
 
 
 @router.get("/extraction/status")
