@@ -355,4 +355,74 @@ export const cancelSearchJob = async (jobId) => {
   }
 };
 
+// IC Simulator API
+export const icSimulatorAPI = {
+  // Sync meeting notes from Confluence (optionally within a date range)
+  syncConfluence: async (limit = 200, dateFrom = '', dateTo = '') => {
+    const body = { limit };
+    if (dateFrom) body.date_from = dateFrom;
+    if (dateTo) body.date_to = dateTo;
+    const response = await api.post('/api/ic-simulator/sync-confluence', body);
+    return response.data;
+  },
+
+  // Get sync status
+  getSyncStatus: async () => {
+    const response = await api.get('/api/ic-simulator/sync-status');
+    return response.data;
+  },
+
+  // Test Confluence connection
+  testConnection: async () => {
+    const response = await api.get('/api/ic-simulator/confluence-test');
+    return response.data;
+  },
+
+  // List indexed meetings
+  getMeetings: async () => {
+    const response = await api.get('/api/ic-simulator/meetings');
+    return response.data;
+  },
+
+  // Delete a meeting from the index
+  deleteMeeting: async (pageId) => {
+    const response = await api.delete(`/api/ic-simulator/meetings/${pageId}`);
+    return response.data;
+  },
+
+  // Upload a meeting note file
+  uploadMeeting: async (file, meetingDate = '') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (meetingDate) formData.append('meeting_date', meetingDate);
+    const response = await api.post('/api/ic-simulator/upload-meeting', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  // Get extraction pipeline status
+  getExtractionStatus: async () => {
+    const response = await api.get('/api/ic-simulator/extraction/status');
+    return response.data;
+  },
+
+  // Generate anticipated IC questions (optionally scoped to a date range of meetings)
+  generateQuestions: async (projectDescription, files = [], dateFrom = '', dateTo = '', mode = 'auto') => {
+    const formData = new FormData();
+    formData.append('project_description', projectDescription || '');
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    if (dateFrom) formData.append('date_from', dateFrom);
+    if (dateTo) formData.append('date_to', dateTo);
+    formData.append('mode', mode);
+    const response = await api.post('/api/ic-simulator/generate-questions', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000, // 5 min timeout for LLM generation
+    });
+    return response.data;
+  },
+};
+
 export default api;

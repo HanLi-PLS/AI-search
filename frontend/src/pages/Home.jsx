@@ -66,6 +66,22 @@ function Home() {
         </div>
 
         <div className="feature-card highlight">
+          <h2>🧠 IC Question Simulator</h2>
+          <p>Anticipate Investment Committee questions using historical meeting patterns</p>
+          <ul className="tracker-features">
+            <li>• Confluence-synced IC meeting notes</li>
+            <li>• RAG-powered question anticipation</li>
+            <li>• Category-organized with priority ratings</li>
+          </ul>
+          <button
+            className="tracker-button"
+            onClick={() => navigate('/ic-simulator')}
+          >
+            Simulate IC Questions
+          </button>
+        </div>
+
+        <div className="feature-card highlight">
           <h2>📊 Public Market Tracker</h2>
           <p>Track HKEX 18A biotech stocks, portfolio companies, and IPO listings</p>
           <ul className="tracker-features">

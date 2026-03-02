@@ -97,6 +97,16 @@ class Settings(BaseSettings):
     QDRANT_PORT: int = int(os.getenv("QDRANT_PORT", "6333"))
     QDRANT_COLLECTION_NAME: str = os.getenv("QDRANT_COLLECTION_NAME", "documents")
 
+    # Confluence Configuration (for IC Meeting Notes)
+    CONFLUENCE_BASE_URL: str = os.getenv("CONFLUENCE_BASE_URL", "")
+    CONFLUENCE_USERNAME: str = os.getenv("CONFLUENCE_USERNAME", "")
+    CONFLUENCE_API_TOKEN: str = os.getenv("CONFLUENCE_API_TOKEN", "")
+    CONFLUENCE_SPACE_KEY: str = os.getenv("CONFLUENCE_SPACE_KEY", "")
+    CONFLUENCE_PARENT_PAGE_ID: str = os.getenv("CONFLUENCE_PARENT_PAGE_ID", "")
+
+    # IC Meeting Qdrant Collection
+    IC_MEETINGS_COLLECTION_NAME: str = os.getenv("IC_MEETINGS_COLLECTION_NAME", "ic_meetings")
+
     # Embedding Configuration
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "Alibaba-NLP/gte-multilingual-base")
 
