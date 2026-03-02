@@ -43,7 +43,7 @@ def _llm_call(
     system_prompt: str,
     user_message: str,
     temperature: float = 0.2,
-    response_format: Optional[str] = "json",
+    response_format: Optional[str] = None,
 ) -> str:
     """
     Make a single LLM call using the configured answer model.
@@ -52,7 +52,9 @@ def _llm_call(
         system_prompt: System-level instructions
         user_message: The user message / content to analyze
         temperature: Sampling temperature
-        response_format: If "json", request JSON output from the model
+        response_format: If "json", request JSON output from the model.
+            Note: When using "json", the messages must contain the word
+            "json" per OpenAI API requirements.
 
     Returns:
         The model's response text
