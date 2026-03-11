@@ -24,7 +24,7 @@ A production-ready AI-powered document search platform with semantic search, onl
   - Non-Reasoning (gpt-5.1) - Fast, balanced responses
   - Reasoning (o4-mini) - Extended reasoning chains
   - Reasoning GPT-5 (gpt-5-pro) - Advanced reasoning capabilities
-  - Reasoning Gemini (gemini-3-pro-preview) - Google's reasoning model
+  - Reasoning Gemini (gemini-pro-latest) - Google's reasoning model
   - Deep Research (o3-deep-research) - Comprehensive research synthesis
 - **Hybrid Search** - Combines BM25 (keyword) and dense vector (semantic) search
 - **Conversation History** - Context-aware multi-turn conversations
@@ -55,7 +55,7 @@ A production-ready AI-powered document search platform with semantic search, onl
   - o4-mini (reasoning, vision, online search)
   - gpt-5-pro (advanced reasoning)
   - o3-deep-research (comprehensive research)
-- Google Gemini API (gemini-3-pro-preview for reasoning)
+- Google Gemini API (gemini-pro-latest for reasoning)
 - BM25Okapi for keyword search
 - PyMuPDF for PDF processing with vision AI
 - python-docx, openpyxl for Office documents
@@ -255,7 +255,7 @@ ONLINE_SEARCH_MODEL=o4-mini       # Used only for stock news analysis (not main 
 # - non_reasoning     → gpt-5.1
 # - reasoning         → o4-mini
 # - reasoning_gpt5    → gpt-5-pro
-# - reasoning_gemini  → gemini-3-pro-preview
+# - reasoning_gemini  → gemini-pro-latest
 # - deep_research     → o3-deep-research
 
 # Or use AWS Secrets Manager

@@ -779,7 +779,7 @@ Demonstrate sophisticated risk assessment by explaining the MECHANISM behind eac
 
         # Use Gemini with search
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -810,7 +810,7 @@ Labels should be legible and use standard scientific font."""
                 # Generate mechanism diagram with Gemini image model
                 # Note: Image generation is experimental and may not always work
                 image_response = client.models.generate_content(
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-pro-latest",
                     contents=image_prompt,
                     config=types.GenerateContentConfig(
                         tools=[{"google_search": {}}]

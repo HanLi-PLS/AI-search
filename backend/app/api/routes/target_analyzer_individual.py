@@ -443,7 +443,7 @@ Before finalizing your response, perform this sanity check:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -518,7 +518,7 @@ Labels should be legible and use standard scientific font."""
 
             try:
                 image_response = client.models.generate_content(
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-pro-latest",
                     contents=image_prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.0,  # Deterministic for consistent diagrams
@@ -618,7 +618,7 @@ Specific PK/PD, tissue penetration, or mechanism rationale.
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -832,7 +832,7 @@ Based on mechanism precedents (similar targets that succeeded/failed):
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1019,7 +1019,7 @@ Count of assets in each phase:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1113,7 +1113,7 @@ Are there blocking patents? Clear IP space? Crowded landscape?
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1198,7 +1198,7 @@ Quantified metrics:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1315,7 +1315,7 @@ Model 2-4 key competitive developments:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1409,7 +1409,7 @@ Barriers to adherence (dosing frequency, route, monitoring)
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1502,7 +1502,7 @@ Which guidelines? (NCCN, ASCO, etc.)
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1628,7 +1628,7 @@ For each risk provide:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1718,7 +1718,7 @@ Trial design considerations for biomarker-driven strategy:
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -1815,7 +1815,7 @@ Recent M&A, partnerships, investments in this space.
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

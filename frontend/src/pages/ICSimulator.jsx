@@ -34,7 +34,7 @@ function ICSimulator() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [generationMode, setGenerationMode] = useState('cognitive');
-  const [selectedModel, setSelectedModel] = useState('gpt-5.2');
+  const [selectedModel, setSelectedModel] = useState('gpt-5.4');
   const [topKSegments, setTopKSegments] = useState(20);
 
   const projectFileRef = useRef(null);
@@ -442,7 +442,7 @@ function ICSimulator() {
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
                 >
-                  <option value="gpt-5.2">GPT-5.2</option>
+                  <option value="gpt-5.4">GPT-5.2</option>
                   <option value="gemini-pro-latest">Gemini Pro</option>
                 </select>
               </div>

@@ -943,10 +943,10 @@ function AISearch() {
                 </select></label>
             )}
             <label>Reasoning Mode: <select value={reasoningMode} onChange={(e) => setReasoningMode(e.target.value)} className="filter-select">
-                <option value="non_reasoning">Default (gpt-5.2)</option>
-                <option value="reasoning">Reasoning (gpt-5.2)</option>
+                <option value="non_reasoning">Default (gpt-5.4)</option>
+                <option value="reasoning">Reasoning (gpt-5.4)</option>
                 <option value="reasoning_gpt5">Reasoning (gpt-5-pro)</option>
-                <option value="reasoning_gemini">Reasoning (gemini-3-pro)</option>
+                <option value="reasoning_gemini">Reasoning (gemini-pro-latest)</option>
                 <option value="deep_research">Deep Research (o3-deep-research)</option>
               </select></label>
           </div>
@@ -1232,10 +1232,10 @@ const ChatMessages = memo(function ChatMessages({ history }) {
                                   turn.search_params.search_mode === 'sequential_analysis' ? 'Sequential Analysis' :
                                   turn.search_params.search_mode === 'sectional_analysis' ? 'Sectional Analysis (Divide & Conquer)' :
                                   turn.search_params.search_mode}</strong></span>
-                                <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.2)' :
-                                  turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (gpt-5.2)' :
+                                <span className="param-item">🧠 Reasoning: <strong>{turn.search_params.reasoning_mode === 'non_reasoning' ? 'Default (gpt-5.4)' :
+                                  turn.search_params.reasoning_mode === 'reasoning' ? 'Reasoning (gpt-5.4)' :
                                   turn.search_params.reasoning_mode === 'reasoning_gpt5' ? 'Reasoning (gpt-5-pro)' :
-                                  turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-3-pro)' :
+                                  turn.search_params.reasoning_mode === 'reasoning_gemini' ? 'Reasoning (gemini-pro-latest)' :
                                   turn.search_params.reasoning_mode === 'deep_research' ? 'Deep Research (o3-deep-research)' :
                                   turn.search_params.reasoning_mode}</strong></span>
                                 {turn.search_params.search_mode === 'both' && (

@@ -428,7 +428,7 @@ def generate_ic_questions(
               - auto: Use cognitive simulation if profile exists, else legacy RAG
               - cognitive: Force cognitive simulation (fails if no profile)
               - legacy: Force legacy RAG mode
-        model_id: LLM model to use (e.g. "gpt-5.2", "gemini-pro-latest").
+        model_id: LLM model to use (e.g. "gpt-5.4", "gemini-pro-latest").
                   Empty string or "default" uses settings.ANSWER_MODEL.
 
     Returns:

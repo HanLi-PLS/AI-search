@@ -34,8 +34,8 @@ class AnswerGenerator:
             logger.warning("AnswerGenerator: No API key provided!")
 
         self.client = OpenAI(api_key=api_key)
-        self.model = settings.ANSWER_MODEL  # Use gpt-5.2 for answer generation
-        self.online_search_model = settings.ONLINE_SEARCH_MODEL  # Use gpt-5.2 for online search
+        self.model = settings.ANSWER_MODEL  # Use gpt-5.4 for answer generation
+        self.online_search_model = settings.ONLINE_SEARCH_MODEL  # Use gpt-5.4 for online search
         self.temperature = settings.ANSWER_TEMPERATURE
         logger.info(f"AnswerGenerator using model: {self.model} with temperature: {self.temperature}")
         logger.info(f"AnswerGenerator using online search model: {self.online_search_model}")
@@ -110,7 +110,7 @@ REASONING: The query asks for current market trends which requires up-to-date on
 Now classify the user's query."""
 
             response = self.client.responses.create(
-                model="gpt-5.2",  # Use gpt-5.2 for intelligent classification
+                model="gpt-5.4",  # Use gpt-5.4 for intelligent classification
                 input=classification_prompt,
                 service_tier="priority"
             )
@@ -332,7 +332,7 @@ Analyze the query now:"""
 
             logger.info(f"[QUERY ANALYSIS] Analyzing query for extraction plan...")
             response = self.client.responses.create(
-                model="gpt-5.2",  # Use advanced model for query analysis
+                model="gpt-5.4",  # Use advanced model for query analysis
                 input=analysis_prompt,
                 service_tier="priority"
             )
@@ -441,7 +441,7 @@ Analyze the query now:"""
 
             # Call Gemini with Google Search tool
             response = self.gemini_client.models.generate_content(
-                model="gemini-3-pro-preview",
+                model="gemini-pro-latest",
                 contents=full_prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -495,7 +495,7 @@ Analyze the query now:"""
             query: User's question
             search_results: List of search results with content and metadata
             search_mode: "files_only", "online_only", "both", or "sequential_analysis"
-            reasoning_mode: "non_reasoning" (gpt-5.2), "reasoning" (gpt-5.2), "reasoning_gpt5" (gpt-5-pro), "reasoning_gemini" (gemini-3-pro), or "deep_research" (o3-deep-research)
+            reasoning_mode: "non_reasoning" (gpt-5.4), "reasoning" (gpt-5.4), "reasoning_gpt5" (gpt-5-pro), "reasoning_gemini" (gemini-pro-latest), or "deep_research" (o3-deep-research)
             priority_order: Priority order for 'both' mode, e.g., ['online_search', 'files']
             conversation_history: Previous conversation turns for context
             max_context_length: Maximum characters to include in context
@@ -508,15 +508,15 @@ Analyze the query now:"""
 
         # Select model based on reasoning mode
         if reasoning_mode == "reasoning":
-            search_model = "gpt-5.2"
+            search_model = "gpt-5.4"
         elif reasoning_mode == "reasoning_gpt5":
             search_model = "gpt-5-pro"
         elif reasoning_mode == "reasoning_gemini":
-            search_model = "gemini-3-pro-preview"
+            search_model = "gemini-pro-latest"
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:  # non_reasoning
-            search_model = "gpt-5.2"
+            search_model = "gpt-5.4"
 
         logger.info(f"Using reasoning mode '{reasoning_mode}' with model '{search_model}'")
 
@@ -963,7 +963,7 @@ Parse the query now:"""
 
             logger.info(f"[SECTIONAL] Parsing query to extract sections...")
             response = self.client.responses.create(
-                model="gpt-5.2",
+                model="gpt-5.4",
                 input=parse_prompt,
                 service_tier="priority"
             )
@@ -1065,7 +1065,7 @@ Now create a similar detailed extraction checklist for the "{section_name}" sect
         try:
             schema_start = time.time()
             schema_response = self.client.responses.create(
-                model="gpt-5.2",
+                model="gpt-5.4",
                 input=schema_prompt,
                 service_tier="priority"
             )
@@ -1140,11 +1140,11 @@ Now create a similar detailed extraction checklist for the "{section_name}" sect
         if reasoning_mode == "reasoning_gpt5":
             search_model = "gpt-5-pro"
         elif reasoning_mode == "reasoning_gemini":
-            search_model = "gemini-3-pro-preview"
+            search_model = "gemini-pro-latest"
         elif reasoning_mode == "deep_research":
             search_model = "o3-deep-research"
         else:
-            search_model = "gpt-5.2"
+            search_model = "gpt-5.4"
 
         # Build file context
         files_context_parts = []

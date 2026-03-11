@@ -423,7 +423,7 @@ async def generate_questions(
     - date_from: Only use IC meetings on or after this date (e.g. "2024-01-01")
     - date_to: Only use IC meetings on or before this date (e.g. "2025-12-31")
     - mode: "auto" (default), "cognitive", or "legacy"
-    - model_id: LLM model (e.g. "gpt-5.2", "gemini-pro-latest"). Empty = default.
+    - model_id: LLM model (e.g. "gpt-5.4", "gemini-pro-latest"). Empty = default.
 
     Returns anticipated IC questions based on cognitive simulation or historical patterns.
     """

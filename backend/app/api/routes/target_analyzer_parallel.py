@@ -325,7 +325,7 @@ Analyze deeply and provide comprehensive, quantified, target-specific insights.
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -354,7 +354,7 @@ Labels should be legible and use standard scientific font."""
             try:
                 # Use Gemini 3 Pro Image for diagram generation
                 image_response = client.models.generate_content(
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-pro-latest",
                     contents=image_prompt
                 )
 
@@ -575,7 +575,7 @@ Output for: {request.target} in {request.indication}
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -807,7 +807,7 @@ Output for: {request.target} in {request.indication}
 """
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-pro-latest",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
