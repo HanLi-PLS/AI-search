@@ -442,7 +442,7 @@ function ICSimulator() {
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
                 >
-                  <option value="gpt-5.4">GPT-5.2</option>
+                  <option value="gpt-5.4">GPT-5.4</option>
                   <option value="gemini-pro-latest">Gemini Pro</option>
                 </select>
               </div>
